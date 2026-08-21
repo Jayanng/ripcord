@@ -54,7 +54,7 @@ export function deriveIdentity(mnemonic: string, network: 'regtest'): Identity {
   const desc = vc.deriveUserKey(mnemonic, netObj) as SdkUserKeyDescriptor;
 
   const xOnly = desc.publicKey.slice(2) as XOnlyHex;
-  const userAddress = desc.address as UserAddress;
+  const userAddress = userAddressForXOnly(xOnly, network);
 
   return {
     mnemonic,
@@ -62,6 +62,7 @@ export function deriveIdentity(mnemonic: string, network: 'regtest'): Identity {
     userKeyDescriptor: toUserKeyDescriptor(desc),
     xOnly,
     userAddress,
+    l1Address: desc.address as UserAddress,
   };
 }
 

@@ -193,7 +193,10 @@ export interface Identity {
   network: string;
   userKeyDescriptor: UserKeyDescriptor;
   xOnly: XOnlyHex;
+  /** P2TR payment address (bech32m of the x-only key) — what others pay VTXOs to. R1. */
   userAddress: UserAddress;
+  /** P2WPKH L1 settlement address (deposit change, unilateral exit destination). */
+  l1Address: UserAddress;
 }
 
 export interface Quorum {

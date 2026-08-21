@@ -394,6 +394,7 @@ describe('Domain interfaces', () => {
       },
       xOnly: VALID_XONLY_HEX,
       userAddress: VALID_USER_ADDRESS,
+      l1Address: VALID_USER_ADDRESS,
     };
     expect(identity.network).toBe('regtest');
     expect(identity.xOnly).toBe(VALID_XONLY_HEX);

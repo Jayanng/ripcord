@@ -28,7 +28,9 @@ describe('keys.ts', () => {
       expect(identity.userKeyDescriptor.addressType).toBe('p2wpkh');
 
       expect(identity.xOnly).toBe('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
-      expect(identity.userAddress).toBe('bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk');
+      // userAddress is the P2TR payment address (R1); l1Address is the p2wpkh settlement address.
+      expect(identity.userAddress).toBe('bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg');
+      expect(identity.l1Address).toBe('bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk');
     });
 
     it('produces different keys for different mnemonics', () => {
