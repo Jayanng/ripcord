@@ -16,13 +16,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tachibtc/tachi-sdk-ts": "0.2.1",
     "@tachibtc/taurus-vault-core": "0.3.3",
     "@tachibtc/taurus-wallet-aggregator": "0.4.3",
-    "@tachibtc/tachi-sdk-ts": "0.2.1",
-    "bitcoinjs-lib": "^7.0.1",
-    "bip39": "^3.1.0"
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^7.0.1"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   }
