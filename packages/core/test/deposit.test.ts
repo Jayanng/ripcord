@@ -52,25 +52,48 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       const freshIndex = 20000 + Math.floor(Math.random() * 100000);
       const vault = await makeVault(freshIndex);
 
-      const result = await depositToVault({
-        vault: { p2tr: vault.p2tr },
-        userWallet,
-        rpc: { baseUrl: DAEMON },
-        amountSats: 40000n,
-        feeRateSatVb: 2,
-      });
+      // Back-to-back suite runs can collide with the previous run's still-
+      // unconfirmed deposit: coin selection picks the same UTXOs, the new tx
+      // is treated as an RBF replacement, and Bitcoin Core rejects it when
+      // the fee delta is too small (-26 insufficient fee). Retry with an
+      // escalating fee rate and a wallet re-sync between attempts so the
+      // wallet observes the mempool state before reselecting coins.
+      let result: Awaited<ReturnType<typeof depositToVault>> | undefined;
+      const feeRates = [10, 25, 50, 100, 200];
+      for (const feeRate of feeRates) {
+        try {
+          result = await depositToVault({
+            vault,
+            userWallet,
+            rpc: { baseUrl: DAEMON },
+            amountSats: 40000n,
+            feeRateSatVb: feeRate,
+          });
+          break;
+        } catch (err: any) {
+          const msg = String(err?.message ?? err);
+          if (/insufficient fee|rejecting replacement/.test(msg)) {
+            await userWallet.sync();
+            continue;
+          }
+          throw err;
+        }
+      }
+      expect(result).toBeDefined();
 
-      expect(result.txid).toBeDefined();
-      expect(result.rawTxHex).toBeDefined();
-      expect(typeof result.txid).toBe('string');
-      expect(typeof result.rawTxHex).toBe('string');
-      expect(result.txid.length).toBe(64);
-      expect(/^[0-9a-f]+$/i.test(result.txid)).toBe(true);
-      expect(result.rawTxHex.length).toBeGreaterThan(0);
-      expect(/^[0-9a-f]+$/i.test(result.rawTxHex)).toBe(true);
+      const txid = result!.txid;
+      expect(typeof txid).toBe('string');
+      expect(txid.length).toBe(64);
+      expect(/^[0-9a-f]+$/i.test(txid)).toBe(true);
+      expect(typeof result!.rawTxHex).toBe('string');
+      expect(result!.rawTxHex.length).toBeGreaterThan(0);
+      expect(/^[0-9a-f]+$/i.test(result!.rawTxHex)).toBe(true);
 
-      const expectedOutputScriptHex = Buffer.from(vault.p2tr.output).toString('hex');
-      const verified = await verifyDepositProofOfReserves(DAEMON, result.txid, expectedOutputScriptHex);
+      // Proof of reserves: the on-chain scriptPubKey must equal the vault's
+      // P2TR output script — the only check that binds the rebuild to money.
+      const p2tr = vault.p2tr as { output: Buffer };
+      const expectedOutputScriptHex = Buffer.from(p2tr.output).toString('hex');
+      const verified = await verifyDepositProofOfReserves(DAEMON, txid, expectedOutputScriptHex);
 
       expect(verified).toBe(true);
     });

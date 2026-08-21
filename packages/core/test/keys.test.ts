@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { deriveIdentity, makeSigner, userAddressForXOnly } from '../src/keys.js';
+import { asXOnlyHex } from '../src/types.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -78,7 +79,7 @@ describe('keys.ts', () => {
 
   describe('userAddressForXOnly', () => {
     it('returns correct bech32m P2TR address for the fixture xOnly', () => {
-      const xOnly = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
+      const xOnly = asXOnlyHex('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
       const address = userAddressForXOnly(xOnly, 'regtest');
 
       // P2TR (0x51 0x20 <xOnly>) yields a bech32m bcrt1p... address, NOT the

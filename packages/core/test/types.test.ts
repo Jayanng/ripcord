@@ -1,4 +1,4 @@
-import { describe, it, expect, throws } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   type DisplayTxid,
   type InternalTxid,
@@ -26,15 +26,15 @@ import {
   type Identity,
   type Quorum,
   type UserKeyDescriptor,
-} from '../src/types';
+} from '../src/types.js';
 
-const VALID_DISPLAY_TXID = 'a'.repeat(64);
+const VALID_DISPLAY_TXID = 'a'.repeat(64) as DisplayTxid;
 const VALID_INTERNAL_TXID = Buffer.from('b'.repeat(64), 'hex');
-const VALID_XONLY_HEX = 'c'.repeat(64);
-const VALID_COMPRESSED_HEX_02 = '02' + 'd'.repeat(64);
-const VALID_COMPRESSED_HEX_03 = '03' + 'e'.repeat(64);
-const VALID_USER_ADDRESS = 'bcrt1q9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5';
-const VALID_VAULT_ADDRESS = 'bcrt1p9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5';
+const VALID_XONLY_HEX = 'c'.repeat(64) as XOnlyHex;
+const VALID_COMPRESSED_HEX_02 = ('02' + 'd'.repeat(64)) as CompressedHex;
+const VALID_COMPRESSED_HEX_03 = ('03' + 'e'.repeat(64)) as CompressedHex;
+const VALID_USER_ADDRESS = 'bcrt1q9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5' as UserAddress;
+const VALID_VAULT_ADDRESS = 'bcrt1p9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5' as VaultAddress;
 
 describe('DisplayTxid', () => {
   it('isDisplayTxid returns true for valid 64-char hex string', () => {
@@ -232,6 +232,7 @@ describe('Domain interfaces', () => {
       address: VALID_VAULT_ADDRESS,
       csvBlocks: 2,
       userKeyIndex: 0,
+      nodePubkeys: [VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02],
       userKeyDescriptor: {
         version: 1,
         scheme: 'bip84-p2wpkh',
@@ -267,6 +268,7 @@ describe('Domain interfaces', () => {
       address: VALID_VAULT_ADDRESS,
       csvBlocks: 1008,
       userKeyIndex: 1,
+      nodePubkeys: [VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02],
       userKeyDescriptor: {
         version: 1,
         scheme: 'bip84-p2wpkh',

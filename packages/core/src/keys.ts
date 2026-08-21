@@ -86,7 +86,7 @@ export function makeSigner(
   });
 }
 
-export function userAddressForXOnly(xOnly: XOnlyHex, network: 'regtest'): UserAddress {
+export function userAddressForXOnly(xOnly: string, network: 'regtest'): UserAddress {
   if (!isXOnlyHex(xOnly)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
