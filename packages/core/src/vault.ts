@@ -4,6 +4,7 @@ import {
   VaultRecord,
   VaultAddress,
   asCompressedHex,
+  asVaultAddress,
   isCompressedHex,
 } from './types.js';
 import * as vc from '@tachibtc/taurus-vault-core';
@@ -97,7 +98,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
 
   const record: VaultRecord = {
     vaultIdHex: '',
-    address: expectedAddress as VaultAddress,
+    address: asVaultAddress(expectedAddress),
     csvBlocks,
     userKeyIndex: userKeyDescriptor.index,
     userKeyDescriptor,

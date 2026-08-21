@@ -65,6 +65,31 @@ describe('bytes.ts: byte reversal & BigInt JSON helpers', () => {
     it('throws on wrong-length hex string for toInternalTxid', () => {
       expect(() => toInternalTxid('deadbeef')).toThrow('64-character');
     });
+
+    it('throws on non-hex charset instead of silently decoding to a 0-byte buffer', () => {
+      // Buffer.from(junk, 'hex') silently truncates: a 64-char non-hex string
+      // decodes to 0 bytes, which would make toDisplayTxid return '' branded
+      // as a DisplayTxid. The charset guard must reject it.
+      expect(() => toDisplayTxid('zz' + 'a'.repeat(62))).toThrow('hexadecimal');
+      expect(() => toInternalTxid('zz' + 'a'.repeat(62))).toThrow('hexadecimal');
+    });
+
+    it('throws on mid-string junk instead of silently truncating', () => {
+      // 64 chars, but 'zz' in the middle: Buffer.from stops at the junk.
+      const midJunk = 'aa'.repeat(20) + 'zz' + 'bb'.repeat(11);
+      expect(midJunk).toHaveLength(64);
+      expect(() => toDisplayTxid(midJunk)).toThrow('hexadecimal');
+      expect(() => toInternalTxid(midJunk)).toThrow('hexadecimal');
+    });
+
+    it('accepts uppercase hex (daemon returns uppercase Tendermint hashes)', () => {
+      const upperInternal = INTERNAL_FIXTURE_HEX.toUpperCase();
+      const display = toDisplayTxid(upperInternal);
+      expect(display).toBe(DISPLAY_FIXTURE_HEX);
+      const upperDisplay = DISPLAY_FIXTURE_HEX.toUpperCase();
+      const internal = toInternalTxid(upperDisplay);
+      expect(Buffer.from(internal).toString('hex')).toBe(INTERNAL_FIXTURE_HEX);
+    });
   });
 
   describe('serializeJson / deserializeJson BigInt round-trip', () => {
@@ -112,6 +137,30 @@ describe('bytes.ts: byte reversal & BigInt JSON helpers', () => {
       const restored = deserializeJson<typeof original>(json);
       expect(restored.zero).toBe(0n);
       expect(restored.negative).toBe(-500n);
+    });
+  });
+
+  describe('literal strings colliding with the __bigint: prefix', () => {
+    it('round-trips a user string that starts with the prefix', () => {
+      // Pre-fix behavior: deserializeJson(serializeJson({s:'__bigint:5'}))
+      // either corrupted the string into 5n or threw a SyntaxError.
+      const original = { s: '__bigint:5', t: '__bigint:not-a-number' };
+      const restored = deserializeJson<typeof original>(serializeJson(original));
+      expect(restored.s).toBe('__bigint:5');
+      expect(restored.t).toBe('__bigint:not-a-number');
+      expect(typeof restored.s).toBe('string');
+    });
+
+    it('still decodes genuine encoded bigints', () => {
+      const json = '{"amount":"__bigint:12345"}';
+      const data = deserializeJson<{ amount: bigint }>(json);
+      expect(data.amount).toBe(12345n);
+    });
+
+    it('passes foreign prefix strings through unchanged instead of throwing', () => {
+      const json = '{"s":"__bigint: 12x34"}';
+      const data = deserializeJson<{ s: string }>(json);
+      expect(data.s).toBe('__bigint: 12x34');
     });
   });
 });

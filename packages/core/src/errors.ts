@@ -34,10 +34,17 @@ export class RipcordError extends Error {
 }
 
 function extractCode(err: unknown): number | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    const code = (err as Record<string, unknown>).code;
-    if (typeof code === 'number') {
-      return code;
+  // Live-probed 2026-08-22: a real daemon rejection (broadcastVtxoToTachiMempool
+  // with invalid bytes) throws VtxoBroadcastError whose .code is the string
+  // "VTXO_BROADCAST"; the real CometBFT code sits in .tendermintCode. Numeric
+  // .code appears only on plain response objects, never on SDK error classes.
+  if (err && typeof err === 'object') {
+    const asObj = err as Record<string, unknown>;
+    if (typeof asObj.tendermintCode === 'number') {
+      return asObj.tendermintCode;
+    }
+    if (typeof asObj.code === 'number') {
+      return asObj.code;
     }
   }
   return undefined;
@@ -59,6 +66,40 @@ function extractMessage(err: unknown): string | undefined {
   return undefined;
 }
 
+interface DaemonCodeMapping {
+  code: RipcordCode;
+  message: string;
+  hint: string;
+}
+
+const CODE_MAP: Record<number, DaemonCodeMapping> = {
+  3: {
+    code: RipcordCode.INVALID_SIGNATURE,
+    message: 'Invalid signature',
+    hint: 'Signature rejected. Re-derive the signer.',
+  },
+  5: {
+    code: RipcordCode.VTXO_ALREADY_SPENT,
+    message: 'VTXO already spent',
+    hint: 'Those funds were already spent. Refreshing.',
+  },
+  6: {
+    code: RipcordCode.NOT_OWNER,
+    message: 'Not the owner of this VTXO',
+    hint: 'This balance belongs to a different key.',
+  },
+  8: {
+    code: RipcordCode.FEE_TOO_LOW,
+    message: 'Fee too low',
+    hint: 'Minimum fee is 1 sat.',
+  },
+  12: {
+    code: RipcordCode.INVALID_FORMAT,
+    message: 'Invalid transaction format',
+    hint: 'Transaction structure rejected.',
+  },
+};
+
 export function mapDaemonError(err: unknown): RipcordError {
   if (err instanceof RipcordError) {
     return err;
@@ -67,40 +108,15 @@ export function mapDaemonError(err: unknown): RipcordError {
   const code = extractCode(err);
   const message = extractMessage(err);
 
-  if (code === 3) {
-    return new RipcordError(
-      RipcordCode.INVALID_SIGNATURE,
-      'Invalid signature',
-      { cause: err, hint: 'Signature rejected. Re-derive the signer.', daemonCode: code }
-    );
-  }
-  if (code === 5) {
-    return new RipcordError(
-      RipcordCode.VTXO_ALREADY_SPENT,
-      'VTXO already spent',
-      { cause: err, hint: 'Those funds were already spent. Refreshing.', daemonCode: code }
-    );
-  }
-  if (code === 6) {
-    return new RipcordError(
-      RipcordCode.NOT_OWNER,
-      'Not the owner of this VTXO',
-      { cause: err, hint: 'This balance belongs to a different key.', daemonCode: code }
-    );
-  }
-  if (code === 8) {
-    return new RipcordError(
-      RipcordCode.FEE_TOO_LOW,
-      'Fee too low',
-      { cause: err, hint: 'Minimum fee is 1 sat.', daemonCode: code }
-    );
-  }
-  if (code === 12) {
-    return new RipcordError(
-      RipcordCode.INVALID_FORMAT,
-      'Invalid transaction format',
-      { cause: err, hint: 'Transaction structure rejected.', daemonCode: code }
-    );
+  if (code !== undefined) {
+    const mapped = CODE_MAP[code];
+    if (mapped) {
+      return new RipcordError(mapped.code, mapped.message, {
+        cause: err,
+        hint: mapped.hint,
+        daemonCode: code,
+      });
+    }
   }
 
   if (message) {
@@ -109,7 +125,7 @@ export function mapDaemonError(err: unknown): RipcordError {
       return new RipcordError(
         RipcordCode.AMOUNT_MISMATCH,
         'Amount mismatch',
-        { cause: err, hint: undefined }
+        { cause: err, hint: 'Check the amounts and fees on every input and output.' }
       );
     }
     if (lower.includes('non-bip68-final')) {
@@ -123,7 +139,7 @@ export function mapDaemonError(err: unknown): RipcordError {
       return new RipcordError(
         RipcordCode.FUNDING_MISSING,
         'Funding missing or already spent',
-        { cause: err, hint: undefined }
+        { cause: err }
       );
     }
   }

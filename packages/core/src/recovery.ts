@@ -5,6 +5,7 @@ import {
   CompressedHex,
   Identity,
   asCompressedHex,
+  asVaultAddress,
 } from './types.js';
 import { QuorumInfo, computeFingerprint } from './quorum.js';
 import { toUserKeyDescriptor } from './keys.js';
@@ -251,7 +252,7 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
 
       const record: VaultRecord = {
         vaultIdHex: d.summary.vaultId,
-        address: d.vault.p2tr.address as VaultAddress,
+        address: asVaultAddress(d.vault.p2tr.address),
         csvBlocks: resolvedCsv,
         userKeyIndex: d.userKeyIndex,
         userKeyDescriptor: toUserKeyDescriptor(descriptor),

@@ -62,7 +62,7 @@ export function deriveIdentity(mnemonic: string, network: 'regtest'): Identity {
     userKeyDescriptor: toUserKeyDescriptor(desc),
     xOnly,
     userAddress,
-    l1Address: desc.address as UserAddress,
+    l1Address: asUserAddress(desc.address),
   };
 }
 

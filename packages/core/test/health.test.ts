@@ -16,10 +16,14 @@ describe('preflight', { timeout: 30000 }, () => {
     expect(typeof result.version).toBe('string');
     expect(result.version.length).toBeGreaterThan(0);
     expect(typeof result.synced).toBe('boolean');
-    expect(typeof result.l1Height).toBe('number');
-    // Bitcoin L1 height (verified range: 8861-8881 growing slowly), NOT the
-    // CometBFT chain height (~418k). This assertion proves the distinction.
+    // Bitcoin L1 height (verified range 8861-8939 and growing slowly), NOT the
+    // CometBFT chain height (~424k). If the RPC is unreachable, l1Height is
+    // null with source 'unavailable' instead of silently substituting the
+    // CometBFT height.
+    expect(result.l1HeightSource).toBe('bitcoin-rpc');
     expect(result.l1Height).toBeGreaterThan(0);
     expect(result.l1Height).toBeLessThan(100000);
+    // Spec Task 2.4: fee floor assert (minFeeSats >= 1).
+    expect(result.feeMinSats).toBeGreaterThanOrEqual(1n);
   });
 });

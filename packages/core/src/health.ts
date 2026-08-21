@@ -10,8 +10,10 @@ export interface PreflightResult {
   liveValidators: number;
   quorumThreshold: number;
   quorumSize: number;
-  l1Height: number;
   feeRecommendedSats: bigint;
+  feeMinSats: bigint;
+  l1Height: number | null;
+  l1HeightSource: 'bitcoin-rpc' | 'unavailable';
 }
 
 export async function preflight(baseUrl: string): Promise<PreflightResult> {
@@ -20,24 +22,23 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   let healthOk = false;
   let nodeInfoOk = false;
   let liveValidatorsOk = false;
-  let statsOk = false;
   let quorumOk = false;
   let feeEstimateOk = false;
 
-  let healthValidators = 0;
   let chainId = '';
   let version = '';
   let synced = false;
   let liveValidators = 0;
   let quorumThreshold = 0;
   let quorumSize = 0;
-  let l1Height = 0;
   let feeRecommendedSats = 0n;
+  let feeMinSats = 0n;
+  let l1Height: number | null = null;
+  let l1HeightSource: 'bitcoin-rpc' | 'unavailable' = 'unavailable';
 
   try {
     const health = await client.getHealth();
     healthOk = health.status === 'ok';
-    healthValidators = health.validators;
   } catch {}
 
   try {
@@ -57,18 +58,23 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   } catch {}
 
   try {
-    const stats = await client.getStats();
-    statsOk = true;
-    // CometBFT chain height, NOT Bitcoin L1. Used only as a fallback below.
-    const chainHeight = stats.height;
     // Real Bitcoin L1 height via the verified-permitted getblockchaininfo RPC.
+    // No CometBFT fallback: stats.height is the CometBFT chain height (~424k),
+    // NOT Bitcoin L1 (~8.9k). Substituting it on failure would silently report
+    // a wildly wrong height, so unavailability is surfaced as null + source flag.
     const rpcRes = await fetch(`${baseUrl}/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: '1', jsonrpc: '1.0', method: 'getblockchaininfo', params: [] }),
     });
-    const rpcJson = (await rpcRes.json()) as { result?: { blocks?: number } };
-    l1Height = rpcJson?.result?.blocks ?? chainHeight;
+    if (rpcRes.ok) {
+      const rpcJson = (await rpcRes.json()) as { result?: { blocks?: number } };
+      const blocks = rpcJson?.result?.blocks;
+      if (typeof blocks === 'number') {
+        l1Height = blocks;
+        l1HeightSource = 'bitcoin-rpc';
+      }
+    }
   } catch {}
 
   try {
@@ -82,9 +88,10 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
     const feeEstimate = await getFeeEstimate({ baseUrl });
     feeEstimateOk = true;
     feeRecommendedSats = BigInt(feeEstimate.recommendedFeeSats);
+    feeMinSats = BigInt(feeEstimate.minFeeSats);
   } catch {}
 
-  const daemonOk = healthOk && nodeInfoOk && liveValidatorsOk && statsOk && quorumOk && feeEstimateOk;
+  const daemonOk = healthOk && nodeInfoOk && liveValidatorsOk && quorumOk && feeEstimateOk;
 
   if (chainId && chainId !== 'tachi-regtest-1') {
     throw new RipcordError(
@@ -102,7 +109,9 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
     liveValidators,
     quorumThreshold,
     quorumSize,
-    l1Height,
     feeRecommendedSats,
+    feeMinSats,
+    l1Height,
+    l1HeightSource,
   };
 }

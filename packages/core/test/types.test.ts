@@ -33,8 +33,18 @@ const VALID_INTERNAL_TXID = Buffer.from('b'.repeat(64), 'hex');
 const VALID_XONLY_HEX = 'c'.repeat(64) as XOnlyHex;
 const VALID_COMPRESSED_HEX_02 = ('02' + 'd'.repeat(64)) as CompressedHex;
 const VALID_COMPRESSED_HEX_03 = ('03' + 'e'.repeat(64)) as CompressedHex;
-const VALID_USER_ADDRESS = 'bcrt1q9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5' as UserAddress;
-const VALID_VAULT_ADDRESS = 'bcrt1p9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5' as VaultAddress;
+// Live-verified real addresses (independent BIP-173/350 checksum verified):
+// Alice's p2wpkh L1 address (bech32 v0, 20-byte program), Alice's P2TR user
+// payment address, and the csv=2 vault address (both bech32m v1, 32-byte).
+const VALID_USER_ADDRESS = 'bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk' as UserAddress;
+const VALID_USER_ADDRESS_P2TR = 'bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg' as UserAddress;
+const VALID_VAULT_ADDRESS = 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg' as VaultAddress;
+// Independently generated negative vectors (reference bech32 implementation):
+const BAD_CHECKSUM = 'bcrt1qqqqsyqcyq5rqwzqfpg9scrgwpugpzysnard0eq';
+const BAD_VARIANT = 'bcrt1pqqqsyqcyq5rqwzqfpg9scrgwpugpzysnzs23v9ccrydpk8qarc0jqxdh5rg';
+const BAD_V0_21BYTE = 'bcrt1qqqqsyqcyq5rqwzqfpg9scrgwpugpzysnzshh9yaa';
+const BAD_V1_34BYTE = 'bcrt1pqqqqsyqcyq5rqwzqfpg9scrgwpugpzysnzs23v9ccrydpk8qarc0jqggckdhwx';
+const BAD_MIXED_CASE = 'bcrt1qqqqsyqcyq5rqwzqfpg9scrgwpugpzysnard0EW';
 
 describe('DisplayTxid', () => {
   it('isDisplayTxid returns true for valid 64-char hex string', () => {
@@ -180,11 +190,43 @@ describe('CompressedHex', () => {
 });
 
 describe('UserAddress', () => {
-  it('isUserAddress returns true for valid bech32/bech32m string', () => {
+  it('accepts the real live-verified p2wpkh address (bech32 v0)', () => {
     expect(isUserAddress(VALID_USER_ADDRESS)).toBe(true);
   });
 
-  it('isUserAddress returns false for non-string', () => {
+  it('accepts the real live-verified P2TR user payment address (bech32m v1)', () => {
+    expect(isUserAddress(VALID_USER_ADDRESS_P2TR)).toBe(true);
+  });
+
+  it('accepts an all-uppercase valid address (BIP-173 case-insensitive decoding)', () => {
+    expect(isUserAddress(VALID_USER_ADDRESS.toUpperCase())).toBe(true);
+  });
+
+  it('rejects corrupted checksum', () => {
+    expect(isUserAddress(BAD_CHECKSUM)).toBe(false);
+  });
+
+  it('rejects v1 program with bech32 checksum instead of bech32m', () => {
+    expect(isUserAddress(BAD_VARIANT)).toBe(false);
+  });
+
+  it('rejects v0 program of 21 bytes (v0 allows only 20 or 32)', () => {
+    expect(isUserAddress(BAD_V0_21BYTE)).toBe(false);
+  });
+
+  it('rejects v1 program of 34 bytes (v1 allows only 32)', () => {
+    expect(isUserAddress(BAD_V1_34BYTE)).toBe(false);
+  });
+
+  it('rejects mixed-case address (BIP-173 violation)', () => {
+    expect(isUserAddress(BAD_MIXED_CASE)).toBe(false);
+  });
+
+  it('rejects wrong network HRP (mainnet bc1)', () => {
+    expect(isUserAddress('bc1q9z0y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3h2g1f0e9d8c7b6a5')).toBe(false);
+  });
+
+  it('returns false for non-string', () => {
     expect(isUserAddress(123)).toBe(false);
     expect(isUserAddress(null)).toBe(false);
     expect(isUserAddress(undefined)).toBe(false);
@@ -199,15 +241,37 @@ describe('UserAddress', () => {
   it('asUserAddress throws for invalid input', () => {
     expect(() => asUserAddress(123)).toThrow('Expected UserAddress');
     expect(() => asUserAddress('')).toThrow('Expected UserAddress');
+    expect(() => asUserAddress(BAD_CHECKSUM)).toThrow('Expected UserAddress');
+    expect(() => asUserAddress('not an address at all')).toThrow('Expected UserAddress');
   });
 });
 
 describe('VaultAddress', () => {
-  it('isVaultAddress returns true for valid bech32m string', () => {
+  it('accepts the real live-verified vault P2TR address (bech32m v1)', () => {
     expect(isVaultAddress(VALID_VAULT_ADDRESS)).toBe(true);
   });
 
-  it('isVaultAddress returns false for non-string', () => {
+  it('accepts the real P2TR user payment address (also bech32m v1)', () => {
+    expect(isVaultAddress(VALID_USER_ADDRESS_P2TR)).toBe(true);
+  });
+
+  it('rejects a p2wpkh address (bech32 v0 is not a vault address)', () => {
+    expect(isVaultAddress(VALID_USER_ADDRESS)).toBe(false);
+  });
+
+  it('rejects corrupted checksum', () => {
+    expect(isVaultAddress(BAD_CHECKSUM)).toBe(false);
+  });
+
+  it('rejects v1 program with bech32 checksum instead of bech32m', () => {
+    expect(isVaultAddress(BAD_VARIANT)).toBe(false);
+  });
+
+  it('rejects v1 program of 34 bytes', () => {
+    expect(isVaultAddress(BAD_V1_34BYTE)).toBe(false);
+  });
+
+  it('returns false for non-string', () => {
     expect(isVaultAddress(123)).toBe(false);
     expect(isVaultAddress(null)).toBe(false);
     expect(isVaultAddress(undefined)).toBe(false);
@@ -222,6 +286,8 @@ describe('VaultAddress', () => {
   it('asVaultAddress throws for invalid input', () => {
     expect(() => asVaultAddress(123)).toThrow('Expected VaultAddress');
     expect(() => asVaultAddress('')).toThrow('Expected VaultAddress');
+    expect(() => asVaultAddress(BAD_CHECKSUM)).toThrow('Expected VaultAddress');
+    expect(() => asVaultAddress(VALID_USER_ADDRESS)).toThrow('Expected VaultAddress');
   });
 });
 

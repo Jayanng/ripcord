@@ -185,4 +185,50 @@ describe('mapDaemonError', () => {
       expect(mapDaemonError(undefined).code).toBe(RipcordCode.UNKNOWN);
     });
   });
+
+  describe('real SDK error shapes (live-probed 2026-08-22)', () => {
+    // A real daemon rejection arrives as VtxoBroadcastError with a STRING .code
+    // ("VTXO_BROADCAST") and the real CometBFT code in .tendermintCode. The
+    // numeric-only extractor below is what production would hit.
+    const realRejection = Object.assign(new Error('tachi mempool rejected VTXO (code=5): vtxo already spent'), {
+      code: 'VTXO_BROADCAST',
+      tendermintCode: 5,
+      tendermintLog: 'vtxo already spent',
+    });
+
+    it('reads tendermintCode from a real VtxoBroadcastError shape', () => {
+      const err = mapDaemonError(realRejection);
+      expect(err.code).toBe(RipcordCode.VTXO_ALREADY_SPENT);
+      expect(err.daemonCode).toBe(5);
+    });
+
+    it('prefers tendermintCode when both tendermintCode and a string .code exist', () => {
+      // The dangerous case: string .code is ignored, real code wins.
+      const shape = Object.assign(new Error('mempool rejected (code=12)'), {
+        code: 'VTXO_BROADCAST',
+        tendermintCode: 12,
+      });
+      const err = mapDaemonError(shape);
+      expect(err.code).toBe(RipcordCode.INVALID_FORMAT);
+      expect(err.daemonCode).toBe(12);
+    });
+
+    it('still maps plain response objects with numeric code (legacy shape)', () => {
+      const err = mapDaemonError({ code: 3, log: 'invalid signature' });
+      expect(err.code).toBe(RipcordCode.INVALID_SIGNATURE);
+      expect(err.daemonCode).toBe(3);
+    });
+
+    it('unmapped tendermintCode falls through to UNKNOWN with message preserved', () => {
+      // Live probe 2026-08-22: code=1 'failed to decode transaction: read input 0
+      // vtxoid: unexpected EOF' from broadcastVtxoToTachiMempool(garbage).
+      const shape = Object.assign(
+        new Error('tachi mempool rejected VTXO (code=1): failed to decode transaction'),
+        { code: 'VTXO_BROADCAST', tendermintCode: 1 }
+      );
+      const err = mapDaemonError(shape);
+      expect(err.code).toBe(RipcordCode.UNKNOWN);
+      expect(err.daemonCode).toBeUndefined();
+    });
+  });
 });

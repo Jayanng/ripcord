@@ -1,3 +1,5 @@
+import { address as btcAddress, networks } from 'bitcoinjs-lib';
+
 export type DisplayTxid = string & { readonly __brand: 'DisplayTxid' };
 export type InternalTxid = Buffer & { readonly __brand: 'InternalTxid' };
 export type XOnlyHex = string & { readonly __brand: 'XOnlyHex' };
@@ -10,6 +12,8 @@ const DISPLAY_TXID_LENGTH = 64;
 const INTERNAL_TXID_BYTES = 32;
 const XONLY_HEX_LENGTH = 64;
 const COMPRESSED_HEX_LENGTH = 66;
+const BECH32M_V1 = 1;
+const WITNESS_V0_ALLOWED_LENGTHS = [20, 32];
 
 function isHexString(value: unknown, length: number): value is string {
   return typeof value === 'string' && value.length === length && HEX_REGEX.test(value);
@@ -27,8 +31,59 @@ function isValidCompressedHex(value: string): boolean {
   return prefix === '02' || prefix === '03';
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0;
+/**
+ * Decode a bech32/bech32m address for the regtest HRP, enforcing the checksum
+ * variant against the witness version (bech32 for v0, bech32m for v1), and
+ * reject invalid program lengths (v0: 20 or 32 bytes, v1: exactly 32).
+ *
+ * bitcoinjs-lib's fromBech32 validates charset, checksum, variant, and HRP,
+ * but does NOT enforce program-length limits, so those are checked here.
+ */
+function decodeBech32Address(value: string): { version: number; dataLength: number } | null {
+  try {
+    const decoded = btcAddress.fromBech32(value);
+    if (decoded.prefix !== networks.regtest.bech32) {
+      return null;
+    }
+    if (decoded.version === 0 && !WITNESS_V0_ALLOWED_LENGTHS.includes(decoded.data.length)) {
+      return null;
+    }
+    if (decoded.version === BECH32M_V1 && decoded.data.length !== 32) {
+      return null;
+    }
+    if (decoded.version > BECH32M_V1) {
+      return null;
+    }
+    return { version: decoded.version, dataLength: decoded.data.length };
+  } catch {
+    return null;
+  }
+}
+
+export function isUserAddress(value: unknown): value is UserAddress {
+  return typeof value === 'string' && decodeBech32Address(value) !== null;
+}
+
+export function asUserAddress(value: unknown): UserAddress {
+  if (!isUserAddress(value)) {
+    throw new Error('Expected UserAddress: valid bech32/bech32m address (regtest HRP)');
+  }
+  return value;
+}
+
+export function isVaultAddress(value: unknown): value is VaultAddress {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const decoded = decodeBech32Address(value);
+  return decoded !== null && decoded.version === BECH32M_V1;
+}
+
+export function asVaultAddress(value: unknown): VaultAddress {
+  if (!isVaultAddress(value)) {
+    throw new Error('Expected VaultAddress: valid bech32m P2TR address (regtest HRP)');
+  }
+  return value;
 }
 
 export function isDisplayTxid(value: unknown): value is DisplayTxid {
@@ -71,28 +126,6 @@ export function isCompressedHex(value: unknown): value is CompressedHex {
 export function asCompressedHex(value: unknown): CompressedHex {
   if (!isCompressedHex(value)) {
     throw new Error('Expected CompressedHex: 66-character hex string starting with 02 or 03');
-  }
-  return value;
-}
-
-export function isUserAddress(value: unknown): value is UserAddress {
-  return isNonEmptyString(value);
-}
-
-export function asUserAddress(value: unknown): UserAddress {
-  if (!isUserAddress(value)) {
-    throw new Error('Expected UserAddress: non-empty string (bech32/bech32m)');
-  }
-  return value;
-}
-
-export function isVaultAddress(value: unknown): value is VaultAddress {
-  return isNonEmptyString(value);
-}
-
-export function asVaultAddress(value: unknown): VaultAddress {
-  if (!isVaultAddress(value)) {
-    throw new Error('Expected VaultAddress: non-empty string (bech32m)');
   }
   return value;
 }
