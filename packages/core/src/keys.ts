@@ -31,7 +31,7 @@ type SdkUserKeyDescriptor = {
   addressType: string;
 };
 
-function toUserKeyDescriptor(desc: SdkUserKeyDescriptor): UserKeyDescriptor {
+export function toUserKeyDescriptor(desc: SdkUserKeyDescriptor): UserKeyDescriptor {
   return {
     version: desc.version,
     scheme: desc.scheme,

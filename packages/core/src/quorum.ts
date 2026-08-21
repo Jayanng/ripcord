@@ -12,7 +12,7 @@ export interface QuorumInfo {
 
 const quorumCache = new Map<string, QuorumInfo>();
 
-function computeFingerprint(nodePubkeys: CompressedHex[]): string {
+export function computeFingerprint(nodePubkeys: CompressedHex[]): string {
   const sorted = [...nodePubkeys].sort();
   const joined = sorted.join(':');
   return createHash('sha256').update(joined).digest('hex');

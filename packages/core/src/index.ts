@@ -9,3 +9,4 @@ export * from './quorum.js';
 export * from './vault.js';
 export * from './deposit.js';
 export * from './register.js';
+export * from './recovery.js';
