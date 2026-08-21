@@ -1,8 +1,8 @@
-# RIPCORD — Verified API Contract
+# RIPCORD: Verified API Contract
 
 Every signature below was executed against the live Tachi daemon at
 `https://rpc-regtest.tachibtc.com` on 21 Aug 2026. Nothing here is inferred from documentation.
-Where the official docs disagree, the docs are wrong — this file is the source of truth for the build.
+Where the official docs disagree, the docs are wrong. This file is the source of truth for the build.
 
 Legend: **VERIFIED** = executed successfully. **BLOCKED** = executed and failed, do not use.
 
@@ -36,7 +36,7 @@ npm install @tachibtc/taurus-vault-core@0.3.3 \
 | WSS | `wss://rpc-regtest.tachibtc.com/tachi_ws` |
 | Bitcoin JSON-RPC proxy | `POST https://rpc-regtest.tachibtc.com/` |
 | Broadcast | `https://rpc-regtest.tachibtc.com/tachi_txBroadcastSync` |
-| Faucet | `https://faucet.tachibtc.com` — 0.5 BTC per address per rolling 24h, accepts any `bcrt1…` |
+| Faucet | `https://faucet.tachibtc.com`: 0.5 BTC per address per rolling 24h, accepts any `bcrt1…` |
 | Chain id | `tachi-regtest-1`, daemon v0.39.0 |
 
 Every route is namespaced `tachi_` **except** `/health` and the Bitcoin proxy at `POST /`.
@@ -62,7 +62,7 @@ const raw = await vc.fetchValidatorNodeKeys({ endpoint: `${DAEMON}/tachi_validat
 const nodePubkeys = raw.map(v => v.compressedHex);   // MUST use compressedHex
 ```
 
-`getHealth()` returns `{status:"ok", validators:1}` — that `1` is this node's peer count, **not** the
+`getHealth()` returns `{status:"ok", validators:1}`. That `1` is this node's peer count, **not** the
 consensus set size. `getLiveValidators()` returns all **7**. Do not read health as a quorum signal.
 
 ## 3. Key derivation
@@ -107,15 +107,15 @@ await w.sync();
 | Use | Do not use |
 |---|---|
 | `w.receiveAddress` | `w.address` (always `undefined`) |
-| `w.changeAddress` | — |
-| `w.balance` → `{confirmed, unconfirmed, total}` bigints | — |
-| `w.utxos` → array | — |
+| `w.changeAddress` | - |
+| `w.balance` → `{confirmed, unconfirmed, total}` bigints | - |
+| `w.utxos` → array | - |
 | `w.info` → full record incl. `addressType`, `accountPath`, `accountXpub` | `w.addressType` (undefined) |
 
-**BLOCKED — `vc.importUserWallet(...)`** → `RPC scantxoutset failed: bitcoin rpc error -5: Address is
+**BLOCKED: `vc.importUserWallet(...)`** → `RPC scantxoutset failed: bitcoin rpc error -5: Address is
 not valid`. Use `WalletAggregator.fromMnemonic().addAccount()` instead.
 
-**BLOCKED — `w.send({to, amountSats, feeRateSatVb})`** → `feeRate must be a finite number ≥ 1 sat/vB,
+**BLOCKED: `w.send({to, amountSats, feeRateSatVb})`** → `feeRate must be a finite number ≥ 1 sat/vB,
 got undefined`. Correct argument name not discovered. Do all L1 movement through `depositToVault` and
 the Bitcoin proxy's `sendrawtransaction`.
 
@@ -153,7 +153,7 @@ coop              <userXOnly> OP_CHECKSIGVERIFY <n1> OP_CHECKSIG <n2..n7> OP_CHE
 6 `OP_CHECKSIGADD` + 1 `OP_CHECKSIG` = user + 7 node keys. `exitControlBlock` is **65 bytes**.
 `internalKey` equals `vc.NUMS_INTERNAL_KEY`, so the key path is provably unusable.
 
-**Vaults are atomic — one deposit each.** A second `depositToVault` on a funded vault is rejected:
+**Vaults are atomic: one deposit each.** A second `depositToVault` on a funded vault is rejected:
 *"vault … is already funded (1 UTXO(s), 40000 sats) — vaults are atomic (one deposit per vault);
 create a new vault for another deposit."* Use a fresh `userKeyIndex` per vault.
 
@@ -171,7 +171,7 @@ const dep = await vc.depositToVault({
 **VERIFIED.** Rejects any non-p2wpkh wallet by design, so the deposit txid stays non-malleable for the
 pre-signed refund and exit paths.
 
-Proof of reserves — the only check that binds a rebuild to real money:
+Proof of reserves, the only check that binds a rebuild to real money:
 
 ```ts
 const tx = await btcRpc("getrawtransaction", [dep.txid, true]);
@@ -239,7 +239,7 @@ const vaults = await vc.discoverVaults({
   userPubkey: desc.publicKey,          // 66-char compressed hex
   network: "regtest",                  // omitting → "unknown vault network undefined"
   nodePubkeys: q.nodePubkeys,          // or validators: { endpoint }, or query.apiKey
-  csvBlocks: 2,                        // CRITICAL — see below
+  csvBlocks: 2,                        // CRITICAL: see below
   query: { baseUrl: DAEMON },          // nested, not top-level
 });
 // → [{ vault, summary, userKeyIndex, verified, paramSource, addressMatchesRebuild }]
@@ -258,7 +258,7 @@ const vaults = await vc.discoverVaults({
 `summary` carries `vaultId`, `state`, `latestStateNum`, `fundingTxid` (**internal** byte order),
 `fundingVout`, `address`.
 
-## 10. Off-chain transfer — the load-bearing discovery
+## 10. Off-chain transfer: the load-bearing discovery
 
 The Tachi team told a builder there is no public path for third-party VTXO transfers, and the README
 says the 5-of-7 quorum signs "out-of-band". **Both statements are about the Bitcoin PSBT layer and do
@@ -285,7 +285,7 @@ const built = vc.buildVtxoPsbt({
   feeSats,
 });
 await vc.signVtxoPsbtAsUser(built.psbt, userSigner, vault, { maxFeeSats });
-// DO NOT call finalizeVtxoPsbt — needs 5 node sigs and is NOT required.
+// DO NOT call finalizeVtxoPsbt: needs 5 node sigs and is NOT required.
 
 const draft = vc.buildTachiTxTransfer({ vault, inputs, outputs, feeSats, nonce, psbt: built.psbt });
 const signed = await vc.signTachiTx(draft, userSigner);
@@ -331,7 +331,7 @@ it. Never call `finalizeVtxoPsbt` on the send path.
 const built = vc.buildUnilateralExitPsbt({
   vault,
   funding: {
-    txid: DISPLAY_TXID,                 // DISPLAY order — see byte-order note
+    txid: DISPLAY_TXID,                 // DISPLAY order, see byte-order note
     vout, valueSats,
     scriptPubKey: vaultSpkHex,          // REQUIRED
   },
@@ -353,7 +353,7 @@ and `e4840102e6bca4d9f5e0b4a7dfe44577a75e8bc50f3b3b0441322f8c4c2d08d9`.
 
 `finalizeUnilateralExitPsbt` returns a **Buffer**, not `{hex}`.
 
-`verifyUnilateralExitPsbt` requires `expectedUserKey` and `minCsvBlocks` — these stop a substituted
+`verifyUnilateralExitPsbt` requires `expectedUserKey` and `minCsvBlocks`; these stop a substituted
 but self-consistent vault from redirecting the exit or collapsing the timelock.
 
 ### CSV maturity
@@ -406,9 +406,9 @@ await vc.listVtxos({ baseUrl });                             // { vtxos[] }
 ```
 
 Positional value first, options object second. All return **bigints** where relevant, so a plain
-`JSON.stringify` throws — use a replacer.
+`JSON.stringify` throws; use a replacer.
 
-`TachiClient` (sdk-ts) — all 15 reads verified: `getHealth`, `getNodeInfo`, `getStats`, `getSupply`,
+`TachiClient` (sdk-ts): all 15 reads verified: `getHealth`, `getNodeInfo`, `getStats`, `getSupply`,
 `getFeeEstimate`, `getValidators`, `getLiveValidators`, `getWatchtowerStatus`, `getWatchtowerReceipts`,
 `listEpochs`, `listBlocks`, `listVtxos`, `listVaults`, `getAddress`, `getMempool`.
 
@@ -423,7 +423,7 @@ in `tachi-sdk-ts` issue #21. RIPCORD must contain **zero** call sites for either
 
 ### Do not trust
 
-`validateTachiTxOnDaemon` (`/tachi_txValidate`) reports **false negatives** — it rejects transactions
+`validateTachiTxOnDaemon` (`/tachi_txValidate`) reports **false negatives**: it rejects transactions
 the daemon then commits. Use `decodeTachiTxOnDaemon` to inspect, never gate a broadcast on validate.
 
 ## 14. Live events (WSS)
@@ -447,7 +447,7 @@ event=tx state=committed  type=transfer txHash=768f0244… height=417193
 
 So the UI shows "incoming" instantly and "confirmed" on commit, with no polling.
 
-Filters: `address`, `vault`, `vaultId`, `blocks`, `validators`. **At least one filter is required** —
+Filters: `address`, `vault`, `vaultId`, `blocks`, `validators`. **At least one filter is required**;
 the daemon rejects a filterless connection. Block events verified via `?blocks=true`.
 
 Backpressure: events buffer up to `maxQueuedEvents` (default 10,000), then the stream throws rather
@@ -471,7 +471,7 @@ await client.getWatchtowerReceipts();   // → { count: 0, receipts: [] }
 key with no data. Hit the REST route directly.
 
 ```ts
-// HAT — requires a SPENT VTXO. Deposits are rejected:
+// HAT: requires a SPENT VTXO. Deposits are rejected:
 //   "400 — tx has no inputs; hat/rip proofs require a spent VTXO"
 const r = await fetch(`${DAEMON}/tachi_tx?hash=${txHash}&hat=true`);
 const { hat } = await r.json();
@@ -482,7 +482,7 @@ const { hat } = await r.json();
 Spec: *"Proof is the hex-encoded SHA256d commitment over the raw finalized PSBT payload."*
 
 ```ts
-// RIP — max 256 epochs, both params required
+// RIP: max 256 epochs, both params required
 const r = await fetch(
   `${DAEMON}/tachi_tx?hash=${txHash}&rip=true&origin_epoch=${o}&final_epoch=${o + 50}`);
 const { rip } = await r.json();
@@ -519,7 +519,7 @@ epoch. The chain is complete up to the Verkle root but **not L1-anchored** on re
 | 6 | unauthorized: pubkey does not own vtxo | signer key ≠ VTXO `owner` |
 | 8 | fee below minimum | `feeSats: 0n` |
 | 12 | invalid transaction format | PSBT corrupt, or PSBT outputs don't mirror envelope outputs |
-| — | amount mismatch | `sum(inputs) - sum(outputs) ≠ fee` |
+| - | amount mismatch | `sum(inputs) - sum(outputs) ≠ fee` |
 
 ## 18. Nonce is not enforced
 

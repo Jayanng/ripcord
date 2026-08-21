@@ -59,7 +59,7 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   try {
     const stats = await client.getStats();
     statsOk = true;
-    // CometBFT chain height — NOT Bitcoin L1. Used only as a fallback below.
+    // CometBFT chain height, NOT Bitcoin L1. Used only as a fallback below.
     const chainHeight = stats.height;
     // Real Bitcoin L1 height via the verified-permitted getblockchaininfo RPC.
     const rpcRes = await fetch(`${baseUrl}/`, {

@@ -1,4 +1,4 @@
-# RIPCORD — Design System
+# RIPCORD: Design System
 
 Dark-first, high-contrast, instrument-panel aesthetic. The product's claim is *verifiability*, so the
 interface should read like a control surface that tells you the truth, not a consumer finance app that
@@ -66,9 +66,9 @@ darkest in dark mode. Accessibility-tested and composes predictably.
 
 **Semantic rules, enforced in review:**
 
-- `--confirmed` (jade) means *the chain committed this* — `code: 0` at FinalizeBlock, or an L1
+- `--confirmed` (jade) means *the chain committed this*: `code: 0` at FinalizeBlock, or an L1
   confirmation. Never used for optimistic UI.
-- `--pending` (amber) means *seen but not final* — WSS `state: "pending"`, unconfirmed L1.
+- `--pending` (amber) means *seen but not final*: WSS `state: "pending"`, unconfirmed L1.
 - `--ripcord-live` is reserved for exactly one thing: the exit is mature and broadcastable now.
 - Bitcoin orange is deliberately **not** in the palette. Every Bitcoin product uses it; a
   precision-instrument look is more credible for a verification tool.
@@ -94,7 +94,7 @@ heights, epoch numbers. Anything a user might compare character by character.
 ```
 
 Sats are grouped with thin spaces every three digits from the right: `1 234 567 sats`. Never a decimal
-BTC figure in the primary position — this is a sats-native product.
+BTC figure in the primary position; this is a sats-native product.
 
 ## 4. Space, radius, motion
 
@@ -131,7 +131,7 @@ user should never be confused about which network their money is on.
 ```
 Two figures, visually separated, never summed. "proof verified" links to the spk comparison.
 
-### RipcordPanel — the signature component
+### RipcordPanel: the signature component
 ```
 ┌──────────────────────────────────────────────┐
 │  ⟋ RIPCORD                                   │
@@ -210,7 +210,7 @@ tapscript inspector showing both leaves plus `internalKey is NUMS ✓`.
 
 ### SendSheet
 Recipient field accepts a bech32m user address or a raw 64-char x-only key, and **rejects a vault
-address with an explanatory error** — R1 surfaced as UX rather than a silent failure. Shows selected
+address with an explanatory error**. R1 surfaced as UX rather than a silent failure. Shows selected
 VTXOs, fee (1 sat), and change destination (own key) before confirming.
 
 ### RecoveryFlow
@@ -247,5 +247,5 @@ Every empty state names the next action: no vaults → "create your first vault"
 the faucet" with the address pre-filled and copyable.
 
 Errors show the mapped hint from the core error model plus a "details" disclosure carrying the raw
-daemon message. Never swallow the original text — a builder reading our error should be able to search
+daemon message. Never swallow the original text; a builder reading our error should be able to search
 it.

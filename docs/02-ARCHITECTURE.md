@@ -1,4 +1,4 @@
-# RIPCORD — Architecture
+# RIPCORD: Architecture
 
 > Read `01-VERIFIED-API.md` first. Every capability referenced here was executed live.
 
@@ -49,7 +49,7 @@ ripcord/
 │   ├── 03-DESIGN-SYSTEM.md
 │   └── 04-BUILD-PLAN.md
 ├── packages/
-│   └── core/                     # @ripcord/core — publishable
+│   └── core/                     # @ripcord/core - publishable
 │       ├── src/
 │       │   ├── index.ts
 │       │   ├── config.ts         # network config, endpoints, constants
@@ -92,9 +92,9 @@ ripcord/
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ apps/wallet  — React PWA. No SDK imports. No fetch.     │
+│ apps/wallet  - React PWA. No SDK imports. No fetch.     │
 ├─────────────────────────────────────────────────────────┤
-│ @ripcord/core — the only place Tachi SDKs are imported  │
+│ @ripcord/core - the only place Tachi SDKs are imported  │
 ├─────────────────────────────────────────────────────────┤
 │ @tachibtc/{taurus-vault-core, wallet-aggregator, sdk-ts}│
 ├─────────────────────────────────────────────────────────┤
@@ -102,13 +102,13 @@ ripcord/
 └─────────────────────────────────────────────────────────┘
 ```
 
-Dependency flow is one way. The wallet never imports a `@tachibtc/*` package directly — CI enforces it
+Dependency flow is one way. The wallet never imports a `@tachibtc/*` package directly. CI enforces it
 with a grep gate. This is what makes the core publishable and the UI testable with a fake store.
 
 ## 5. Domain model
 
 ```ts
-// Branded primitives — make the byte-order and address-kind traps unrepresentable.
+// Branded primitives: make the byte-order and address-kind traps unrepresentable.
 type DisplayTxid  = string & { readonly __brand: "DisplayTxid" };
 type InternalTxid = Buffer & { readonly __brand: "InternalTxid" };
 type XOnlyHex     = string & { readonly __brand: "XOnlyHex" };      // 64 chars
@@ -119,7 +119,7 @@ type VaultAddress = string & { readonly __brand: "VaultAddress" };  // bech32m o
 interface VaultRecord {
   vaultIdHex: string;
   address: VaultAddress;
-  csvBlocks: number;              // R5 — required for recovery
+  csvBlocks: number;              // R5: required for recovery
   userKeyIndex: number;
   userKeyDescriptor: UserKeyDescriptor;
   quorumFingerprint: string;      // sha256 of sorted nodePubkeys
@@ -137,7 +137,7 @@ interface LedgerVtxo {
   spent: boolean;
   locked: boolean;
   vaultAddress?: VaultAddress;
-  localSpentAt?: number;          // R8 — set optimistically on broadcast
+  localSpentAt?: number;          // R8: set optimistically on broadcast
 }
 
 interface BalanceSnapshot {
@@ -173,7 +173,7 @@ interface PaymentReceipt {
 
 ## 6. Core module contracts
 
-### health.ts — preflight
+### health.ts: preflight
 ```ts
 preflight(cfg): Promise<{
   daemonOk: boolean; chainId: string; version: string; synced: boolean;
@@ -195,7 +195,7 @@ rather than producing a silently different address.
 ```ts
 deriveIdentity(mnemonic, network): Identity              // descriptor + xOnly + userAddress
 makeSigner(mnemonic, network, index): TaprootSigner
-userAddressFor(xOnly, network): UserAddress              // bech32m of the user key — R1
+userAddressFor(xOnly, network): UserAddress              // bech32m of the user key (R1)
 ```
 
 ### vault.ts
@@ -214,7 +214,7 @@ depositToVault(rec, wallet, amountSats, feeRateSatVb): Promise<{ txid: DisplayTx
 onboardToLedger(id, amountSats, signer): Promise<{ vtxoId: string; txHash: string }>
 verifyReserves(rec): Promise<{ ok: boolean; onChainSpk: string; derivedSpk: string; valueSats: bigint }>
 ```
-`verifyReserves` is the spk comparison — the only check that binds a rebuild to real money.
+`verifyReserves` is the spk comparison, the only check that binds a rebuild to real money.
 
 ### recovery.ts
 ```ts
@@ -236,7 +236,7 @@ buildPayment(from: Identity, vault: VaultRecord, toXOnly: XOnlyHex,
              amountSats: bigint, feeSats: bigint): Promise<PreparedPayment>
 sendPayment(prepared, signer): Promise<PaymentReceipt>
 ```
-`toXOnly` is an x-only key, so R1 is structurally enforced — a `VaultAddress` cannot be passed. Change
+`toXOnly` is an x-only key, so R1 is structurally enforced: a `VaultAddress` cannot be passed. Change
 goes to `from.userAddress`. Internally mirrors PSBT outputs to envelope outputs exactly, signs the PSBT
 as user, **never finalizes it**, signs the envelope, broadcasts, waits for commit.
 
@@ -261,14 +261,14 @@ backoff, resyncs from `getAddressVtxos` on reconnect, and bounds its queue.
 
 ### proofs.ts
 ```ts
-fetchHat(txHash): Promise<Hat | null>                      // null for deposits — no spent VTXO
+fetchHat(txHash): Promise<Hat | null>                      // null for deposits (no spent VTXO)
 fetchRip(txHash, originEpoch, window = 50): Promise<Rip>    // window ≤ 256, we cap at 50
 verifyHatInRip(hat, rip): boolean                          // stem-suffix-65 comparison
 ```
 
 ### exit.ts
 ```ts
-assessExit(rec, id): Promise<ExitReadiness>                // the dry-run — builds, verifies, signs, discards
+assessExit(rec, id): Promise<ExitReadiness>                // the dry-run: builds, verifies, signs, discards
 executeExit(rec, id, signer, destination): Promise<{ txid: DisplayTxid }>
 ```
 `assessExit` is the RIPCORD test-pull: full build → verify (`expectedUserKey`, `minCsvBlocks`) → sign →
@@ -329,17 +329,17 @@ Daemon codes mapped to actionable hints:
 | 6 | `NOT_OWNER` | "This balance belongs to a different key." (R1 violation guard) |
 | 8 | `FEE_TOO_LOW` | "Minimum fee is 1 sat." |
 | 12 | `INVALID_FORMAT` | "Transaction structure rejected." |
-| — | `AMOUNT_MISMATCH` | "Inputs and outputs don't balance." |
+| - | `AMOUNT_MISMATCH` | "Inputs and outputs don't balance." |
 | `non-BIP68-final` | `EXIT_IMMATURE` | "Exit needs N more confirmations." |
 | `bad-txns-inputs-missingorspent` | `FUNDING_MISSING` | Byte-order or already-exited guard |
 
 ## 11. Security posture
 
 - Mnemonic never leaves the device. Held in memory only; IndexedDB stores **no** secret material.
-  Cache holds vault records, receipts and VTXO snapshots — all public data.
+  Cache holds vault records, receipts and VTXO snapshots (all public data).
 - `keystore.lock()` wipes seed and account private key bytes; called on tab hide and on explicit lock.
 - No backend, no telemetry, no analytics. The app talks only to the configured daemon and faucet.
-- `verifyVaultP2tr` on every load and every recovery — a substituted vault fails closed.
+- `verifyVaultP2tr` on every load and every recovery: a substituted vault fails closed.
 - `verifyUnilateralExitPsbt` always passes `expectedUserKey` and `minCsvBlocks`, so a self-consistent
   but substituted vault cannot redirect the exit or collapse the timelock.
 - Fee ceilings: every builder passes `maxFeeSats`; the SDK's `maxFeeRateSatVb` default (5000 sat/vB)
@@ -350,20 +350,20 @@ Daemon codes mapped to actionable hints:
 
 ## 12. Testing strategy
 
-**Unit (vitest, in `packages/core/test`)** — byte-order round trips, bigint JSON, coin selection
+**Unit (vitest, in `packages/core/test`)**: byte-order round trips, bigint JSON, coin selection
 including dust and insufficient-funds, error-code mapping, HAT⊂RIP comparison against a captured
 fixture, branded-type guards.
 
-**Integration (vitest, live daemon, `RIPCORD_LIVE=1`)** — preflight; create/verify/deterministic
+**Integration (vitest, live daemon, `RIPCORD_LIVE=1`)**: preflight; create/verify/deterministic
 re-derive; deposit + `verifyReserves`; onboard; register + commit; recover with and without `csvBlocks`
 (asserting the without-case fails, proving R5 matters); pay a second identity and assert the recipient
 can re-spend; HAT and RIP fetch plus link verification; `assessExit` on both an immature and a mature
 vault; WSS pending-then-committed for a receive.
 
-**E2E (Playwright, `e2e/`)** — onboarding, deposit, send, receive, **wipe IndexedDB and recover**,
+**E2E (Playwright, `e2e/`)**: onboarding, deposit, send, receive, **wipe IndexedDB and recover**,
 exit dry-run, exit broadcast. The wipe test is the one that proves R11.
 
-**CI gates** — typecheck, lint, unit, plus three grep gates that fail the build on any occurrence of
+**CI gates**: typecheck, lint, unit, plus three grep gates that fail the build on any occurrence of
 `addressTransactions`, `listTransactions`, or `finalizeVtxoPsbt` outside `docs/`.
 
 ## 13. Deliverables

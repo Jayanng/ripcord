@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { toDisplayTxid, toInternalTxid, serializeJson, deserializeJson } from '../src/bytes.js';
 import type { DisplayTxid, InternalTxid } from '../src/types.js';
 
-describe('bytes.ts — byte reversal & BigInt JSON helpers', () => {
+describe('bytes.ts: byte reversal & BigInt JSON helpers', () => {
   const INTERNAL_FIXTURE_HEX = '8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a';
   const DISPLAY_FIXTURE_HEX = '5a22c1b59fca631ffa5b4375e36b88d83eff86d81278e75d55073bf6aec92683';
 

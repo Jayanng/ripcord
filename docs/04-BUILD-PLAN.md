@@ -1,4 +1,4 @@
-# RIPCORD — Comprehensive Phase 1 to N Build Plan
+# RIPCORD: Comprehensive Phase 1 to N Build Plan
 
 > **For Implementation:** Execute task-by-task using strict TDD, vertical tracer bullets, and zero-compromise verified signatures.
 > **Source of Truth:** `/home/ubuntu/ripcord/docs/01-VERIFIED-API.md`, `/home/ubuntu/ripcord/docs/02-ARCHITECTURE.md`, `/home/ubuntu/ripcord/docs/03-DESIGN-SYSTEM.md`, and `/home/ubuntu/ripcord/DESIGN.md`.
