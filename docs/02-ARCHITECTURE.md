@@ -363,8 +363,12 @@ vault; WSS pending-then-committed for a receive.
 **E2E (Playwright, `e2e/`)**: onboarding, deposit, send, receive, **wipe IndexedDB and recover**,
 exit dry-run, exit broadcast. The wipe test is the one that proves R11.
 
-**CI gates**: typecheck, lint, unit, plus three grep gates that fail the build on any occurrence of
-`addressTransactions`, `listTransactions`, or `finalizeVtxoPsbt` outside `docs/`.
+**CI gates**: typecheck, lint, unit, plus grep gates that fail the build on any occurrence of
+`addressTransactions`, `listTransactions`, or `finalizeVtxoPsbt` outside `docs/`, any mock or
+simulation API (`vi.mock`, `vi.fn`, `nock`, `msw`, `sinon`, `proxyquire`, `mock*`) anywhere in
+`packages/` or `apps/`, and any unconditional `.skip()`. The mock and skip bans are the
+enforcement half of `AGENTS.md` Rule 2 (hard rule: live daemon, real transactions, end to end,
+no mocks, no simulations, docs are field notes not truth).
 
 ## 13. Deliverables
 
