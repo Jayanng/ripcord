@@ -108,7 +108,8 @@ export interface UserKeyDescriptor {
   index: number;
   path: string;
   publicKey: CompressedHex;
-  masterFingerprint: number;
+  /** Verified against the SDK: master fingerprint is the 8-char hex string, not a number. */
+  masterFingerprint: string;
   address: UserAddress;
   addressType: string;
 }
