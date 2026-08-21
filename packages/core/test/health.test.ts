@@ -17,6 +17,9 @@ describe('preflight', { timeout: 30000 }, () => {
     expect(result.version.length).toBeGreaterThan(0);
     expect(typeof result.synced).toBe('boolean');
     expect(typeof result.l1Height).toBe('number');
+    // Bitcoin L1 height (verified range: 8861-8881 growing slowly), NOT the
+    // CometBFT chain height (~418k). This assertion proves the distinction.
     expect(result.l1Height).toBeGreaterThan(0);
+    expect(result.l1Height).toBeLessThan(100000);
   });
 });

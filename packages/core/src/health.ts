@@ -59,7 +59,16 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   try {
     const stats = await client.getStats();
     statsOk = true;
-    l1Height = stats.height;
+    // CometBFT chain height — NOT Bitcoin L1. Used only as a fallback below.
+    const chainHeight = stats.height;
+    // Real Bitcoin L1 height via the verified-permitted getblockchaininfo RPC.
+    const rpcRes = await fetch(`${baseUrl}/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: '1', jsonrpc: '1.0', method: 'getblockchaininfo', params: [] }),
+    });
+    const rpcJson = (await rpcRes.json()) as { result?: { blocks?: number } };
+    l1Height = rpcJson?.result?.blocks ?? chainHeight;
   } catch {}
 
   try {
