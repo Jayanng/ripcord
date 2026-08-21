@@ -1,0 +1,29 @@
+{
+  "name": "@ripcord/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tachibtc/taurus-vault-core": "0.3.3",
+    "@tachibtc/taurus-wallet-aggregator": "0.4.3",
+    "@tachibtc/tachi-sdk-ts": "0.2.1",
+    "bitcoinjs-lib": "^7.0.1",
+    "bip39": "^3.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
