@@ -120,7 +120,11 @@ export interface VaultRecord {
   csvBlocks: number;
   userKeyIndex: number;
   userKeyDescriptor: UserKeyDescriptor;
+  nodePubkeys: CompressedHex[];
   quorumFingerprint: string;
+  p2tr?: unknown;
+  exitLeaf?: string;
+  cooperativeLeaf?: string;
   funding?: {
     txid: DisplayTxid;
     vout: number;

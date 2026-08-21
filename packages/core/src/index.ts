@@ -6,3 +6,6 @@ export * from './errors.js';
 export * from './health.js';
 export * from './keys.js';
 export * from './quorum.js';
+export * from './vault.js';
+export * from './deposit.js';
+export * from './register.js';
