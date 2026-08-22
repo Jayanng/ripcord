@@ -686,7 +686,8 @@ facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md`
 - `buildUnilateralExitPsbt` with display-order `txid`, `scriptPubKey`, SegWit payout address, `feeSats`.
 - Verify with `expectedUserKey` and `minCsvBlocks`.
 - Sign with `signUnilateralExitPsbtAsUser`, finalize to raw buffer.
-- Query Bitcoin RPC proxy for funding outpoint confirmations against `vault.csvBlocks`.
+- Query Bitcoin RPC proxy for funding outpoint confirmations against `vault.csvBlocks` and verify the live `gettxout.value` matches persisted `funding.valueSats`.
+- Validate the supplied exit signer x-only key matches the vault's user key before signing.
 
 ### Task 9.2: Test-Pull Dry-Run & Broadcast Orchestrator
 **Status:** implemented in `packages/core/src/exit.ts` + `test/exit-run.test.ts`.

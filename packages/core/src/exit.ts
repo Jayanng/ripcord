@@ -35,6 +35,7 @@ import {
 } from './types.js';
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
+import { bytesEqual } from '@tachibtc/taurus-vault-core';
 
 const MIN_FEE_SATS = 1n;
 /** Live-probed: a 125-vB exit with 200 sat fee builds, decodes, and is standard. */
@@ -191,6 +192,23 @@ async function buildSignFinalize(params: {
   const dest = requireDest(params.destAddress, params.vault.address);
   const sdkVault = toSdkVault(params.vault);
   const scriptPubKey = vaultScriptHex(params.vault);
+  const expectedUserKey = Buffer.from(params.vault.userKeyDescriptor.publicKey.slice(2), 'hex');
+  const signerPublicKey = Buffer.from(params.signer.publicKey);
+  const signerXOnly = signerPublicKey.length === 33 ? signerPublicKey.subarray(1) : signerPublicKey;
+  if (signerXOnly.length !== 32 || !bytesEqual(expectedUserKey, signerXOnly)) {
+    throw new RipcordError(
+      RipcordCode.NOT_OWNER,
+      'Exit signer does not match the vault user key',
+      { hint: 'Use the signer derived from the vault userKeyIndex' },
+    );
+  }
+  if (!bytesEqual(expectedUserKey, Buffer.from(sdkVault.userKey.xOnly))) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'Vault user key descriptor does not match the verified SDK vault user key',
+      { hint: 'Rebuild the VaultRecord from the same user key descriptor used to derive the vault' },
+    );
+  }
   const vopts = {
     maxFeeSats: params.feeSats,
     expectedUserKey: sdkVault.userKey.xOnly,
@@ -254,6 +272,19 @@ async function inspectFunding(
   }
   if (txout.result && typeof txout.result === 'object') {
     const row = txout.result as TxOutResult;
+    if (typeof row.value !== 'number' || !Number.isFinite(row.value)) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        'gettxout returned no finite funding value',
+      );
+    }
+    const actualSats = BigInt(Math.round(row.value * 100_000_000));
+    if (actualSats !== funding.valueSats) {
+      throw new RipcordError(
+        RipcordCode.AMOUNT_MISMATCH,
+        `Funding value mismatch: record says ${funding.valueSats} sats, chain says ${actualSats} sats`,
+      );
+    }
     const confirmations = typeof row.confirmations === 'number' ? row.confirmations : 0;
     return { status: 'present', confirmations };
   }

@@ -141,6 +141,8 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
       feeSats: DEFAULT_EXIT_FEE_SATS,
     });
 
+    expect(readiness.dryRun?.sequence).toBe(2);
+
     expect(readiness.status).toBe('maturing');
     expect(readiness.reason).toBe('non-BIP68-final');
     expect(readiness.requiredConfirmations).toBe(2);
@@ -155,6 +157,10 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     const stillThere = await bitcoinRpc('gettxout', [dep!.txid, vout!.n, true]);
     expect(stillThere).toBeTruthy();
     expect((stillThere as { value: number }).value).toBe(0.0004);
+
+    const wrongValue = { ...funded, funding: { ...funded.funding!, valueSats: 39999n } };
+    await expect(assessExit({ vault: wrongValue, identity, baseUrl: DAEMON }))
+      .rejects.toMatchObject({ code: RipcordCode.AMOUNT_MISMATCH });
 
     await expect(executeExit({
       vault: funded,

@@ -367,7 +367,8 @@ Add `export * from './proofs.js';` to `src/index.ts`.
   as fully end-to-end verified until that gate passes.
 - **Cooperative refund**: structurally impossible alone (needs the 5-of-7 node keys). `cosignRefund`
   is refund-to-self only, team-confirmed.
-- **Unilateral exit broadcast**: implemented in `exit.ts`. Immature exits return `EXIT_IMMATURE`; mature `executeExit` broadcasts via `sendrawtransaction`. L1 confirmation waiting remains activity-driven.
+- **Unilateral exit broadcast**: implemented in `exit.ts`. Immature exits return `EXIT_IMMATURE`; mature `executeExit` broadcasts via `sendrawtransaction`. The wrapper verifies live funding value against persisted value and matches the exit signer to the vault user key. L1 confirmation waiting remains activity-driven.
+- **Phase 9 audit:** exit dry-run and broadcast paths now fail closed on funding amount drift and mismatched signer ownership.
 - **`IndexedDbStore` is unexercised in Node** (throws a clear error when `indexedDB` is absent). Real
   browser verification lands in Phase 10.
 - **Phase 8 parser audit:** `fetchRip` now fails closed if the daemon's `Chain.length` does not equal

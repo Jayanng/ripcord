@@ -439,7 +439,7 @@ and `e4840102e6bca4d9f5e0b4a7dfe44577a75e8bc50f3b3b0441322f8c4c2d08d9`.
 
 **Re-probed 2026-08-22 (Phase 9):** `finalizeUnilateralExitPsbt` returns a **hex string**
 (`psbt.extractTransaction().toHex()`), not a Buffer. The 21 Aug note was wrong for
-`taurus-vault-core@0.3.3`. Decoded exit: version 2, **vsize 125**, `vin[0].sequence === csvBlocks`.
+`taurus-vault-core@0.3.3`. Decoded exit: version 2, **vsize 125**, `vin[0].sequence === csvBlocks`. The Phase 9 wrapper also verifies the live `gettxout.value` equals persisted `funding.valueSats` and rejects a signer whose x-only key does not match the vault user key.
 Immature broadcast: HTTP 200 `{ error: { code: -1, message: "bitcoin rpc error -26: non-BIP68-final" } }`.
 The proxy wraps bitcoind's `-26` as `-1` and puts the real code in the message. `mapDaemonError`
 matches `non-bip68-final` in the text.
