@@ -88,6 +88,12 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       expect(typeof result!.rawTxHex).toBe('string');
       expect(result!.rawTxHex.length).toBeGreaterThan(0);
       expect(/^[0-9a-f]+$/i.test(result!.rawTxHex)).toBe(true);
+      expect(result!.amountSats).toBe(40000n);
+      expect(result!.feeSats).toBeGreaterThan(0n);
+      expect(result!.changeSats).toBeGreaterThanOrEqual(0n);
+      expect(result!.vaultAddress).toBe(vault.address);
+      expect(result!.inputs.length).toBeGreaterThan(0);
+      expect(result!.inputs.every(input => input.txid.length === 64 && input.vout >= 0)).toBe(true);
 
       // Proof of reserves: the on-chain scriptPubKey must equal the vault's
       // P2TR output script, the only check that binds the rebuild to money.

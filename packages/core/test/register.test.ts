@@ -65,6 +65,29 @@ describe('register.ts', { timeout: 60000 }, () => {
     ).rejects.toThrow(RipcordError);
   });
 
+  it('rejects malformed inputs before daemon submission', async () => {
+    const good = {
+      vault,
+      fundingTxid: '01'.repeat(32),
+      fundingVout: 0,
+      userSigner,
+      vtxoId: '02'.repeat(32),
+      owner: Buffer.from(aliceIdentity.xOnly, 'hex'),
+      amount: 39999n,
+      baseUrl: DAEMON_URL,
+    };
+    for (const [label, patch] of [
+      ['txid', { fundingTxid: 'zz' }],
+      ['vtxo', { vtxoId: 'zz' }],
+      ['owner', { owner: 'zz' }],
+      ['amount', { amount: 0n }],
+      ['vout', { fundingVout: -1 }],
+    ] as const) {
+      await expect(registerVault({ ...good, ...patch })).rejects.toThrow(RipcordError);
+      expect(label).toBeTypeOf('string');
+    }
+  });
+
   // Env-gated live test – requires manual setup.
   const hasLiveFunds =
     process.env.RIPCORD_LIVE === '1' &&

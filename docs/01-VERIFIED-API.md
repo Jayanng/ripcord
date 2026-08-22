@@ -231,7 +231,7 @@ const dep = await vc.depositToVault({
   amountSats: 40000n,
   feeRateSatVb: 2,
 });
-// → { txid, rawTxHex, … }
+// → { txid, rawTxHex, vaultAddress, amountSats, feeSats, changeSats, inputs }
 ```
 
 **VERIFIED.** Rejects any non-p2wpkh wallet by design, so the deposit txid stays non-malleable for the
@@ -289,14 +289,26 @@ const reg = await vc.registerVault({
 // → { vaultId, vaultIdHex, nonce, signedTx, broadcast, commit }
 ```
 
+**RIPCORD wrapper note:** `registerVault()` returns `{ vaultId }`, where `vaultId` is the SDK's
+64-character `vaultIdHex`. The wrapper accepts display-order hex `fundingTxid` and reverses it to the
+SDK's internal byte order. String txids are validated before conversion, and the wrapper always sends
+`feeSats: 1n` with `account`, `broadcast`, and `confirm` options. A successful mempool acceptance is not
+registration; the commit result must be checked.
+
 **VERIFIED.** Registration is a **ledger spend**, so you must onboard a `TxDeposit` first to have a
-VTXO to spend. The docs never mention `registerVault` at all. `feeSats: 0n` is rejected despite the
-type doc calling it common.
+VTXO to spend. `feeSats: 0n` is rejected despite the type doc calling it common. The committed
+RIPCORD wrapper test verifies the mapped failure path and local malformed-input validation; the full
+funded deposit → onboarding → registration loop remains env-gated and is not claimed as end-to-end
+complete.
 
 Registration is per funding outpoint; re-registering fails with `CodeVaultAlreadyExists`.
 
 Optional `name` (1–64 printable ASCII) is set-once, not unique, public, unescaped, and a daemon
 predating names rejects the whole open. Omit it.
+
+**RIPCORD wrapper validation:** malformed registration txids, VTXO ids, owners, output amounts, and
+funding outpoint indexes are rejected before the SDK submission path. A string `fundingTxid` must be
+64-character display-order hex; a Buffer must already be 32-byte internal order.
 
 ## 9. Cold-start recovery
 

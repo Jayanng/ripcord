@@ -3,12 +3,12 @@ import {
   DisplayTxid,
   asDisplayTxid,
   isVaultAddress,
+  asVaultAddress,
 } from './types.js';
-// (import removed because no longer needed)
 import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
-import * as btc from 'bitcoinjs-lib';
+import type { Utxo } from '@tachibtc/taurus-wallet-aggregator';
 
 export interface DepositToVaultParams {
   vault: VaultRecord;
@@ -22,7 +22,11 @@ export interface DepositToVaultParams {
 export interface DepositResult {
   txid: DisplayTxid;
   rawTxHex: string;
+  vaultAddress: string;
+  amountSats: bigint;
   feeSats: bigint;
+  changeSats: bigint;
+  inputs: readonly Utxo[];
 }
 
 /**
@@ -83,10 +87,17 @@ export async function depositToVault(
     );
   }
 
+  // The SDK returns these values explicitly. Dropping amount/change/inputs here
+  // made the public Phase 4 result falsely claim that fee accounting was
+  // unavailable, and forced later callers to reparse raw transaction bytes.
   return {
     txid: asDisplayTxid(dep.txid),
     rawTxHex: dep.rawTxHex,
-    feeSats: 0n, // not returned by SDK; we estimate separately if needed
+    feeSats: dep.feeSats,
+    amountSats: dep.amountSats,
+    changeSats: dep.changeSats,
+    vaultAddress: asVaultAddress(dep.vaultAddress),
+    inputs: dep.inputs,
   };
 }
 

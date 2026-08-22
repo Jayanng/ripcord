@@ -105,6 +105,11 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
     positional indices. `quorum.ts` has the single canonical, threshold-aware fingerprint; cached
     quorum objects are frozen; duplicate node keys are rejected; and `VaultRecord` persists
     `quorumThreshold` alongside `quorumFingerprint`.
+14. **Phase 4 audit:** the SDK deposit result includes actual `amountSats`, `feeSats`, `changeSats`,
+    `vaultAddress`, and consumed `inputs`; the wrapper preserves them and never reports a fabricated
+    `feeSats: 0n`. Reserve proof is exact output-script binding. Registration input validation now
+    rejects malformed txids, VTXO ids, owners, output amounts, and outpoint indexes before submission.
+    The full funded onboarding plus registration loop remains env-gated and is not claimed as complete.
 
 ## 8. Unproven / blocked items (honest state)
 

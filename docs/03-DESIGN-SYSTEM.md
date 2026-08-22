@@ -316,6 +316,15 @@ failed probe (health, nodeInfo, liveValidators, bitcoinRpc, quorum, feeEstimate)
 some probes succeeded. Never render a zero as a verified value: `quorumSize: 0` means the quorum probe
 failed, not a 0-of-0 quorum, and `l1Height: null` must not display as height 0.
 
+**Phase 4 data display rules:** a deposit receipt must render the actual `amountSats`, `feeSats`,
+`changeSats`, and `vaultAddress` returned by the SDK. Never render `feeSats: 0n` as a placeholder; that
+was a real wrapper bug, not a legitimate zero-fee result. A reserve proof is exact `scriptPubKey` binding,
+not an address-only claim. Registration errors from malformed txids, VTXO ids, owners, output amounts,
+or outpoint indexes should be rendered as preflight validation errors before any network submission.
+
+The full funded deposit, onboarding, and registration loop remains env-gated. The UI must not show a
+successful registration badge from the local builder alone; it needs the committed daemon result.
+
 **Connection states (Phase 7 `VaultIndexer`, live-verified).** The indexer emits a
 `connecting` / `connected` / `reconnecting` / `closed` status stream, so the UI needs all four, not a
 binary online/offline dot:

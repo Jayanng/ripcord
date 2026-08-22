@@ -311,6 +311,10 @@ The authoritative live-probed contract is [`docs/01-VERIFIED-API.md`](docs/01-VE
 - Regtest WebSocket: `wss://rpc-regtest.tachibtc.com/tachi_ws`
 - Faucet: `https://faucet.tachibtc.com`, 0.5 BTC per address per rolling 24 hours
 - L1 funding txids from the daemon are internal byte order and must be reversed at display boundaries
+- Deposit receipts preserve actual amount, fee, change, vault address, and consumed input accounting from the SDK
+- Reserve verification is an exact on-chain output-script comparison, not an address-only check
+- Registration inputs are locally validated before SDK submission, including txid, VTXO id, owner, amount, and outpoint index
+- The full funded deposit, onboarding, and registration loop remains env-gated and is not claimed as complete
 - CometBFT failures can arrive inside HTTP 200 responses; inspect the embedded result code
 - Proof endpoints use real HTTP status codes such as 404, 400, and 502, unlike the CometBFT envelope paths
 - Every new API claim must be probed against the live daemon before being added to documentation or code

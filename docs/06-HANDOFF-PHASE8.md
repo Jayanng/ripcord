@@ -327,28 +327,34 @@ Add `export * from './proofs.js';` to `src/index.ts`.
     `deriveUserKey` third argument is an options **object** (`{ index }`), not positional indices;
     omitting it pins everything to index 0. `getQuorumWithCache` returns a **frozen** object, so do not
     try to mutate a cached quorum.
+19. **Phase 4 audit:** the SDK's `depositToVault` returns actual accounting fields (`amountSats`,
+    `feeSats`, `changeSats`, `vaultAddress`, `inputs`). The RIPCORD wrapper now preserves them; it must
+    never substitute `feeSats: 0n` or claim the fee is unavailable. Proof of reserves is an exact
+    `scriptPubKey` comparison against the vault's P2TR output, not an address-only assertion.
+    Registration validation rejects malformed txids, VTXO ids, owners, output amounts, and outpoint
+    indexes before submission. The full funded registration loop remains env-gated and unproven.
 
 ## 9. Known-failing / blocked (honest state)
 
 - **`e2e-full-flow.test.ts` fails**: `Transaction <txid> did not confirm within timeout`. This is the
   L1 funding confirmation waiting on activity-driven regtest block production, not a code bug and not
-  caused by Phase 7. Full suite is therefore **178 passed / 1 skipped / 1 failed**. Either re-tune the
-  timeout or drive block production with traffic; decide before Phase 14.
-- **Full registration loop**: proven up to funding-commit only.
+  caused by Phase 4 or Phase 7. Full suite is therefore not an all-green gate.
+- **Full registration loop remains blocked:** the repository's live suite has not completed a full
+  funded deposit, onboarding, and registration path in one committed test. The `register.ts` live test
+  is env-gated because it requires a real funding txid and VTXO id. Do not describe Phase 4 registration
+  as fully end-to-end verified until that gate passes.
 - **Cooperative refund**: structurally impossible alone (needs the 5-of-7 node keys). `cosignRefund`
   is refund-to-self only, team-confirmed.
-- **Unilateral exit broadcast**: probe-proven historically (two real L1 txids in §11 of the API doc),
-  but no committed `exit.ts`. Phase 9.
+- **Unilateral exit broadcast**: probe-proven historically, but no committed `exit.ts`. Phase 9.
 - **`IndexedDbStore` is unexercised in Node** (throws a clear error when `indexedDB` is absent). Real
-  browser verification lands in Phase 10. It also holds its DB connection for the process lifetime,
-  which is fine for a PWA but worth knowing.
+  browser verification lands in Phase 10.
 
 ## 10. Working principles
 
 - **Live daemon is the only source of truth.** Probe before building. Docs are field notes; the probe
   wins, and you update the doc with the evidence.
 - **Zero mocks / simulations** in `packages/` or `apps/`. Tests hit the real daemon.
-- **End to end or it didn't happen:** build, sign, broadcast, wait for commit, read back.
+- **End to end or it did not happen:** build, sign, broadcast, wait for commit, read back.
 - **Gates before any commit:** full suite, `typecheck` (src + `tsconfig.test.json`), `build`,
   `npm run check:rules` (at REPO ROOT).
 - **Zero-fault policy:** fix every issue immediately, never defer.

@@ -280,19 +280,32 @@ createVault({ network, nodePubkeys, csvBlocks, userKeyDescriptor, threshold? }):
 // VaultRecord also persists quorumThreshold alongside quorumFingerprint
 describeVault(rec): { exitScript: string; coopScript: string; csvBlocks: number;
                       internalKeyIsNums: boolean; controlBlockBytes: number }
-registerVault(rec, funding, feeVtxo, signer): Promise<{ vaultIdHex; txHash; committed: true }>
+registerVault({ vault, fundingTxid, fundingVout, userSigner, vtxoId, owner, amount, baseUrl }): Promise<{ vaultId: string }>
 ```
-`threshold` defaults to 5 (the SDK's `DEFAULT_THRESHOLD` and what regtest enforces) and is passed to the
+The wrapper reverses a display-order hex `fundingTxid` to the SDK's internal byte order, requires a 32-byte
+VTXO id and x-only owner, and always sends `feeSats: 1n` with account, broadcast, and confirm options.
+It returns the SDK's `vaultIdHex` as `vaultId`. `threshold` defaults to 5 (the SDK's `DEFAULT_THRESHOLD` and what regtest enforces) and is passed to the
 SDK explicitly, so the value the vault is built with is the same value that gets fingerprinted. It is
 validated as a positive integer `<= nodePubkeys.length`; `M > N` would be cooperatively unspendable.
 `registerVault` internally: fetch nonce → build → sign → broadcast → **waitForCommit** (R9). Refuses
-if no ledger VTXO is available and tells the caller to onboard first.
+if no ledger VTXO is available and tells the caller to onboard first. The wrapper performs local
+validation of malformed txids, VTXO ids, owners, output amounts, and funding outpoint indexes before
+submission. The full funded registration loop remains env-gated and is not claimed as end-to-end complete.
 
 ### deposit.ts
 ```ts
-depositToVault(rec, wallet, amountSats, feeRateSatVb): Promise<{ txid: DisplayTxid; vout: number }>
-onboardToLedger(id, amountSats, signer): Promise<{ vtxoId: string; txHash: string }>
-verifyReserves(rec): Promise<{ ok: boolean; onChainSpk: string; derivedSpk: string; valueSats: bigint }>
+depositToVault({ vault, userWallet, rpc, amountSats, feeRateSatVb? }): Promise<{
+  txid: DisplayTxid; rawTxHex: string; vaultAddress: string; amountSats: bigint;
+  feeSats: bigint; changeSats: bigint; inputs: readonly agg.Utxo[];
+}>
+verifyDepositProofOfReserves(baseUrl, txid, expectedOutputScriptHex): Promise<boolean>
+onboardToLedger(id, amountSats, signer): Promise<{ vtxoId: string; txHash: string }>  // planned
+verifyReserves(rec): Promise<{ ok: boolean; onChainSpk: string; derivedSpk: string; valueSats: bigint }>  // planned
+
+**Phase 4 audit correction:** the SDK already returns `amountSats`, `feeSats`, `changeSats`, and
+`inputs`. The previous wrapper discarded them and returned `feeSats: 0n`, which was a false accounting
+claim. The public wrapper now preserves the SDK values. Proof-of-reserves is an exact output-script
+binding, not merely an address lookup.
 ```
 `verifyReserves` is the spk comparison, the only check that binds a rebuild to real money.
 

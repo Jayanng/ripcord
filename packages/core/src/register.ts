@@ -5,8 +5,9 @@ import { mapDaemonError } from './errors.js';
 
 export interface RegisterVaultParams {
   vault: VaultRecord | SdkVaultShape;
-  fundingTxid?: string;
-  txid?: string;
+  /** Funding txid in display order when supplied as hex; Buffer means SDK internal order. */
+  fundingTxid?: string | Buffer;
+  txid?: string | Buffer;
   fundingVout?: number;
   vout?: number;
   userSigner: vc.TaprootSigner;
@@ -16,6 +17,7 @@ export interface RegisterVaultParams {
   userXOnly?: string | Buffer;
   amount?: bigint;
   amountSats?: bigint;
+  /** SDK account/query base URL, without a path suffix. */
   baseUrl: string;
 }
 
@@ -33,19 +35,40 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
 
     // Display-order hex string → internal byte order. A Buffer is assumed to
     // already be internal byte order (the SDK contract); never reverse it again.
-    const fundingTxid = Buffer.isBuffer(txid)
-      ? txid
-      : Buffer.from(txid, 'hex').reverse();
+    let fundingTxid: Buffer;
+    if (Buffer.isBuffer(txid)) {
+      if (txid.length !== 32) {
+        throw new Error(`fundingTxid Buffer must be 32 bytes, got ${txid.length}`);
+      }
+      fundingTxid = txid;
+    } else {
+      if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
+        throw new Error('fundingTxid must be a 64-character display-order hex string');
+      }
+      fundingTxid = Buffer.from(txid, 'hex').reverse();
+    }
 
     const fundingVout =
       params.fundingVout ??
       params.vout ??
       rec.funding?.vout ??
       0;
+    if (!Number.isInteger(fundingVout) || fundingVout < 0 || fundingVout > 0xffff_ffff) {
+      throw new Error(`fundingVout must be a non-negative u32, got ${fundingVout}`);
+    }
 
-    const vtxoIdBuf = Buffer.isBuffer(params.vtxoId)
-      ? params.vtxoId
-      : Buffer.from(params.vtxoId, 'hex');
+    let vtxoIdBuf: Buffer;
+    if (Buffer.isBuffer(params.vtxoId)) {
+      if (params.vtxoId.length !== 32) {
+        throw new Error(`vtxoId Buffer must be 32 bytes, got ${params.vtxoId.length}`);
+      }
+      vtxoIdBuf = params.vtxoId;
+    } else {
+      if (!/^[0-9a-fA-F]{64}$/.test(params.vtxoId)) {
+        throw new Error('vtxoId must be a 64-character hex string');
+      }
+      vtxoIdBuf = Buffer.from(params.vtxoId, 'hex');
+    }
 
     const v = params.vault as SdkVaultShape | VaultRecord;
     const rawOwner =
@@ -59,13 +82,25 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
       throw new Error('owner is required');
     }
 
-    const xOnlyBuf = Buffer.isBuffer(rawOwner)
-      ? rawOwner
-      : Buffer.from(rawOwner, 'hex');
+    let xOnlyBuf: Buffer;
+    if (Buffer.isBuffer(rawOwner)) {
+      xOnlyBuf = rawOwner;
+    } else {
+      if (!/^[0-9a-fA-F]{64}$/.test(rawOwner)) {
+        throw new Error('owner must be a 64-character x-only hex string');
+      }
+      xOnlyBuf = Buffer.from(rawOwner, 'hex');
+    }
+    if (xOnlyBuf.length !== 32) {
+      throw new Error(`owner must be 32 bytes, got ${xOnlyBuf.length}`);
+    }
 
     const amount = params.amount ?? params.amountSats;
     if (amount === undefined) {
       throw new Error('amount is required (sats)');
+    }
+    if (amount <= 0n) {
+      throw new Error(`amount must be positive, got ${amount}`);
     }
     const { vault, userSigner, baseUrl } = params;
 

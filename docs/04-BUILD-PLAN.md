@@ -398,7 +398,10 @@ could see. When a value is written by one module and compared by another, test t
 **Implementation Details:**
 - Wrap `WalletAggregator.fromMnemonic().addAccount({ addressType: "p2wpkh" })`.
 - Call `depositToVault({ vault, userWallet, rpc, amountSats, feeRateSatVb })`.
-- `verifyReserves(txid, vout, vault)`: Fetch raw transaction from Bitcoin RPC proxy, match `vout.scriptPubKey.hex === vault.p2tr.output.toString("hex")`.
+- Preserve the SDK's returned `amountSats`, `feeSats`, `changeSats`, `vaultAddress`, and consumed `inputs`.
+- `verifyDepositProofOfReserves(baseUrl, txid, expectedOutputScriptHex)`: fetch the transaction from the Bitcoin RPC proxy and match `vout.scriptPubKey.hex === vault.p2tr.output.toString("hex")`.
+
+> **Phase 4 audit correction:** the old wrapper returned `feeSats: 0n` even though the SDK returns the actual fee. That was false accounting data and is now fixed. The reserve proof must compare the exact output script, not only the address.
 
 ### Task 4.3: Ledger Onboarding & Registration
 **Objective:** Mint spendable VTXO on ledger via `TxDeposit` and bind vault via `registerVault`.
@@ -415,8 +418,13 @@ could see. When a value is written by one module and compared by another, test t
 ### Phase 4 Verification Checklist & Expected Results
 Before proceeding to Phase 5, run and verify:
 1. `createVault` derives identical `bcrt1p...` taproot address across repeated runs for identical keys.
-2. `verifyReserves` returns `ok: true` matching on-chain `scriptPubKey.hex` to `vault.p2tr.output`.
-3. `registerVault` completes with `code: 0` and produces a 64-char `vaultIdHex` visible in `listVaults`.
+2. `verifyDepositProofOfReserves` returns `true` only when an on-chain `vout.scriptPubKey.hex` exactly matches `vault.p2tr.output`.
+3. A live deposit result preserves `amountSats`, positive `feeSats`, `changeSats`, `vaultAddress`, and consumed inputs from the SDK.
+4. `registerVault` completes with `code: 0` and produces a 64-char `vaultIdHex` visible in `listVaults`.
+
+> **Phase 4 audit status:** vault creation and the deposit/reserve path are live-tested. The full
+> funded onboarding plus registration path remains env-gated and is not claimed as end-to-end complete.
+> The full-suite L1 confirmation timeout is environmental: regtest block production is activity-driven.
 
 ---
 
