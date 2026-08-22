@@ -303,8 +303,18 @@ Add `export * from './proofs.js';` to `src/index.ts`.
     Buffer and `Uint8Array` losslessly. Do not hand-roll `JSON.stringify` on daemon payloads.
 13. **New (Phase 7):** WSS `txHash` is **lowercase**; REST (`waitForTachiTxCommit`, `broadcastTachiTx`)
     returns **uppercase**. Always case-normalize before joining the two.
-14. **New (Phase 7):** WSS `vout[].owner` is **not fixed width**, a 64-char x-only key and a 66-char
-    compressed key appeared in the same transfer. Treat it as an opaque hex pubkey.
+14. **New (Phase 7):** WSS `vout[].owner` is **not fixed width** (a 64-char x-only key and a 66-char
+    compressed key appeared in the same transfer). Treat it as an opaque hex pubkey.
+15. **New (Phase 2 audit, 23 Aug):** the daemon's rejection reason is **not** in a field called
+    `message`. `waitForTachiTxCommit` puts it in `log`, the SDK's `VtxoBroadcastError` in
+    `tendermintLog`, and the Bitcoin RPC proxy in `error.message` (with a negative `error.code`). Route
+    every non-zero status through `mapDaemonError`; never construct `RipcordCode.UNKNOWN` at a call
+    site, and never assume a numeric code exists (`amount mismatch` has **no numeric code** at all).
+    `mapDaemonError` preserves `daemonCode` even when the code is unmapped, so a caller can tell a
+    daemon rejection from a client-side failure.
+16. **New (Phase 2 audit, 23 Aug):** `preflight` now returns `probeFailures[]` and `unreachable`. Do
+    not read a zero as verified: `quorumSize: 0` means the quorum probe failed, and `l1Height: null`
+    means the Bitcoin RPC proxy did not answer.
 
 ## 9. Known-failing / blocked (honest state)
 

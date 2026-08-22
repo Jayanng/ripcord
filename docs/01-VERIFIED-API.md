@@ -31,7 +31,15 @@ npm install @tachibtc/taurus-vault-core@0.3.3 \
   replacer never sees a `Buffer`, only its `{type:'Buffer',data:[…]}` form, so any naive
   `JSON.stringify` on a daemon payload or vault record silently degrades every Buffer field (P2TR
   `output`, control blocks, leaf hashes) into a plain object. Always serialize through `bytes.ts`
-  `serializeJson` / `deserializeJson`, which handle bigint, `Buffer`, and `Uint8Array` losslessly.
+  `serializeJson` / `deserializeJson`, which handle bigint, `Buffer`, and `Uint8Array` losslessly and
+  encode all bytes to one compact `"__bytes:<base64>"` form. (Read the pre-`toJSON` value off the
+  replacer's `this[key]` holder; an `instanceof Uint8Array` check on the replacer's `value` argument
+  catches plain Uint8Arrays only and produces two different encodings for the same bytes.)
+- **The daemon does not use `message`.** `waitForTachiTxCommit` resolves `{ code, log, found, … }` and
+  the rejection reason is in **`log`**; the SDK's `VtxoBroadcastError` uses **`tendermintLog`**; the
+  Bitcoin RPC proxy nests **`error.message`** with a negative **`error.code`**. Any error mapper that
+  reads `message` alone works in tests and never fires in production. `amount mismatch` has no numeric
+  code at all (§17), so its text is the only signal it happened.
 
 ## 1. Endpoints
 
@@ -69,6 +77,17 @@ const nodePubkeys = raw.map(v => v.compressedHex);   // MUST use compressedHex
 
 `getHealth()` returns `{status:"ok", validators:1}`. That `1` is this node's peer count, **not** the
 consensus set size. `getLiveValidators()` returns all **7**. Do not read health as a quorum signal.
+
+**Boot preflight (`@ripcord/core` `preflight`) runs six probes:** `getHealth`, `getNodeInfo`,
+`getLiveValidators`, the Bitcoin RPC proxy (`getblockchaininfo`), `fetchConsensusQuorum`, and
+`getFeeEstimate`. Each is independently fallible, so failures are reported per probe in
+`probeFailures: { probe, message }[]` with `unreachable: true` only when every daemon-facing probe
+failed. Verified 23 Aug against an unresolvable host: all five daemon probes fail in ~16 ms and are each
+named. A failed probe leaves its fields at zero, and **a zero is not a verified value**:
+`quorumSize: 0` means the quorum probe failed rather than a 0-of-0 quorum, `chainId: ''` means
+`getNodeInfo` failed rather than a chain mismatch, and `l1Height: null` with
+`l1HeightSource: 'unavailable'` means the Bitcoin RPC proxy did not answer. Never substitute the
+CometBFT height (~437k) for the Bitcoin L1 height (~9k).
 
 ## 3. Key derivation
 
@@ -676,6 +695,20 @@ key is not public; treat the key as opaque and verify it only against the `stem 
 | 8 | fee below minimum | `feeSats: 0n` |
 | 12 | invalid transaction format | PSBT corrupt, or PSBT outputs don't mirror envelope outputs |
 | - | amount mismatch | `sum(inputs) - sum(outputs) ≠ fee` |
+
+**Reading a rejection (audit 2026-08-23).** The code alone is not enough, and the reason is not in a
+field called `message`:
+
+| Source | Numeric code | Reason text |
+|---|---|---|
+| `waitForTachiTxCommit` → `TachiTxCommitStatus` | `code` | **`log`** (no `message` field exists) |
+| SDK `VtxoBroadcastError` | `tendermintCode` (`.code` is the string `"VTXO_BROADCAST"`) | **`tendermintLog`** |
+| Bitcoin JSON-RPC proxy | `error.code` (negative, cannot collide with the table above) | **`error.message`** |
+
+`amount mismatch` has **no numeric code** (blank row above), so its text in `log` is the only signal it
+occurred. A mapper reading `message` alone silently misses every text-only rejection while its unit
+tests pass. `@ripcord/core`'s `mapDaemonError` reads all of these and preserves `daemonCode` even when
+the code is unmapped.
 
 ## 18. Nonce is not enforced
 

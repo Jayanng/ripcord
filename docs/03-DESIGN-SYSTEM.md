@@ -281,6 +281,22 @@ Errors show the mapped hint from the core error model plus a "details" disclosur
 daemon message. Never swallow the original text; a builder reading our error should be able to search
 it.
 
+**This is load-bearing, not decorative (audit 2026-08-23).** `mapDaemonError` was found returning the
+bare string `'Unknown error'` for any unmapped rejection, with the daemon's own text buried in
+`.cause`, which left the details disclosure with nothing to show. It now keeps the raw text in the
+message and preserves `daemonCode` even when the code is unmapped, so the UI can always render
+"what the daemon said" beneath the friendly hint. Note where that text comes from: the daemon has no
+`message` field. The reason lives in `log` (commit status), `tendermintLog` (SDK broadcast error), or
+`error.message` (Bitcoin RPC proxy). Some rejections, `amount mismatch` among them, have **no numeric
+code** at all, so the text is the only thing to show and the UI must not key off a code being present.
+
+**Boot failures need the same treatment.** `preflight` returns
+`probeFailures: { probe, message }[]` plus `unreachable: boolean`. A boot error screen should name the
+failed probe (health, nodeInfo, liveValidators, bitcoinRpc, quorum, feeEstimate) rather than a generic
+"cannot connect", and should distinguish `unreachable` (nothing answered) from a degraded daemon where
+some probes succeeded. Never render a zero as a verified value: `quorumSize: 0` means the quorum probe
+failed, not a 0-of-0 quorum, and `l1Height: null` must not display as height 0.
+
 **Connection states (Phase 7 `VaultIndexer`, live-verified).** The indexer emits a
 `connecting` / `connected` / `reconnecting` / `closed` status stream, so the UI needs all four, not a
 binary online/offline dot:

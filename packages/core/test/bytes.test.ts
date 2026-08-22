@@ -199,4 +199,90 @@ describe('bytes.ts: byte reversal & BigInt JSON helpers', () => {
       expect(typeof restored.s).toBe('string');
     });
   });
+
+  /**
+   * AUDIT (2026-08-23). `Buffer.prototype.toJSON` runs BEFORE a JSON replacer,
+   * so the replacer used to see an already-flattened
+   * `{ type: 'Buffer', data: [...] }` object and its `Uint8Array` branch only
+   * caught plain (non-Buffer) Uint8Arrays. Two real consequences, both fixed:
+   *   1. the same bytes encoded two different ways depending on the input type
+   *   2. a Buffer serialized ~50% larger than base64 needs
+   * The reviver's legacy-shape detection was also too loose and coerced any
+   * foreign `{type:'Buffer',data:[...]}` object into a Buffer.
+   */
+  describe('serialization encoding consistency (audit 2026-08-23)', () => {
+    it('encodes a Buffer and an equivalent Uint8Array identically', () => {
+      const buf = Buffer.from('5120' + 'ab'.repeat(32), 'hex');
+      const u8 = new Uint8Array(buf);
+      expect(serializeJson({ x: buf })).toBe(serializeJson({ x: u8 }));
+    });
+
+    it('encodes bytes as a compact __bytes: string, not a data array', () => {
+      const buf = Buffer.from('deadbeef', 'hex');
+      const json = serializeJson({ x: buf });
+      expect(json).toContain('__bytes:');
+      expect(json).not.toContain('"type":"Buffer"');
+      expect(json).not.toContain('"data"');
+    });
+
+    it('stays close to base64 size for a 1KB buffer (no per-byte blow-up)', () => {
+      const json = serializeJson({ b: Buffer.alloc(1024, 7) });
+      // base64 of 1024 bytes is 1368 chars; the old array form produced 2080+.
+      expect(json.length).toBeLessThan(1500);
+    });
+
+    it('does NOT coerce a foreign {type:"Buffer"} object with non-numeric data', () => {
+      const restored = deserializeJson<{ meta: unknown }>(
+        '{"meta":{"type":"Buffer","data":["not","numbers"]}}'
+      );
+      expect(Buffer.isBuffer(restored.meta)).toBe(false);
+      expect(restored.meta).toEqual({ type: 'Buffer', data: ['not', 'numbers'] });
+    });
+
+    it('does NOT coerce an object with out-of-range byte values', () => {
+      const restored = deserializeJson<{ meta: unknown }>(
+        '{"meta":{"type":"Buffer","data":[1,2,999]}}'
+      );
+      expect(Buffer.isBuffer(restored.meta)).toBe(false);
+    });
+
+    it('does NOT coerce an object carrying extra keys alongside type/data', () => {
+      const restored = deserializeJson<{ meta: unknown }>(
+        '{"meta":{"type":"Buffer","data":[1,2,3],"note":"foreign"}}'
+      );
+      expect(Buffer.isBuffer(restored.meta)).toBe(false);
+    });
+
+    it('still restores a legacy {type:"Buffer",data:[...]} snapshot (back-compat)', () => {
+      // Snapshots written by the previous implementation must still load.
+      const restored = deserializeJson<{ x: Buffer }>('{"x":{"type":"Buffer","data":[81,32,171]}}');
+      expect(Buffer.isBuffer(restored.x)).toBe(true);
+      expect(restored.x.toString('hex')).toBe('5120ab');
+    });
+
+    it('preserves a nested Buffer inside arrays and objects', () => {
+      const original = {
+        list: [Buffer.from([1, 2]), Buffer.from([3, 4])],
+        nested: { deep: { b: Buffer.from('ff', 'hex') } },
+      };
+      const restored = deserializeJson<typeof original>(serializeJson(original));
+      expect(restored.list.every(b => Buffer.isBuffer(b))).toBe(true);
+      expect(restored.list[1].toString('hex')).toBe('0304');
+      expect(restored.nested.deep.b.toString('hex')).toBe('ff');
+    });
+
+    it('preserves an empty Buffer as an empty Buffer', () => {
+      const restored = deserializeJson<{ b: Buffer }>(serializeJson({ b: Buffer.alloc(0) }));
+      expect(Buffer.isBuffer(restored.b)).toBe(true);
+      expect(restored.b.length).toBe(0);
+    });
+
+    it('preserves a top-level bigint and a top-level Buffer', () => {
+      // A bare value has no holder object; the replacer must not crash.
+      expect(deserializeJson<bigint>(serializeJson(7n))).toBe(7n);
+      const b = deserializeJson<Buffer>(serializeJson(Buffer.from('ab', 'hex')));
+      expect(Buffer.isBuffer(b)).toBe(true);
+      expect(b.toString('hex')).toBe('ab');
+    });
+  });
 });

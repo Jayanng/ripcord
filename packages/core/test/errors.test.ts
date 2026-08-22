@@ -188,8 +188,7 @@ describe('mapDaemonError', () => {
 
   describe('real SDK error shapes (live-probed 2026-08-22)', () => {
     // A real daemon rejection arrives as VtxoBroadcastError with a STRING .code
-    // ("VTXO_BROADCAST") and the real CometBFT code in .tendermintCode. The
-    // numeric-only extractor below is what production would hit.
+    // ("VTXO_BROADCAST") and the real CometBFT code in .tendermintCode.
     const realRejection = Object.assign(new Error('tachi mempool rejected VTXO (code=5): vtxo already spent'), {
       code: 'VTXO_BROADCAST',
       tendermintCode: 5,
@@ -219,16 +218,110 @@ describe('mapDaemonError', () => {
       expect(err.daemonCode).toBe(3);
     });
 
-    it('unmapped tendermintCode falls through to UNKNOWN with message preserved', () => {
+    it('unmapped tendermintCode falls through to UNKNOWN but keeps daemonCode', () => {
       // Live probe 2026-08-22: code=1 'failed to decode transaction: read input 0
       // vtxoid: unexpected EOF' from broadcastVtxoToTachiMempool(garbage).
+      // AUDIT FIX 2026-08-23: daemonCode used to be dropped here, so a caller
+      // could not tell an unmapped daemon rejection from a client-side failure.
       const shape = Object.assign(
         new Error('tachi mempool rejected VTXO (code=1): failed to decode transaction'),
         { code: 'VTXO_BROADCAST', tendermintCode: 1 }
       );
       const err = mapDaemonError(shape);
       expect(err.code).toBe(RipcordCode.UNKNOWN);
-      expect(err.daemonCode).toBeUndefined();
+      expect(err.daemonCode).toBe(1);
+    });
+  });
+
+  /**
+   * AUDIT (2026-08-23). The suite above only ever fed `mapDaemonError` objects
+   * with a `message` field, but the real daemon does not use one:
+   *
+   *   - `waitForTachiTxCommit` resolves `TachiTxCommitStatus` = `{ code, log,
+   *     found, … }`. The SDK's own docs call `log` "the rejection reason when
+   *     code is non-zero". There is no `message`.
+   *   - `VtxoBroadcastError` puts the reason in `tendermintLog`.
+   *   - The Bitcoin JSON-RPC proxy nests it at `error.message`.
+   *
+   * With a message-only extractor, every text-based mapping silently failed in
+   * production while passing here. `amount mismatch` is the worst case: docs §17
+   * lists it with NO numeric code, so text is the only signal it exists.
+   */
+  describe('real daemon field shapes (audit 2026-08-23)', () => {
+    it('maps "amount mismatch" from a commit status .log (no message field)', () => {
+      const commitStatus = {
+        code: 7,
+        log: 'amount mismatch: sum(inputs)=12000 sum(outputs)=501000 fee=1',
+        found: true,
+      };
+      const err = mapDaemonError(commitStatus);
+      expect(err.code).toBe(RipcordCode.AMOUNT_MISMATCH);
+      expect(err.daemonCode).toBe(7);
+    });
+
+    it('maps "non-BIP68-final" from .log', () => {
+      const err = mapDaemonError({ code: 26, log: 'bitcoin rpc error -26: non-BIP68-final', found: true });
+      expect(err.code).toBe(RipcordCode.EXIT_IMMATURE);
+    });
+
+    it('maps "bad-txns-inputs-missingorspent" from .log', () => {
+      const err = mapDaemonError({ code: 1, log: 'bad-txns-inputs-missingorspent', found: true });
+      expect(err.code).toBe(RipcordCode.FUNDING_MISSING);
+    });
+
+    it('maps text from tendermintLog when tendermintCode is unmapped', () => {
+      const shape = Object.assign(new Error('tachi mempool rejected VTXO (code=99)'), {
+        code: 'VTXO_BROADCAST',
+        tendermintCode: 99,
+        tendermintLog: 'amount mismatch: sum(inputs)=1 sum(outputs)=2 fee=1',
+      });
+      const err = mapDaemonError(shape);
+      expect(err.code).toBe(RipcordCode.AMOUNT_MISMATCH);
+      expect(err.daemonCode).toBe(99);
+    });
+
+    it('maps a nested Bitcoin JSON-RPC proxy error envelope', () => {
+      // The proxy returns { result: null, error: { code: -26, message: "..." } }.
+      const rpcEnvelope = { result: null, error: { code: -26, message: 'non-BIP68-final' } };
+      const err = mapDaemonError(rpcEnvelope);
+      expect(err.code).toBe(RipcordCode.EXIT_IMMATURE);
+      expect(err.daemonCode).toBe(-26);
+    });
+
+    it('a negative RPC code cannot collide with the CometBFT code map', () => {
+      // -3 must NOT be read as CometBFT 3 (INVALID_SIGNATURE).
+      const err = mapDaemonError({ error: { code: -3, message: 'some rpc failure' } });
+      expect(err.code).toBe(RipcordCode.UNKNOWN);
+      expect(err.daemonCode).toBe(-3);
+    });
+
+    it('prefers a mapped numeric code over conflicting text', () => {
+      // code 5 is authoritative even though the log mentions a different failure.
+      const err = mapDaemonError({ code: 5, log: 'amount mismatch: whatever' });
+      expect(err.code).toBe(RipcordCode.VTXO_ALREADY_SPENT);
+      expect(err.daemonCode).toBe(5);
+    });
+
+    it('still returns UNKNOWN when no field carries a recognizable reason', () => {
+      const err = mapDaemonError({ code: 999, log: '', found: true });
+      expect(err.code).toBe(RipcordCode.UNKNOWN);
+      expect(err.daemonCode).toBe(999);
+    });
+
+    it('preserves the raw daemon text in the UNKNOWN message', () => {
+      // AUDIT FIX 2026-08-23: the message used to be the bare 'Unknown error',
+      // discarding the daemon's own text (it survived only inside .cause).
+      // 03-DESIGN-SYSTEM.md requires the raw message for the error details
+      // disclosure, and an unmapped rejection is exactly when a human needs it.
+      const err = mapDaemonError({ code: 42, log: 'validator set rotated mid-block' });
+      expect(err.code).toBe(RipcordCode.UNKNOWN);
+      expect(err.message).toContain('validator set rotated mid-block');
+    });
+
+    it('falls back to a bare message when there is no daemon text at all', () => {
+      const err = mapDaemonError({});
+      expect(err.code).toBe(RipcordCode.UNKNOWN);
+      expect(err.message).toBe('Unknown error');
     });
   });
 });

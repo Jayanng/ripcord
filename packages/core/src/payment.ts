@@ -156,11 +156,12 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     });
 
     if (status.code !== 0) {
-      throw new RipcordError(
-        RipcordCode.UNKNOWN,
-        `Transfer failed: code=${status.code}, log=${status.log}`,
-        { daemonCode: status.code },
-      );
+      // AUDIT FIX (2026-08-23): this used to construct RipcordCode.UNKNOWN
+      // directly, so a transfer rejected at FinalizeBlock with code 5 reported
+      // UNKNOWN instead of VTXO_ALREADY_SPENT and the caller lost its recovery
+      // hint. Route it through mapDaemonError, which reads both `code` and the
+      // reason text in `log`.
+      throw mapDaemonError(status);
     }
 
     return {

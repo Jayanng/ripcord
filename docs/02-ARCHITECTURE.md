@@ -183,15 +183,39 @@ interface PaymentReceipt {
 > is in `06-HANDOFF-PHASE8.md` §2.
 
 ### health.ts: preflight
+
+**As-built** (Phase 2, revised by the 23 Aug audit):
+
 ```ts
-preflight(cfg): Promise<{
+preflight(baseUrl: string): Promise<{
   daemonOk: boolean; chainId: string; version: string; synced: boolean;
   liveValidators: number; quorumThreshold: number; quorumSize: number;
-  l1Height: number; feeRecommendedSats: bigint;
+  feeRecommendedSats: bigint; feeMinSats: bigint;
+  l1Height: number | null; l1HeightSource: 'bitcoin-rpc' | 'unavailable';
+  probeFailures: ProbeFailure[];   // which probe failed and why
+  unreachable: boolean;            // true when NOTHING answered
 }>
+type ProbeName = 'health' | 'nodeInfo' | 'liveValidators' | 'bitcoinRpc' | 'quorum' | 'feeEstimate';
+interface ProbeFailure { probe: ProbeName; message: string }
 ```
+
 Runs on app boot. Asserts `chainId === "tachi-regtest-1"` and refuses to proceed on mismatch, so a
-signet URL can never silently talk to a regtest wallet.
+signet URL can never silently talk to a regtest wallet. The guard fires **immediately after the chain
+id is known**, before the remaining probes are sent, so a wrong-chain daemon is refused rather than
+fully interrogated first.
+
+**Audit fixes (2026-08-23):**
+- **`probeFailures` is new.** Every probe used to sit behind a bare `catch {}` (six of them), so
+  `daemonOk: false` carried no information: a DNS failure, an HTTP 500, a quorum change, and a
+  fee-endpoint outage were indistinguishable. `03-DESIGN-SYSTEM.md` requires the raw daemon text for
+  the error details disclosure, and boot is exactly when a user needs it.
+- **`unreachable` distinguishes an outage from a degraded daemon.** True only when every
+  daemon-facing probe failed.
+- **`l1Height` is `number | null`**, not `number`. It is `null` with
+  `l1HeightSource: 'unavailable'` when the Bitcoin RPC proxy does not answer. Never substitute the
+  CometBFT height (~437k) for the Bitcoin L1 height (~9k).
+- Zero values on failure are deliberate and must never read as verified: `quorumSize: 0` is not a
+  verified quorum, and `chainId: ''` means `getNodeInfo` failed rather than a chain mismatch.
 
 ### quorum.ts
 ```ts
@@ -319,6 +343,12 @@ implementation silently degrades them to `{type:'Buffer',data:[…]}` objects an
 unspendable. That was a real Phase 7 bug, found by audit and fixed. **Never hand-roll `JSON.stringify`
 on daemon payloads or vault records.**
 
+`Buffer` and `Uint8Array` both encode to one compact `"__bytes:<base64>"` string (Phase 2 audit fix:
+they used to encode two different ways, and a `Buffer` inflated ~50% over base64 because it went out as
+a per-byte `data` array). On read, a `{type:'Buffer',data:[…]}` object is only coerced back to a Buffer
+when every element is a byte-range integer and the object has exactly those two keys, so a foreign
+daemon payload sharing that shape is left untouched.
+
 Receipt keys are canonicalised to lowercase `txHash` in both implementations, because the daemon emits
 the hash in two different cases (WSS lowercase, REST uppercase).
 
@@ -417,6 +447,21 @@ Daemon codes mapped to actionable hints:
 | `non-BIP68-final` | `EXIT_IMMATURE` | "Exit needs N more confirmations." |
 | `bad-txns-inputs-missingorspent` | `FUNDING_MISSING` | Byte-order or already-exited guard |
 | (client-side) | `QUEUE_OVERFLOW` | "Event backlog exceeded. Reconnecting." (Phase 7, `indexer.ts`) |
+
+**Where the reason actually lives (audit 2026-08-23).** `mapDaemonError` must read the rejection text
+from every field the daemon really uses, not just `message`:
+
+| Source | Code field | Reason field |
+|---|---|---|
+| `waitForTachiTxCommit` (`TachiTxCommitStatus`) | `code` | **`log`** (there is no `message`) |
+| `VtxoBroadcastError` (SDK) | `tendermintCode` (`.code` is the string `"VTXO_BROADCAST"`) | **`tendermintLog`** |
+| Bitcoin JSON-RPC proxy | `error.code` (negative) | **`error.message`** |
+
+A message-only extractor left every text-based mapping dead in production while its tests passed.
+`amount mismatch` is the worst case: it has **no numeric code** at all, so text is the only signal.
+`daemonCode` is threaded through every mapping including `UNKNOWN`, and the `UNKNOWN` message keeps the
+raw daemon text so the details disclosure has something to show. Every non-zero commit status goes
+through `mapDaemonError`; never construct `UNKNOWN` at a call site.
 
 **Two error surfaces, not one.** Ledger operations return CometBFT failures **inside HTTP 200**, so
 `result.code` is the authority there. The proof routes (`/tachi_tx?hat=`/`&rip=`) are different: they

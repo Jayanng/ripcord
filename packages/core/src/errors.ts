@@ -47,24 +47,69 @@ function extractCode(err: unknown): number | undefined {
     if (typeof asObj.code === 'number') {
       return asObj.code;
     }
+    // Bitcoin JSON-RPC proxy envelope: { error: { code: -26, message: "..." } }.
+    // Codes are negative and cannot collide with the CometBFT map.
+    const nested = asObj.error;
+    if (nested && typeof nested === 'object') {
+      const nestedCode = (nested as Record<string, unknown>).code;
+      if (typeof nestedCode === 'number') {
+        return nestedCode;
+      }
+    }
   }
   return undefined;
 }
 
+/**
+ * Collect every field that can carry a human-readable rejection reason.
+ *
+ * AUDIT FIX (2026-08-23): this used to read `message` only, which meant none of
+ * the text-based mappings below ever fired against a real daemon response. The
+ * SDK's own types are explicit about where the reason actually lives:
+ *
+ *   - `TachiTxCommitStatus` (what `waitForTachiTxCommit` resolves to) is
+ *     `{ code, log, found, ... }`. The docs call `log` "the rejection reason
+ *     when code is non-zero". There is no `message` field at all.
+ *   - `VtxoBroadcastError` carries `tendermintLog` alongside `tendermintCode`.
+ *   - The Bitcoin JSON-RPC proxy nests its reason at `error.message`.
+ *
+ * `amount mismatch` in particular has NO numeric code (docs §17 lists it with a
+ * blank code column), so text is the only signal, and it was being missed.
+ * Every candidate is joined so a match in any one of them is found.
+ */
 function extractMessage(err: unknown): string | undefined {
-  if (err instanceof Error) {
-    return err.message;
-  }
   if (typeof err === 'string') {
     return err;
   }
-  if (err && typeof err === 'object' && 'message' in err) {
-    const msg = (err as Record<string, unknown>).message;
-    if (typeof msg === 'string') {
-      return msg;
-    }
+  if (!err || typeof err !== 'object') {
+    return undefined;
   }
-  return undefined;
+  const asObj = err as Record<string, unknown>;
+  const parts: string[] = [];
+  const push = (value: unknown): void => {
+    if (typeof value === 'string' && value.length > 0) {
+      parts.push(value);
+    }
+  };
+
+  if (err instanceof Error) {
+    push(err.message);
+  } else {
+    push(asObj.message);
+  }
+  push(asObj.log);
+  push(asObj.tendermintLog);
+  push(asObj.tendermintTxLog);
+  push(asObj.reason);
+
+  const nested = asObj.error;
+  if (nested && typeof nested === 'object') {
+    push((nested as Record<string, unknown>).message);
+  } else {
+    push(nested);
+  }
+
+  return parts.length > 0 ? parts.join(' | ') : undefined;
 }
 
 interface DaemonCodeMapping {
@@ -120,30 +165,46 @@ export function mapDaemonError(err: unknown): RipcordError {
     }
   }
 
+  // AUDIT FIX (2026-08-23): the text-based branches below used to drop the
+  // numeric code, so a rejection carrying both (e.g. a commit status with
+  // `code: 7` and `log: "amount mismatch: …"`) lost the code entirely and the
+  // caller could not tell an unmapped daemon code from a client-side failure.
+  // `daemonCode` is now threaded through every mapping.
+  const daemonCode = code !== undefined ? { daemonCode: code } : {};
+
   if (message) {
     const lower = message.toLowerCase();
     if (lower.includes('amount mismatch')) {
       return new RipcordError(
         RipcordCode.AMOUNT_MISMATCH,
         'Amount mismatch',
-        { cause: err, hint: 'Check the amounts and fees on every input and output.' }
+        { cause: err, hint: 'Check the amounts and fees on every input and output.', ...daemonCode }
       );
     }
     if (lower.includes('non-bip68-final')) {
       return new RipcordError(
         RipcordCode.EXIT_IMMATURE,
         'Exit immature: non-BIP68-final',
-        { cause: err, hint: 'Exit needs N more confirmations.' }
+        { cause: err, hint: 'Exit needs N more confirmations.', ...daemonCode }
       );
     }
     if (lower.includes('bad-txns-inputs-missingorspent')) {
       return new RipcordError(
         RipcordCode.FUNDING_MISSING,
         'Funding missing or already spent',
-        { cause: err }
+        { cause: err, ...daemonCode }
       );
     }
   }
 
-  return new RipcordError(RipcordCode.UNKNOWN, 'Unknown error', { cause: err });
+  return new RipcordError(
+    RipcordCode.UNKNOWN,
+    // AUDIT FIX (2026-08-23): this used to be the bare string 'Unknown error',
+    // which discarded the daemon's own text from `.message` entirely (it
+    // survived only inside `.cause`). `03-DESIGN-SYSTEM.md` requires the raw
+    // daemon message to stay available for the error "details" disclosure, and
+    // an unmapped rejection is exactly the case where a human needs it.
+    message ? `Unknown error: ${message}` : 'Unknown error',
+    { cause: err, ...daemonCode }
+  );
 }

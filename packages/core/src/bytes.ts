@@ -53,47 +53,83 @@ function isUint8Array(value: unknown): value is Uint8Array {
 }
 
 /**
- * Buffer.toJSON() emits `{ type: 'Buffer', data: number[] }` and JSON.stringify
- * calls it BEFORE the replacer runs, so a Buffer never reaches jsonReplacer.
- * Detect that exact shape here so a Buffer round-trips as a real Buffer.
+ * Legacy `Buffer.toJSON()` shape: `{ type: 'Buffer', data: number[] }`.
+ *
+ * The replacer below now intercepts Buffers before `toJSON` can run, so nothing
+ * this library writes uses this form any more. It is still recognised on read so
+ * a snapshot written by the previous implementation still restores.
+ *
+ * AUDIT FIX (2026-08-23): the check used to accept any `data` array, which meant
+ * a foreign daemon payload that happened to contain `{type:'Buffer', data:[…]}`
+ * was silently coerced into a Buffer (a non-numeric array became zero bytes).
+ * Every element must now be a byte-range integer.
  */
-function isBufferJson(value: unknown): value is { type: 'Buffer'; data: number[] } {
+function isLegacyBufferJson(value: unknown): value is { type: 'Buffer'; data: number[] } {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const obj = value as Record<string, unknown>;
-  return obj.type === 'Buffer' && Array.isArray(obj.data);
+  if (obj.type !== 'Buffer' || !Array.isArray(obj.data)) {
+    return false;
+  }
+  // A legacy Buffer payload has exactly these two keys and nothing else.
+  if (Object.keys(obj).length !== 2) {
+    return false;
+  }
+  return obj.data.every(b => typeof b === 'number' && Number.isInteger(b) && b >= 0 && b <= 255);
 }
 
-function jsonReplacer(_key: string, value: unknown): unknown {
-  if (typeof value === 'bigint') {
-    return `${BIGINT_PREFIX}${value.toString()}`;
+/**
+ * JSON replacer.
+ *
+ * AUDIT FIX (2026-08-23): `Buffer.prototype.toJSON` runs BEFORE a replacer sees
+ * the value, so `value` arrives already flattened to
+ * `{ type: 'Buffer', data: [...] }` and the `isUint8Array(value)` branch only
+ * ever caught a plain (non-Buffer) `Uint8Array`. The consequences were both real:
+ *
+ *   1. **Inconsistent encoding.** The same 33 bytes serialized as a 166-char
+ *      `{"type":"Buffer","data":[…]}` object when passed as a `Buffer` but as a
+ *      64-char `"__bytes:…"` string when passed as a `Uint8Array`. Two wire
+ *      formats for one value.
+ *   2. **Size blow-up.** A 1 KB Buffer produced 2,080 characters instead of the
+ *      ~1,390 base64 needs. On a ~114 KB RIP proof that is a material waste in
+ *      an IndexedDB quota.
+ *
+ * The replacer is invoked with `this` bound to the holder object, and
+ * `this[key]` is the ORIGINAL value before `toJSON` was applied. Reading the raw
+ * value there catches `Buffer` and `Uint8Array` identically, on one code path.
+ */
+function jsonReplacer(this: unknown, key: string, value: unknown): unknown {
+  // Recover the pre-toJSON value from the holder so a Buffer is still a Buffer.
+  const holder = this as Record<string, unknown> | undefined;
+  const raw = holder !== undefined && holder !== null ? holder[key] : value;
+
+  if (typeof raw === 'bigint') {
+    return `${BIGINT_PREFIX}${raw.toString()}`;
   }
-  if (isUint8Array(value)) {
-    // Buffers (and bitcoinjs-lib v7's Uint8Arrays) are pervasive in vault
-    // records and proofs. JSON.stringify would otherwise emit them as
-    // { type: 'Buffer', data: [...] } and deserialization would leave a plain
-    // object, silently corrupting p2tr outputs and control blocks.
-    return `${BUFFER_PREFIX}${Buffer.from(value).toString('base64')}`;
+  if (isUint8Array(raw)) {
+    // Buffers and bitcoinjs-lib v7's Uint8Arrays are pervasive in vault records
+    // and proofs. Both encode to the same compact base64 form.
+    return `${BUFFER_PREFIX}${Buffer.from(raw).toString('base64')}`;
   }
   // Prefix-doubling: a literal string that starts with either reserved prefix
   // is emitted with the prefix doubled so the reviver can tell it apart from
   // an encoded value. Without this, deserializeJson(serializeJson({s:'__bigint:5'}))
   // would either corrupt the string into 5n or throw a SyntaxError.
-  if (typeof value === 'string') {
-    if (value.startsWith(BIGINT_PREFIX)) {
-      return BIGINT_PREFIX + value;
+  if (typeof raw === 'string') {
+    if (raw.startsWith(BIGINT_PREFIX)) {
+      return BIGINT_PREFIX + raw;
     }
-    if (value.startsWith(BUFFER_PREFIX)) {
-      return BUFFER_PREFIX + value;
+    if (raw.startsWith(BUFFER_PREFIX)) {
+      return BUFFER_PREFIX + raw;
     }
   }
   return value;
 }
 
 function jsonReviver(_key: string, value: unknown): unknown {
-  // Buffer.toJSON shape (see isBufferJson): reconstruct a real Buffer.
-  if (isBufferJson(value)) {
+  // Legacy Buffer.toJSON shape (see isLegacyBufferJson): restore a real Buffer.
+  if (isLegacyBufferJson(value)) {
     return Buffer.from(value.data);
   }
   if (typeof value !== 'string') {

@@ -143,6 +143,21 @@ export type VaultAddress = string & { readonly __brand: "VaultAddress" };
 - `serializeJson(data: any): string`: serializes bigints to string with `"__bigint:"` prefix.
 - `deserializeJson<T>(json: string): T`: round-trip restores Native BigInts.
 
+> **REVISED 2026-08-23 (audit).** "BigInt JSON" was too narrow: `VaultRecord.p2tr` carries `Buffer`
+> fields and RIP proofs carry byte arrays, so these helpers must be **byte-safe as well as
+> bigint-safe**. `Buffer` and `Uint8Array` both encode to a compact `"__bytes:<base64>"` string.
+>
+> The trap that cost two rounds of fixes: **`Buffer.prototype.toJSON` runs BEFORE a `JSON.stringify`
+> replacer**, so the replacer receives an already-flattened `{type:'Buffer',data:[…]}` object and a
+> naive `instanceof Uint8Array` check never fires for a real `Buffer`. Read the pre-`toJSON` value off
+> the replacer's `this[key]` holder instead. Symptoms if you get this wrong: Buffers degrade to plain
+> objects (a restored vault becomes unspendable), the same bytes encode two different ways depending
+> on the declared type, and payloads inflate ~50% over base64.
+>
+> On read, only coerce a `{type:'Buffer',data:[…]}` object when every element is a byte-range integer
+> and the object has exactly those two keys; a looser check silently mangles foreign daemon payloads
+> that happen to share the shape.
+
 ### Task 2.3: Error Taxonomy & Daemon Code Mapper
 **Objective:** Implement `RipcordError` and structured mapper for CometBFT/daemon error codes.
 **Files:**
@@ -151,6 +166,28 @@ export type VaultAddress = string & { readonly __brand: "VaultAddress" };
 
 **Implementation Details:**
 Map CometBFT codes (3: INVALID_SIGNATURE, 5: VTXO_ALREADY_SPENT, 6: NOT_OWNER, 8: FEE_TOO_LOW, 12: INVALID_FORMAT) and Bitcoin RPC errors (`non-BIP68-final`, `bad-txns-inputs-missingorspent`) into actionable error objects with human-readable diagnostic messages and recovery hints.
+
+> **REVISED 2026-08-23 (audit).** The mapper must read the reason from **every field the daemon
+> actually uses**, not just `message`:
+>
+> - `waitForTachiTxCommit` resolves `TachiTxCommitStatus` = `{ code, log, found, … }`. The reason is in
+>   **`log`**; there is no `message` field at all.
+> - `VtxoBroadcastError` carries **`tendermintLog`** beside `tendermintCode`.
+> - The Bitcoin JSON-RPC proxy nests **`error.message`** and **`error.code`** (negative codes, which
+>   cannot collide with the CometBFT map).
+>
+> A message-only extractor meant every text-based mapping silently never fired in production while
+> passing its tests. `amount mismatch` is the worst case: docs §17 lists it with **no numeric code**, so
+> text is the only signal it exists, and it was being reported as `UNKNOWN`.
+>
+> Also required: thread `daemonCode` through the text-based branches and the `UNKNOWN` fallback (a
+> caller must be able to tell an unmapped daemon rejection from a client-side failure), and keep the raw
+> daemon text in the `UNKNOWN` message rather than discarding it into `.cause`
+> (`03-DESIGN-SYSTEM.md` requires it for the error details disclosure).
+>
+> Every non-zero commit status must go **through `mapDaemonError`**. Constructing
+> `RipcordCode.UNKNOWN` directly at a call site (as `payment.ts` did) throws away the mapping and the
+> recovery hint for a perfectly well-known rejection.
 
 ### Task 2.4: Daemon Preflight & Health Probe
 **Objective:** Preflight check to verify connection, chain ID (`tachi-regtest-1`), validator count, and fees.
@@ -163,11 +200,63 @@ Map CometBFT codes (3: INVALID_SIGNATURE, 5: VTXO_ALREADY_SPENT, 6: NOT_OWNER, 8
 - Assert `chainId === "tachi-regtest-1"`.
 - Fetch recommended fee floor (assert ≥ 1 sat).
 
+> **REVISED 2026-08-23 (audit).** Three additions, all from real failure-path probing:
+>
+> 1. **Report which probe failed and why.** The original implementation wrapped all six probes in bare
+>    `catch {}`, so `daemonOk: false` was information-free: DNS failure, HTTP 500, quorum change, and
+>    fee-endpoint outage were indistinguishable. Return `probeFailures: ProbeFailure[]` naming each
+>    failed probe with its message, plus `unreachable: boolean` (true only when nothing answered) to
+>    separate an outage from a degraded daemon.
+> 2. **Assert the chain as soon as the chain id is known**, not after every probe finishes. The guard
+>    used to run last, so a signet or mainnet daemon was fully interrogated (six requests, including the
+>    Bitcoin RPC proxy) before being refused.
+> 3. **`l1Height` is `number | null`** with an `l1HeightSource` flag. Never substitute the CometBFT
+>    height (~437k) for the Bitcoin L1 height (~9k) when the proxy is down.
+>
+> Zero values on failure must never read as verified: `quorumSize: 0` is not a verified quorum, and
+> `chainId: ''` means `getNodeInfo` failed rather than a chain mismatch.
+
+### Phase 2 audit outcome (2026-08-23)
+
+Phase 2 was re-audited after Phases 3 to 7 shipped, because Phase 7 found a data-corrupting bug in
+`bytes.ts` that a green suite had missed. The audit probed real daemon and SDK shapes rather than
+hand-built objects and found **nine defects**, seven of them silent in production:
+
+| # | Defect | Impact |
+|---|---|---|
+| 1 | `mapDaemonError` read `message` only | every text-based mapping dead in production |
+| 2 | `amount mismatch` unreachable (no numeric code) | reported as `UNKNOWN` |
+| 3 | `tendermintLog` ignored | SDK broadcast rejections unmapped |
+| 4 | Bitcoin RPC `error.{code,message}` envelope ignored | L1 failures unmapped |
+| 5 | `daemonCode` dropped on text mappings and `UNKNOWN` | cannot distinguish daemon vs client failure |
+| 6 | `UNKNOWN` message discarded the daemon's text | violates the design system's details requirement |
+| 7 | `payment.ts` built `UNKNOWN` directly for a non-zero commit | code 5 reported as `UNKNOWN`, no hint |
+| 8 | `Buffer` vs `Uint8Array` encoded differently, ~50% size blow-up | two wire formats, wasted quota |
+| 9 | Reviver coerced any `{type:'Buffer',data:[…]}` object | foreign payloads silently mangled |
+
+**Process lesson, same as Phase 7's:** the original tests only exercised shapes the author invented.
+Assert against **real** daemon and SDK payloads, and always include a negative control.
+
 ### Phase 2 Verification Checklist & Expected Results
 Before proceeding to Phase 3, run and verify:
 1. `npm test -- packages/core/test/bytes.test.ts` passes (reversing 32-byte txid strings and buffers matches Bitcoin display order perfectly).
 2. `npm test -- packages/core/test/types.test.ts` passes (branded type guards reject invalid hex lengths and cross-assignments).
 3. `npm test -- packages/core/test/health.test.ts` passes against live daemon (`status: "ok"`, `chainId: "tachi-regtest-1"`, `liveValidators: 7`).
+
+> **EXTENDED 2026-08-23 (audit).** The three gates above are necessary but were not sufficient; they
+> all passed while nine defects sat in the code. Add:
+>
+> 4. `bytes.test.ts`: a `Buffer` and an equivalent `Uint8Array` serialize to **byte-identical** JSON,
+>    a 1 KB buffer stays under ~1.5 KB of output, and a foreign `{type:'Buffer',data:['not','numbers']}`
+>    object is **not** coerced into a Buffer. Round-trip a Buffer nested in arrays and objects, an empty
+>    Buffer, and a top-level (holder-less) Buffer and bigint.
+> 5. `errors.test.ts`: map a rejection whose reason lives only in `log` (the real
+>    `TachiTxCommitStatus` shape, no `message` field), only in `tendermintLog`, and only in a nested
+>    `error.message`. Assert `daemonCode` survives every path including `UNKNOWN`, that a negative RPC
+>    code cannot collide with the CometBFT map, and that a mapped numeric code beats conflicting text.
+> 6. `health.test.ts`: point `preflight` at an unresolvable host and assert every daemon-facing probe is
+>    **named** in `probeFailures` with a non-empty reason, `unreachable` is true, and no numeric field
+>    was invented (`l1Height: null`, `quorumSize: 0`, `chainId: ''`).
 
 ---
 
