@@ -49,8 +49,10 @@ export class MemoryStore implements RipcordStore {
 
   async saveReceipt(receipt: PaymentReceipt): Promise<void> {
     // txHash case is inconsistent across the daemon (WSS lowercase, REST
-    // uppercase); key lowercased so a re-save cannot mint a duplicate.
-    this.receipts.set(receipt.txHash.toLowerCase(), receipt);
+    // uppercase); canonicalise to lowercase so the key is stable and a re-save
+    // cannot mint a duplicate. Matches IndexedDbStore, which keys on txHash.
+    const normalized = { ...receipt, txHash: receipt.txHash.toLowerCase() };
+    this.receipts.set(normalized.txHash, normalized);
   }
 
   async clear(): Promise<void> {

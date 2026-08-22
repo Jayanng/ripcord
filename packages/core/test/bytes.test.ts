@@ -163,4 +163,40 @@ describe('bytes.ts: byte reversal & BigInt JSON helpers', () => {
       expect(data.s).toBe('__bigint: 12x34');
     });
   });
+
+  describe('serializeJson / deserializeJson Buffer round-trip', () => {
+    it('preserves a Buffer through the round-trip as a real Buffer', () => {
+      const original = { script: Buffer.from('0014d85c2b71d0060b09c9886aeb815e50991bdda6', 'hex') };
+      const restored = deserializeJson<typeof original>(serializeJson(original));
+      expect(Buffer.isBuffer(restored.script)).toBe(true);
+      expect(restored.script.equals(original.script)).toBe(true);
+    });
+
+    it('preserves a plain Uint8Array (bitcoinjs-lib v7) as bytes', () => {
+      const bytes = new Uint8Array([1, 2, 3, 250, 255]);
+      const restored = deserializeJson<{ b: Uint8Array }>(serializeJson({ b: bytes }));
+      expect(Buffer.isBuffer(restored.b)).toBe(true);
+      expect(Buffer.from(restored.b)).toEqual(Buffer.from(bytes));
+    });
+
+    it('round-trips a mixed object with bigints and Buffers together', () => {
+      const original = {
+        amount: 500n,
+        controlBlock: Buffer.from('c0' + '11'.repeat(32), 'hex'),
+        outputs: [Buffer.from([0x51, 0x20])],
+      };
+      const restored = deserializeJson<typeof original>(serializeJson(original));
+      expect(restored.amount).toBe(500n);
+      expect(Buffer.isBuffer(restored.controlBlock)).toBe(true);
+      expect(restored.controlBlock.equals(original.controlBlock)).toBe(true);
+      expect(restored.outputs[0].equals(original.outputs[0])).toBe(true);
+    });
+
+    it('round-trips a literal string that starts with the __bytes: prefix', () => {
+      const original = { s: '__bytes:not-actually-bytes' };
+      const restored = deserializeJson<typeof original>(serializeJson(original));
+      expect(restored.s).toBe('__bytes:not-actually-bytes');
+      expect(typeof restored.s).toBe('string');
+    });
+  });
 });

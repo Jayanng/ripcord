@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MemoryStore, IndexedDbStore, type RipcordStore } from '../src/store.js';
+import type { VaultP2tr } from '@tachibtc/taurus-vault-core';
 import type {
   VaultRecord,
   PaymentReceipt,
@@ -76,7 +77,8 @@ describe('MemoryStore', () => {
     expect(vaults[0].address).toBe(VAULT_A);
     expect(vaults[0].funding!.valueSats).toBe(40000n);
     expect(receipts).toHaveLength(1);
-    expect(receipts[0].txHash).toBe('AA'.repeat(32));
+    // Canonicalised to lowercase on save.
+    expect(receipts[0].txHash).toBe('aa'.repeat(32));
     expect(receipts[0].amountSats).toBe(500n);
   });
 
@@ -98,6 +100,29 @@ describe('MemoryStore', () => {
 
     const receipts = await store.getReceipts();
     expect(receipts).toHaveLength(1);
+    // Canonicalised to lowercase on save, matching IndexedDbStore.
+    expect(receipts[0].txHash).toBe('ab'.repeat(32));
+  });
+
+  it('preserves Buffer-bearing p2tr across the snapshot round-trip (lossless)', async () => {
+    // A real VaultRecord carries p2tr with Buffer fields (output, control
+    // blocks, leaf hashes). The snapshot must round-trip them as Buffers, not
+    // as JSON's lossy { type: 'Buffer', data: [...] } object form.
+    const vault = makeVault(VAULT_A, 40000n);
+    const p2tr = {
+      output: Buffer.from('5120' + 'ab'.repeat(32), 'hex'),
+      exitControlBlock: Buffer.from('c0' + 'cd'.repeat(32), 'hex'),
+    } as unknown as VaultP2tr;
+    vault.p2tr = p2tr;
+
+    const store = new MemoryStore();
+    await store.saveVault(vault);
+    const restored = (await MemoryStore.fromSnapshot(store.exportSnapshot()).getVaults())[0];
+
+    expect(Buffer.isBuffer(restored.p2tr?.output)).toBe(true);
+    expect(restored.p2tr!.output.equals(p2tr.output)).toBe(true);
+    expect(Buffer.isBuffer(restored.p2tr?.exitControlBlock)).toBe(true);
+    expect(restored.p2tr!.exitControlBlock.equals(p2tr.exitControlBlock)).toBe(true);
   });
 
   it('clear empties both collections', async () => {

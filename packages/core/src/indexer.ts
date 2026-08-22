@@ -252,6 +252,7 @@ export class VaultIndexer {
   private draining = false;
   private manuallyClosed = false;
   private started = false;
+  private connected = false;
   private reconnectAttempt = 0;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
 
@@ -285,9 +286,9 @@ export class VaultIndexer {
     return this.sub?.socket;
   }
 
-  /** True once the socket has connected at least once. */
+  /** True once the WebSocket handshake has actually completed. */
   get isConnected(): boolean {
-    return this.started && this.sub !== undefined && !this.manuallyClosed;
+    return this.connected;
   }
 
   /** Open (or reopen) the subscription. Idempotent. */
@@ -302,7 +303,13 @@ export class VaultIndexer {
 
   /** Close the socket and stop delivering events. Idempotent; no reconnect. */
   close(): void {
+    this.closeWithReason('closed by caller');
+  }
+
+  /** Stop the flow and emit a single terminal 'closed' status. */
+  private closeWithReason(reason: string): void {
     this.manuallyClosed = true;
+    this.connected = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
@@ -313,10 +320,11 @@ export class VaultIndexer {
       /* already closed */
     }
     this.sub = undefined;
-    this.emitStatus({ state: 'closed', reason: 'closed by caller' });
+    this.emitStatus({ state: 'closed', reason });
   }
 
   private open(): void {
+    this.connected = false;
     this.emitStatus({ state: 'connecting' });
     let sub: VaultEventSubscription;
     try {
@@ -339,7 +347,6 @@ export class VaultIndexer {
       return;
     }
     this.sub = sub;
-    this.reconnectAttempt = 0;
     this.bindOpenSignal(sub.socket);
   }
 
@@ -349,11 +356,7 @@ export class VaultIndexer {
    * caller must know it is safe to broadcast only after this fires).
    */
   private bindOpenSignal(socket: VaultEventSubscription['socket']): void {
-    const onOpen = () => {
-      if (!this.manuallyClosed) {
-        this.emitStatus({ state: 'connected' });
-      }
-    };
+    const onOpen = () => this.onSocketOpen();
     if (typeof socket.addEventListener === 'function') {
       socket.addEventListener('open', onOpen);
     } else if (typeof socket.on === 'function') {
@@ -361,6 +364,18 @@ export class VaultIndexer {
     } else {
       onOpen();
     }
+  }
+
+  /** The socket actually opened: reset backoff and flip the connected flag. */
+  private onSocketOpen(): void {
+    if (this.manuallyClosed) {
+      return;
+    }
+    this.connected = true;
+    // Reset only now, on a real connection. Resetting in open() would keep the
+    // backoff pinned at the base delay when the handshake fails repeatedly.
+    this.reconnectAttempt = 0;
+    this.emitStatus({ state: 'connected' });
   }
 
   private handleEvent(raw: VaultEvent): void {
@@ -373,7 +388,7 @@ export class VaultIndexer {
     } catch (err) {
       // Past the bound: surface loudly and stop the flow. Never silently drop.
       this.handleError(err);
-      this.close();
+      this.closeWithReason('queue overflow');
       return;
     }
     void this.drain();
@@ -401,14 +416,19 @@ export class VaultIndexer {
   private handleError(err: unknown): void {
     const ripcordErr =
       err instanceof RipcordError ? err : new RipcordError(RipcordCode.UNKNOWN, toMessage(err), { cause: err });
-    this.options.onError?.(ripcordErr);
+    try {
+      this.options.onError?.(ripcordErr);
+    } catch {
+      // A throwing onError must not break the indexer's own error handling,
+      // e.g. the queue-overflow close path that runs immediately after this.
+    }
   }
 
   private handleClose(): void {
+    this.connected = false;
     if (this.manuallyClosed) {
       this.sub = undefined;
-      this.emitStatus({ state: 'closed', reason: 'closed by caller' });
-      return;
+      return; // closeWithReason already emitted the terminal 'closed'
     }
     this.sub = undefined;
     this.scheduleReconnect('socket closed');
