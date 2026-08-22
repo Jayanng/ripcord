@@ -177,8 +177,8 @@ interface PaymentReceipt {
 
 > **Status note (22 Aug).** Sections written before a module shipped are pre-build sketches and can
 > drift from the real API. Where a section is marked **"As-built"** it was rewritten against the
-> committed code (`indexer.ts`, `store.ts` after Phase 7; `proofs.ts` after Phase 8). `exit.ts`
-> remains pre-build. `config.ts`, `ledger.ts`, `refund.ts`, and `watchtower.ts` in the layout above
+> committed code (`indexer.ts`, `store.ts` after Phase 7; `proofs.ts` after Phase 8; `exit.ts`
+> after Phase 9). `config.ts`, `ledger.ts`, `refund.ts`, and `watchtower.ts` in the layout above
 > are **planned, not yet written**; the shipped module list is in `06-HANDOFF-PHASE8.md` §2.
 
 ### health.ts: preflight
@@ -467,13 +467,20 @@ buildPaymentReceipt(...): Promise<PaymentReceipt>          // fills existing typ
   `01-VERIFIED-API.md` §16.2); `fetchHat` throws a mapped error rather than returning null.
 
 ### exit.ts
+
+**As-built** (Phase 9, live-probed 2026-08-22):
+
 ```ts
-assessExit(rec, id): Promise<ExitReadiness>                // the dry-run: builds, verifies, signs, discards
-executeExit(rec, id, signer, destination): Promise<{ txid: DisplayTxid }>
+assessExit({ vault, identity, baseUrl, feeSats?, destAddress? }): Promise<ExitReadiness>
+executeExit({ vault, identity, signer, destAddress, baseUrl, feeSats? }): Promise<{ txid: DisplayTxid }>
 ```
-`assessExit` is the RIPCORD test-pull: full build → verify (`expectedUserKey`, `minCsvBlocks`) → sign →
-finalize → `decoderawtransaction` for structural proof, then reads live confirmations to decide
-`live` vs `maturing`. Never broadcasts. Costs nothing.
+`assessExit` is the RIPCORD test-pull: full build → verify (`expectedUserKey`, `minCsvBlocks` =
+`vault.csvBlocks`) → sign → finalize (hex string) → `decoderawtransaction` for structural proof,
+then `gettxout` confirmations vs `csvBlocks` to decide `live` vs `maturing`. Never broadcasts.
+Unfunded / spent outpoints return those statuses without building. Immature `executeExit` maps
+the proxy's `bitcoin rpc error -26: non-BIP68-final` to `EXIT_IMMATURE`. Destination is SegWit
+(identity L1 P2WPKH); the vault address is rejected. Default fee 200 sats (floor 1). Live-measured
+csv=2 exit: vsize 125, nSequence 2.
 
 ## 7. Data flow: send
 

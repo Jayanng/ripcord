@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 8 are implemented in `@ripcord/core`. HAT/RIP fetch, normalized Verkle inclusion linking, and live proof tests are in `proofs.ts` (`proofs.test.ts` + `verkle.test.ts`). The PWA, unilateral exit module, and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 8 are complete. Phase 9 (`exit.ts`) is implemented: `assessExit` dry-run is live-verified; mature `executeExit` broadcast is env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. The PWA and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -28,7 +28,7 @@ The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custod
 - Public-data persistence through memory and IndexedDB store adapters with defensive reads
 - Phase 7 audit coverage for stale socket callbacks, duplicate reconnect timers, terminal overflow, and mutable store objects
 - HAT and RIP proof fetching and normalized HAT-in-Verkle-diff linking (`proofs.ts`)
-- A future unilateral-exit dry-run and broadcast flow
+- Unilateral-exit dry-run (`assessExit`) and L1 broadcast (`executeExit`) with BIP68 maturity from live `gettxout` confirmations
 
 ## Important limitations
 
@@ -37,7 +37,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 - The current implementation is **regtest-only**.
 - There is no signet or mainnet support.
 - The browser PWA has not yet arrived in the repository's implemented phases.
-- `@ripcord/core` currently exports the implemented phases, including `proofs.ts`. `exit.ts` is specified and live-probed but is not yet committed as a core module.
+- `@ripcord/core` currently exports the implemented phases, including `proofs.ts` and `exit.ts`.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
 - The IPA proof is carried as daemon-attested evidence. RIPCORD does not currently verify the Verkle/IPA commitment locally.
@@ -88,6 +88,7 @@ ripcord/
 │   │   ├── indexer.ts     # WSS events with reconnect and bounded queue
 │   │   ├── store.ts       # MemoryStore and IndexedDbStore
 │   │   ├── proofs.ts      # HAT/RIP fetch and normalized Verkle inclusion
+│   │   ├── exit.ts        # unilateral exit dry-run and L1 broadcast
 │   │   └── index.ts       # public package barrel
 │   └── test/              # live-regtest test suite (proofs.test.ts, verkle.test.ts, …)
 ├── docs/
@@ -113,7 +114,8 @@ ripcord/
 | 6 | Complete | VTXO coin selection, queue and transfers |
 | 7 | Complete and audited | WSS indexer, reconnect lifecycle, bounded event queue, stores |
 | 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
-| 9-14 | Planned | Exit engine, PWA, UI flows, browser-wipe recovery, final verification |
+| 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
+| 10-14 | Planned | PWA, UI flows, browser-wipe recovery, final verification |
 
 ## Getting started
 
@@ -372,4 +374,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README was written against the implemented Phases 1 through 8. It intentionally distinguishes implemented code from planned modules and documents the known regtest environmental failure instead of presenting an all-green lifecycle.
+This README was written against the implemented Phases 1 through 9. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. The README distinguishes implemented code from verified gates.

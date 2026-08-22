@@ -16,3 +16,4 @@ export * from './payment.js';
 export * from './indexer.js';
 export * from './store.js';
 export * from './proofs.js';
+export * from './exit.js';

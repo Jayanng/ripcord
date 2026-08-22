@@ -676,6 +676,7 @@ facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md`
 ## Phase 9: Unilateral Exit & Dry-Run Engine
 
 ### Task 9.1: Exit Builder & BIP68 Maturity Inspector (TDD)
+**Status:** implemented in `packages/core/src/exit.ts` + `test/exit.test.ts`.
 **Objective:** Construct valid unilateral exit PSBTs and inspect L1 confirmation maturity.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/exit.test.ts`
@@ -688,6 +689,7 @@ facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md`
 - Query Bitcoin RPC proxy for funding outpoint confirmations against `vault.csvBlocks`.
 
 ### Task 9.2: Test-Pull Dry-Run & Broadcast Orchestrator
+**Status:** implemented in `packages/core/src/exit.ts` + `test/exit-run.test.ts`.
 **Objective:** Provide safe, zero-cost exit verification and real broadcast execution.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/exit-run.test.ts`
@@ -699,9 +701,11 @@ facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md`
 
 ### Phase 9 Verification Checklist & Expected Results
 Before proceeding to Phase 10, run and verify:
-1. `assessExit` on a 1-conf vault returns `status: "maturing"` and reports `non-BIP68-final` reason without moving funds.
+1. `assessExit` on an immature vault returns `status: "maturing"` and reports `non-BIP68-final` without moving funds. **Live-verified 2026-08-22** at 0 confs (vsize 125, nSequence 2); `executeExit` maps the proxy's `non-BIP68-final` to `EXIT_IMMATURE`.
 2. `assessExit` on a 2-conf vault returns `status: "live"` with decoded tx details (vsize 125, nSequence 2).
 3. Real `executeExit` broadcasts to Bitcoin regtest, returning an L1 txid queryable via `getrawtransaction`.
+
+Gates 2 and 3 require two L1 confirmations. Regtest has no scheduled miner; a 180s wait with extra faucet/deposit activity still saw 0 confirmations. Those gates live in `exit-run.test.ts` behind `RIPCORD_LIVE_EXIT=1`. Do not mark them verified until that env run passes.
 
 ---
 

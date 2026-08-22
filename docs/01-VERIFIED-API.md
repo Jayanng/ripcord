@@ -430,15 +430,19 @@ const built = vc.buildUnilateralExitPsbt({
 const vopts = { maxFeeSats, expectedUserKey: vault.userKey.xOnly, minCsvBlocks: 2 };
 vc.verifyUnilateralExitPsbt(built.psbt, vault, vopts);
 await vc.signUnilateralExitPsbtAsUser(built.psbt, userSigner, vault, vopts);
-const raw = vc.finalizeUnilateralExitPsbt(built.psbt, vault, vopts);   // returns a raw BUFFER
-const hex = raw.toString("hex");
+const hex = vc.finalizeUnilateralExitPsbt(built.psbt, vault, vopts);   // hex STRING
 await btcRpc("sendrawtransaction", [hex]);
 ```
 
 **VERIFIED end to end.** Real L1 broadcasts: `99974a15b78326811e93c66c540306f84950323f53fbee1b0966b787c95c71dc`
 and `e4840102e6bca4d9f5e0b4a7dfe44577a75e8bc50f3b3b0441322f8c4c2d08d9`.
 
-`finalizeUnilateralExitPsbt` returns a **Buffer**, not `{hex}`.
+**Re-probed 2026-08-22 (Phase 9):** `finalizeUnilateralExitPsbt` returns a **hex string**
+(`psbt.extractTransaction().toHex()`), not a Buffer. The 21 Aug note was wrong for
+`taurus-vault-core@0.3.3`. Decoded exit: version 2, **vsize 125**, `vin[0].sequence === csvBlocks`.
+Immature broadcast: HTTP 200 `{ error: { code: -1, message: "bitcoin rpc error -26: non-BIP68-final" } }`.
+The proxy wraps bitcoind's `-26` as `-1` and puts the real code in the message. `mapDaemonError`
+matches `non-bip68-final` in the text.
 
 `verifyUnilateralExitPsbt` requires `expectedUserKey` and `minCsvBlocks`; these stop a substituted
 but self-consistent vault from redirecting the exit or collapsing the timelock.

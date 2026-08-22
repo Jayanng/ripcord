@@ -18,7 +18,7 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 - Monorepo: `packages/core` (`@ripcord/core`, the publishable library) + `apps/*` (arrives in Phase 10)
 - The UI may NOT import `@tachibtc/*` directly (layering, enforced by `check:rules`)
 
-## 2. Current state: Phases 1-8 DONE
+## 2. Current state: Phases 1-8 DONE, Phase 9 implemented
 
 | Phase | Delivered |
 |-------|-----------|
@@ -30,12 +30,13 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 | 6 | VTXO coin selection (`coinselect.ts`), single-writer queue (`queue.ts`), transfers (`payment.ts`) |
 | 7 | **Real-time WSS indexer (`indexer.ts`) + persistence store (`store.ts`)** |
 | 8 | **HAT/RIP fetchers + normalized Verkle inclusion (`proofs.ts`, `proofs.test.ts`, `verkle.test.ts`)** |
+| 9 | **Unilateral exit dry-run + L1 broadcast (`exit.ts`, `exit.test.ts`, `exit-run.test.ts`)** |
 
 `packages/core/src/`: `index.ts`, `types.ts`, `bytes.ts`, `errors.ts`, `health.ts`, `keys.ts`,
 `quorum.ts`, `vault.ts`, `deposit.ts`, `register.ts`, `recovery.ts`, `coinselect.ts`, `queue.ts`,
-`payment.ts`, `indexer.ts`, `store.ts`, `proofs.ts`.
+`payment.ts`, `indexer.ts`, `store.ts`, `proofs.ts`, `exit.ts`.
 
-18 test files, all live against the real daemon (zero mocks).
+20 test files, all live against the real daemon (zero mocks).
 
 ## 3. Git state (as of handoff)
 
@@ -97,11 +98,10 @@ why a data-corrupting bug passed a green suite. When you write `proofs.test.ts`,
 
 ## 5. Remaining phases
 
-Phase 8 is complete. Next is Phase 9.
+Phase 8 is complete. Phase 9 is implemented: `assessExit` is live-verified (maturing dry-run, vsize 125, nSequence 2, no spend). Mature `executeExit` is env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 blocks are activity-driven; a 180s wait with extra deposits still saw 0 confirmations. Next is Phase 10.
 
 | Phase | Work | Notes |
 |-------|------|-------|
-| 9 | Unilateral Exit & Dry-Run Engine (`exit.ts`) | a builder exists in probe form only, not committed |
 | 10 | PWA Shell, Design System, Core State | `apps/wallet` scaffold |
 | 11 | High-Assurance UI Components | |
 | 12 | Interactive Transaction Flows | |
@@ -367,7 +367,7 @@ Add `export * from './proofs.js';` to `src/index.ts`.
   as fully end-to-end verified until that gate passes.
 - **Cooperative refund**: structurally impossible alone (needs the 5-of-7 node keys). `cosignRefund`
   is refund-to-self only, team-confirmed.
-- **Unilateral exit broadcast**: probe-proven historically, but no committed `exit.ts`. Phase 9.
+- **Unilateral exit broadcast**: implemented in `exit.ts`. Immature exits return `EXIT_IMMATURE`; mature `executeExit` broadcasts via `sendrawtransaction`. L1 confirmation waiting remains activity-driven.
 - **`IndexedDbStore` is unexercised in Node** (throws a clear error when `indexedDB` is absent). Real
   browser verification lands in Phase 10.
 - **Phase 8 parser audit:** `fetchRip` now fails closed if the daemon's `Chain.length` does not equal
