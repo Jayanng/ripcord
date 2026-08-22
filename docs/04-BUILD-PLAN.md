@@ -471,7 +471,12 @@ Before proceeding to Phase 6, run and verify:
 **Implementation Details:**
 - Largest-first selection algorithm.
 - Ignore VTXOs marked `localSpentAt` or `locked: true`.
+- Reject duplicate IDs, empty IDs, and non-positive VTXO amounts before selection.
 - Compute exact required change, asserting `feeSats >= 1n`.
+
+> **Phase 6 audit correction:** duplicate VTXO IDs and non-positive amounts were previously accepted.
+> Duplicate IDs could make a caller count the same underlying VTXO twice and construct a transaction
+> against funds that do not exist. The selector now fails closed before sorting.
 
 ### Task 6.2: Envelope Transfer Builder & Signer (TDD)
 **Objective:** Build and sign valid TachiTx transfers ensuring change and recipient address use user x-only keys.
@@ -480,11 +485,18 @@ Before proceeding to Phase 6, run and verify:
 - Create: `/home/ubuntu/ripcord/packages/core/src/payment.ts`
 
 **Implementation Details:**
-- Convert recipient x-only key to `UserAddress` (bech32m). Reject any `VaultAddress`.
+- Validate regtest network, sender x-only format, sender key ownership of the vault, recipient P2TR address, positive amount, and fee >= 1 sat before daemon reads.
+- Reject a recipient equal to the sender vault address. User P2TR and vault P2TR are structurally similar, so address shape alone is not an ownership check.
 - Construct PSBT with outputs mirroring envelope outputs exactly.
 - Sign PSBT as user with `signVtxoPsbtAsUser`. **Do not finalize PSBT.**
 - Build `TachiTxTransfer` draft, sign with BIP-340 Schnorr signature (`signTachiTx`).
+- Map VTXO lookup/query errors through `mapDaemonError` rather than leaking SDK error classes.
 - Broadcast via `tachi_txBroadcastSync`, await `waitForTachiTxCommit(hash)` for `code: 0`.
+
+> **Phase 6 audit correction:** the old wrapper validated the recipient and amounts but did not validate
+> the sender key before calling `getAddressVtxos`, accepted `network: 'signet'` at runtime, and leaked a
+> foreign SDK `TachiQueryError` from the initial VTXO lookup. These are now fail-closed local validation
+> or mapped error paths.
 
 ### Task 6.3: Single-Writer Transaction Queue (TDD)
 **Objective:** Queue concurrent send requests to prevent VTXO collisions in non-nonce environment.
@@ -494,7 +506,13 @@ Before proceeding to Phase 6, run and verify:
 
 **Implementation Details:**
 - Implement FIFO `TxQueue` executing one mutation at a time.
+- Reject overlapping reservations for the same VTXO ID rather than silently overwriting the reservation owner.
+- Deduplicate IDs within one reservation and reject empty IDs.
 - Mark candidate VTXOs with `localSpentAt = Date.now()` prior to broadcast; release on failure.
+
+> **Phase 6 audit correction:** overlapping `enqueueReserved(['same'])` calls previously overwrote the
+> timestamp in the shared map. The first task could later delete the second task's reservation, exposing
+> a VTXO while the second task still intended to spend it. Reservations now fail closed.
 
 ### Phase 6 Verification Checklist & Expected Results
 Before proceeding to Phase 7, run and verify:
@@ -502,6 +520,14 @@ Before proceeding to Phase 7, run and verify:
 2. Bob's ledger balance shows +5,000 sats and `owner === bobXOnly`.
 3. Bob immediately sends 2,000 sats back using his own signature; transfer commits `code: 0` (re-spend proven).
 4. Enqueueing two parallel transfers executes them sequentially without `code: 5 vtxo already spent` errors.
+5. Coin selection rejects duplicate IDs, empty IDs, and non-positive VTXO amounts.
+6. The queue rejects overlapping reservations without allowing one task to delete another task's reservation.
+7. Invalid sender keys, wrong network, and initial SDK VTXO-query errors fail locally or map through `RipcordError`.
+
+> **Phase 6 audit status:** the live send and re-spend paths are exercised, but the queue test does not
+> automatically reserve IDs through `sendTransfer`; callers must use `enqueueReserved` or integrate the
+> `onInputsSelected` callback with their reservation policy. Do not treat the callback alone as atomic
+> reservation.
 
 ---
 

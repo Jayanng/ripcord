@@ -60,8 +60,15 @@ export class TxQueue {
    * immediately (before the task runs) and released only if the task throws.
    */
   enqueueReserved<T>(vtxoIds: readonly string[], task: QueuedTask<T>): Promise<T> {
+    const uniqueIds = [...new Set(vtxoIds)];
+    if (uniqueIds.some(id => typeof id !== 'string' || id.length === 0)) {
+      return Promise.reject(new Error('Reserved VTXO ids must be non-empty strings'));
+    }
+    if (uniqueIds.some(id => this.reserved.has(id))) {
+      return Promise.reject(new Error('One or more VTXOs are already reserved'));
+    }
     const now = Date.now();
-    for (const id of vtxoIds) {
+    for (const id of uniqueIds) {
       this.reserved.set(id, now);
     }
     return this.enqueue({
@@ -70,12 +77,12 @@ export class TxQueue {
         try {
           const result = await task.execute();
           // Success: the daemon now marks these spent; drop local reservations.
-          for (const id of vtxoIds) {
+          for (const id of uniqueIds) {
             this.reserved.delete(id);
           }
           return result;
         } catch (err) {
-          for (const id of vtxoIds) {
+          for (const id of uniqueIds) {
             this.reserved.delete(id);
           }
           throw err;

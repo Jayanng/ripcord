@@ -338,6 +338,13 @@ Add `export * from './proofs.js';` to `src/index.ts`.
     repeated CSV candidates by `vaultId`, and persists `quorumThreshold` with the recovered fingerprint.
     The daemon's listed `state`/`latestStateNum` are placeholders (`open`/`0`) on the verified build;
     lifecycle UI must rely on L1 and vault data instead.
+21. **Phase 6 audit:** coin selection rejects duplicate VTXO IDs, empty IDs, and non-positive amounts.
+    Queue reservations reject overlaps and deduplicate IDs. `sendTransfer` validates regtest network and
+    sender ownership before VTXO reads and maps initial query errors. `onInputsSelected` is advisory;
+    atomic local reservation requires `TxQueue.enqueueReserved`. Live send/re-spend and queue paths pass,
+    while the full suite still has the known activity-driven L1 confirmation failure.
+
+**Phase 6 implementation boundary:** `sendTransfer` does not automatically call `enqueueReserved`; callers must enqueue the complete send task or explicitly reserve selected IDs. The `onInputsSelected` callback is advisory only.
 
 ## 9. Known-failing / blocked (honest state)
 

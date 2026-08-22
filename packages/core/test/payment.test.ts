@@ -70,6 +70,35 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     })).rejects.toThrow('Recipient must be a user P2TR address');
   });
 
+  it('rejects malformed or mismatched sender input before daemon reads', async () => {
+    const base = {
+      vault: toSdkVault(aliceVault),
+      senderXOnly: ALICE_XONLY,
+      recipientAddress: bobUserAddr,
+      amountSats: 1000n,
+      feeSats: 1n,
+      baseUrl: DAEMON,
+      network: 'regtest' as const,
+      userSigner: aliceSigner,
+    };
+    await expect(sendTransfer({ ...base, senderXOnly: 'zz' })).rejects.toThrow('senderXOnly must be');
+    await expect(sendTransfer({ ...base, senderXOnly: '00'.repeat(32) })).rejects.toThrow('does not match vault');
+    await expect(sendTransfer({ ...base, network: 'signet' as 'regtest' })).rejects.toThrow('Unsupported network');
+  });
+
+  it('maps a query error instead of leaking the SDK error class', async () => {
+    await expect(sendTransfer({
+      vault: toSdkVault(aliceVault),
+      senderXOnly: ALICE_XONLY,
+      recipientAddress: bobUserAddr,
+      amountSats: 1000n,
+      feeSats: 1n,
+      baseUrl: 'https://rpc-regtest-does-not-exist.tachibtc.invalid',
+      network: 'regtest',
+      userSigner: aliceSigner,
+    })).rejects.toMatchObject({ code: 'UNKNOWN' });
+  });
+
   it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async () => {
     const result = await sendTransfer({
       vault: toSdkVault(aliceVault),

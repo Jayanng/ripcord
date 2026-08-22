@@ -55,6 +55,20 @@ export interface TransferResult {
 }
 
 export async function sendTransfer(params: TransferParams): Promise<TransferResult> {
+  if (params.network !== 'regtest') {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Unsupported network: ${params.network}`,
+      { hint: 'Transfers currently support regtest only' },
+    );
+  }
+  if (!/^[0-9a-fA-F]{64}$/.test(params.senderXOnly)) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'senderXOnly must be a 64-character hex string',
+      { hint: 'Use the sender vault user key x-only public key' },
+    );
+  }
   if (!isUserAddress(params.recipientAddress)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
@@ -66,6 +80,13 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       'Recipient cannot be the sender\'s vault address: change sent there is unspendable by the user',
+    );
+  }
+  if (params.senderXOnly.toLowerCase() !== params.vault.userKey.xOnly.toString('hex').toLowerCase()) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'senderXOnly does not match vault.userKey.xOnly',
+      { hint: 'Use the user key that owns the sender vault' },
     );
   }
   if (params.amountSats <= 0n) {
@@ -81,7 +102,12 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     );
   }
 
-  const vtxoResult = await getAddressVtxos(params.senderXOnly, { baseUrl: params.baseUrl });
+  let vtxoResult;
+  try {
+    vtxoResult = await getAddressVtxos(params.senderXOnly, { baseUrl: params.baseUrl });
+  } catch (err) {
+    throw mapDaemonError(err);
+  }
   const spendable: SpendableVtxo[] = vtxoResult.vtxos.map(v => {
     const reserved = params.queue?.isReserved(v.id) ?? false;
     return {

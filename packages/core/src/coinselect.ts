@@ -35,6 +35,20 @@ export function selectCoins(
     throw new Error(`targetSats must be > 0, got ${targetSats}`);
   }
 
+  const seenIds = new Set<string>();
+  for (const v of vtxos) {
+    if (typeof v.id !== 'string' || v.id.length === 0) {
+      throw new Error('VTXO id must be a non-empty string');
+    }
+    if (seenIds.has(v.id)) {
+      throw new Error(`Duplicate VTXO id: ${v.id}`);
+    }
+    seenIds.add(v.id);
+    if (v.amountSats <= 0n) {
+      throw new Error(`VTXO amountSats must be > 0, got ${v.amountSats} for ${v.id}`);
+    }
+  }
+
   const eligible = vtxos
     .filter(v => !v.spent && !v.locked && v.localSpentAt === undefined)
     .slice()

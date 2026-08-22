@@ -328,6 +328,11 @@ was a real wrapper bug, not a legitimate zero-fee result. A reserve proof is exa
 not an address-only claim. Registration errors from malformed txids, VTXO ids, owners, output amounts,
 or outpoint indexes should be rendered as preflight validation errors before any network submission.
 
+**Phase 6 data display rules:** the transfer screen must show the sender key and vault ownership checks
+as local validation, never claim a send is queued merely because a callback fired, and show a mapped query
+error if the VTXO read fails. A queue reservation conflict is a recoverable local contention state, not a
+chain rejection. Do not display a zero fee as successful accounting.
+
 The full funded deposit, onboarding, and registration loop remains env-gated. The UI must not show a
 successful registration badge from the local builder alone; it needs the committed daemon result.
 

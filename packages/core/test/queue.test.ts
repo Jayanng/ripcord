@@ -128,4 +128,33 @@ describe('TxQueue', () => {
     await expect(p).rejects.toThrow('broadcast rejected');
     expect(queue.isReserved('vtxo-fail')).toBe(false);
   });
+
+  it('rejects overlapping reservations instead of silently overwriting ownership', async () => {
+    const queue = new TxQueue();
+    const first = queue.enqueueReserved(['same'], {
+      id: 'first',
+      execute: async () => { await new Promise(r => setTimeout(r, 20)); return 1; },
+    });
+    await expect(queue.enqueueReserved(['same'], {
+      id: 'second',
+      execute: async () => 2,
+    })).rejects.toThrow('already reserved');
+    await expect(first).resolves.toBe(1);
+  });
+
+  it('deduplicates ids within one reservation', async () => {
+    const queue = new TxQueue();
+    const task = queue.enqueueReserved(['same', 'same'], {
+      id: 'duplicate-inputs',
+      execute: async () => queue.reservedIds.length,
+    });
+    await expect(task).resolves.toBe(1);
+    expect(queue.reservedIds).toEqual([]);
+  });
+
+  it('rejects empty reserved ids', async () => {
+    const queue = new TxQueue();
+    await expect(queue.enqueueReserved([''], { id: 'bad', execute: async () => 1 }))
+      .rejects.toThrow('non-empty strings');
+  });
 });

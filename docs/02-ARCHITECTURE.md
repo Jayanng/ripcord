@@ -324,24 +324,38 @@ validates `startIndex`, `gapLimit`, and `maxIndex` before the SDK scan, mapping 
 selectInputs(vtxos: LedgerVtxo[], targetSats: bigint, feeSats: bigint):
   { inputs: LedgerVtxo[]; changeSats: bigint } | InsufficientFunds
 ```
-Largest-first with dust absorption. Excludes anything with `localSpentAt` set (R8) or `locked === true`.
+Largest-first with dust absorption. Excludes anything with `localSpentAt` set (R8) or `locked === true`, and rejects duplicate IDs, empty IDs, and non-positive amounts before selection.
+
+**Phase 6 audit:** `TxQueue.enqueueReserved` rejects overlapping IDs and deduplicates IDs within one reservation. `sendTransfer` validates the regtest network, sender ownership, and sender x-only format before `getAddressVtxos`, and maps SDK query failures through `mapDaemonError`.
 
 ### payment.ts
+
+**As-built in Phase 6** (the original section was a pre-build sketch):
+
 ```ts
-buildPayment(from: Identity, vault: VaultRecord, toXOnly: XOnlyHex,
-             amountSats: bigint, feeSats: bigint): Promise<PreparedPayment>
-sendPayment(prepared, signer): Promise<PaymentReceipt>
+sendTransfer({
+  vault, senderXOnly, recipientAddress, network: 'regtest', amountSats, feeSats,
+  baseUrl, userSigner, queue?, onInputsSelected?,
+}): Promise<{ txHash: string; epoch: number; code: number }>
 ```
-`toXOnly` is an x-only key, so R1 is structurally enforced: a `VaultAddress` cannot be passed. Change
-goes to `from.userAddress`. Internally mirrors PSBT outputs to envelope outputs exactly, signs the PSBT
-as user, **never finalizes it**, signs the envelope, broadcasts, waits for commit.
+Validates sender ownership of the vault user key, the regtest network, recipient P2TR address, positive
+amount, and fee >= 1 before the VTXO query. Mirrors PSBT outputs into the envelope, signs the PSBT as the
+user without finalizing it, signs the envelope with BIP-340, broadcasts, and waits for commit. Change goes
+to the sender's user P2TR, never the vault address. Initial SDK query errors are mapped through the core
+error taxonomy.
 
 ### queue.ts
+
+**As-built in Phase 6:**
+
 ```ts
-class TxQueue { enqueue<T>(fn: () => Promise<T>): Promise<T> }
+class TxQueue {
+  enqueue<T>(task: QueuedTask<T>): Promise<T>
+  enqueueReserved<T>(ids: readonly string[], task: QueuedTask<T>): Promise<T>
+}
 ```
-Serialises every mutating operation for one identity (R8). Marks selected VTXOs `localSpentAt` on
-enqueue and rolls back on failure.
+Serialises every mutating operation for one identity (R8). Reservations are visible immediately, reject
+overlapping IDs, deduplicate IDs within one task, and release only after success or failure.
 
 ### indexer.ts
 

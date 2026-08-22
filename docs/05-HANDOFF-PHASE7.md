@@ -106,11 +106,19 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
     positional indices. `quorum.ts` has the single canonical, threshold-aware fingerprint; cached
     quorum objects are frozen; duplicate node keys are rejected; and `VaultRecord` persists
     `quorumThreshold` alongside `quorumFingerprint`.
-14. **Phase 4 audit:** the SDK deposit result includes actual `amountSats`, `feeSats`, `changeSats`,
+15. **Phase 4 audit:** the SDK deposit result includes actual `amountSats`, `feeSats`, `changeSats`,
     `vaultAddress`, and consumed `inputs`; the wrapper preserves them and never reports a fabricated
     `feeSats: 0n`. Reserve proof is exact output-script binding. Registration input validation now
     rejects malformed txids, VTXO ids, owners, output amounts, and outpoint indexes before submission.
     The full funded onboarding plus registration loop remains env-gated and is not claimed as complete.
+16. **Phase 6 audit:** coin selection now rejects duplicate VTXO IDs, empty IDs, and non-positive amounts.
+    `TxQueue.enqueueReserved` rejects overlapping reservations and deduplicates IDs within one task.
+    `sendTransfer` validates regtest network and sender ownership before VTXO reads and maps initial SDK
+    query errors. The callback `onInputsSelected` is advisory; callers must use `enqueueReserved` for
+    atomic local reservation.
+17. **Phase 6 implementation boundary:** `sendTransfer` does not automatically call `enqueueReserved`.
+    A caller that needs atomic local reservation must enqueue the whole send task or use
+    `enqueueReserved` explicitly; the callback alone is not a reservation lock.
 
 ## 8. Unproven / blocked items (honest state)
 

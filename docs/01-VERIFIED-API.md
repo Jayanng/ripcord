@@ -345,6 +345,8 @@ persist the quorum threshold alongside the threshold-aware fingerprint.
 
 ## 10. Off-chain transfer: the load-bearing discovery
 
+**RIPCORD Phase 6 audit note:** `sendTransfer` validates regtest network, sender x-only format and ownership, recipient P2TR, positive amount, and minimum fee before the VTXO query. Coin selection rejects duplicate IDs, empty IDs, and non-positive amounts. Queue reservations reject overlaps. Initial SDK query failures are mapped through `mapDaemonError`.
+
 The Tachi team told a builder there is no public path for third-party VTXO transfers, and the README
 says the 5-of-7 quorum signs "out-of-band". **Both statements are about the Bitcoin PSBT layer and do
 not apply to the ledger layer.** Value on Tachi moves by a TachiTx envelope committed through CometBFT

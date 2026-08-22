@@ -79,6 +79,30 @@ describe('selectCoins', () => {
     expect(r1.inputs.map(i => i.id)).toEqual(r2.inputs.map(i => i.id));
   });
 
+  it('rejects duplicate VTXO ids instead of counting one output twice', () => {
+    const duplicate = [
+      { id: 'same', amountSats: 10000n, spent: false, locked: false },
+      { id: 'same', amountSats: 10000n, spent: false, locked: false },
+    ];
+    expect(() => selectCoins(duplicate, 15000n, 1n)).toThrow('Duplicate VTXO id');
+  });
+
+  it('rejects zero and negative VTXO amounts', () => {
+    expect(() => selectCoins([{ id: 'zero', amountSats: 0n, spent: false, locked: false }], 1n, 1n))
+      .toThrow('amountSats must be > 0');
+    expect(() => selectCoins([{ id: 'negative', amountSats: -1n, spent: false, locked: false }], 1n, 1n))
+      .toThrow('amountSats must be > 0');
+  });
+
+  it('rejects an empty VTXO id', () => {
+    expect(() => selectCoins([{ id: '', amountSats: 1000n, spent: false, locked: false }], 1n, 1n))
+      .toThrow('VTXO id must be a non-empty string');
+  });
+
+  it('rejects negative and non-integer amounts before selection', () => {
+    expect(() => selectCoins(LIVE_VTXOS, -1n, 1n)).toThrow('targetSats must be > 0');
+  });
+
   it('computes change correctly: total - target - fee', () => {
     const result = selectCoins(LIVE_VTXOS, 10000n, 5n);
     const expectedChange = result.totalInputSats - 10000n - 5n;
