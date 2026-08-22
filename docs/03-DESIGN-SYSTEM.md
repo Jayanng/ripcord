@@ -187,22 +187,33 @@ clickable.
 ### ProofSheet
 Bottom sheet on mobile, side panel on desktop. Renders the actual verification chain:
 ```
-TRANSACTION   91013b84…f6a530        epoch 416525  code 0
+TRANSACTION   f5bd7d7f…d4e749        epoch 437193  code 0
      ↓
-HAT           SHA256d over finalized PSBT
-              f5a780b9…1ba86ecf
+HAT           daemon commitment over the finalized PSBT
+              f631ef7a…098713e2
      ↓
-VERKLE        stem ced50e9a…  suffix 65
+VERKLE        stem e24a6715…e50d2f  suffix 250
               StateDiff.currentValue matches HAT ✓
+              key = stem || suffix ✓
      ↓
-RIP CHAIN     50 epochs · 416526 → 416575
-              IPA proof · 8 cl + 8 cr commitments
+RIP CHAIN     self-proof (epoch 437193)   ·  or N epochs when closed
+              IPA proof · 8 cl + 8 cr commitments (daemon-attested)
      ↓
-FINAL ROOT    aduY+hs3nTOqzr3P6i35k0TDWz2Fuc…
+FINAL ROOT    7XsCxbB8OhcnzHmllTo31XBkB31f5gG4s3bBcsdz…
 
+PSBT PAYLOAD  null on regtest (HAT cannot be recomputed locally)
 L1 ANCHOR     not populated on regtest (btc_height 0)
 ```
-The last line is deliberately present. Showing the gap honestly is more persuasive than hiding it.
+The last two lines are deliberately present. Showing the gap honestly is more persuasive than hiding it.
+
+**Corrected 2026-08-23 by live probe** (see `01-VERIFIED-API.md` §16.5 / §16.6):
+- The suffix is **not** a constant 65. It is the Verkle key's last byte and varies per VTXO (measured
+  204 and 250). Render whatever the proof carries; never hardcode.
+- Do not label HAT as a locally recomputed `SHA256d`. `rip.PSBTPayload` is `null` on regtest, so the
+  commitment cannot be recomputed client-side. This is an **inclusion** proof: the daemon's HAT value
+  appears in the daemon's Verkle state diff. Word the UI accordingly.
+- `FinalRoot` and the other root/commitment fields are **base64**, while stems and diff values are
+  `0x`-hex. Truncate for display but do not imply a single encoding.
 
 ### VaultCard
 Address, `csvBlocks`, registration state, funding outpoint, spk-verified badge, and an expandable

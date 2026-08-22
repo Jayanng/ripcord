@@ -262,9 +262,25 @@ backoff, resyncs from `getAddressVtxos` on reconnect, and bounds its queue.
 ### proofs.ts
 ```ts
 fetchHat(txHash): Promise<Hat | null>                      // null for deposits (no spent VTXO)
-fetchRip(txHash, originEpoch, window = 50): Promise<Rip>    // window ≤ 256, we cap at 50
-verifyHatInRip(hat, rip): boolean                          // stem-suffix-65 comparison
+fetchRip(txHash, originEpoch, window = 0): Promise<Rip>     // see window rule below
+verifyHatInRip(hat, rip): HatRipLink                       // normalized value match + key identity
 ```
+
+**Corrected 2026-08-23 by live probe** (evidence in `01-VERIFIED-API.md` §16.3 / §16.5):
+
+- **`window` defaults to 0, not 50.** Every epoch in `[origin, final]` must already be CLOSED or the
+  daemon returns `502 … epoch <N> not closed (chain gap)`. Measured: 0/1/2/3/5 succeed on a fresh tx;
+  10/25/50 fail. Clamp `final_epoch` to the newest `status:"closed"` epoch from `listEpochs` when a
+  window is requested. The 256-epoch cap is a separate, looser limit. `Chain` is `null` at window 0.
+- **There is no fixed "suffix 65".** Measured 204 and 250 on two real transfers. The 32-byte Verkle
+  key is `stem(31) || suffix(1)`, so the suffix is the key's last byte and varies per VTXO.
+- **`verifyHatInRip` must normalize before comparing.** `StateDiff[].suffixDiffs[].currentValue` is
+  `0x`-prefixed hex; `hat.proof` is bare hex. A strict `===` is false on every valid proof. It returns
+  a structured `HatRipLink` (matched value, stem, suffix, key-identity flag) rather than a bare boolean
+  so the ProofSheet can render what was actually checked.
+- **Scope:** `rip.PSBTPayload` is `null` on regtest, so the HAT commitment cannot be recomputed
+  locally. This is an inclusion proof of the daemon's HAT value in the daemon's Verkle diff. The IPA
+  proof is carried as daemon-attested evidence, not verified client-side.
 
 ### exit.ts
 ```ts

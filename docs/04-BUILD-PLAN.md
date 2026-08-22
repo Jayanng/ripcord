@@ -32,7 +32,7 @@
 │  - coinselect.ts (VTXO coin selection, localSpentAt tracking)            │
 │  - queue.ts (Single-writer async transaction serialization)              │
 │  - indexer.ts (Live WSS subscription: pending -> committed stream)       │
-│  - proofs.ts (Raw REST HAT/RIP fetch + stem-suffix-65 Verkle match)      │
+│  - proofs.ts (Raw REST HAT/RIP fetch + normalized Verkle diff match)     │
 │  - exit.ts (assessExit dry-run probe + executeExit broadcast)            │
 │  - bytes.ts (DisplayTxid <-> InternalTxid byte reversal, bigint JSON)   │
 └────────────────────────────────────┬─────────────────────────────────────┘
@@ -351,31 +351,76 @@ Before proceeding to Phase 8, run and verify:
 ## Phase 8: Cryptographic Proofs & Verkle Linker
 
 ### Task 8.1: Direct REST HAT & RIP Fetchers (TDD)
-**Objective:** Fetch raw HAT and RIP proofs directly via REST endpoints bypassing broken SDK query serialization.
+**Objective:** Fetch raw HAT and RIP proofs via REST endpoints.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/proofs.test.ts`
 - Create: `/home/ubuntu/ripcord/packages/core/src/proofs.ts`
 
 **Implementation Details:**
-- `fetchHat(txHash)`: `GET /tachi_tx?hash=<txHash>&hat=true`. Extract `vtxo_id` and SHA256d `proof`.
-- `fetchRip(txHash, originEpoch, window = 50)`: `GET /tachi_tx?hash=<txHash>&rip=true&origin_epoch=<o>&final_epoch=<o+window>`.
-- Extract `Origin.Proof`, `Origin.StateDiff`, and `FinalRoot`.
+- `fetchHat(txHash)`: `GET /tachi_tx?hash=<txHash>&hat=true`. Extract `vtxo_id` and the `proof`
+  (bare lowercase hex, no `0x`). An unknown hash returns **HTTP 404 `transaction not found`**; map it.
+- `fetchRip(txHash, originEpoch, window = 0)`:
+  `GET /tachi_tx?hash=<txHash>&rip=true&origin_epoch=<o>&final_epoch=<o+window>`.
+  Extract `Origin.Proof`, `Origin.StateDiff`, `Origin.Keys`, `Origin.Root`, and `FinalRoot`.
+
+> **CORRECTED 2026-08-23 (live probe, see `01-VERIFIED-API.md` §16.3).** An earlier version of this
+> plan used `window = 50`. That **502s** on a freshly committed tx: every epoch in
+> `[origin_epoch, final_epoch]` must already be CLOSED, or the daemon answers
+> `502 … chain proof: epoch <N> not closed (chain gap)`. Measured: windows 0/1/2/3/5 succeed,
+> 10/25/50 fail. Default to **window 0** (self-proof, always available at commit) or clamp
+> `final_epoch` to the newest `status: "closed"` epoch from `listEpochs`. The 256-epoch cap is a
+> separate, looser limit. `Chain` is `null` at window 0.
+>
+> Note the SDK wrapper is **not** broken (the old claim was wrong): `client.getTransaction(hash,
+> { rip: true, originEpoch, finalEpoch })` works, it just needs **camelCase** option names. Raw `fetch`
+> is still preferred here to keep `proofs.ts` dependency-free.
 
 ### Task 8.2: Verkle Inclusion Verification Linker (TDD)
-**Objective:** Cryptographically link HAT proof to RIP Verkle state difference at stem suffix 65.
+**Objective:** Link the HAT proof to the RIP Verkle state diff.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/verkle.test.ts`
 - Modify: `/home/ubuntu/ripcord/packages/core/src/proofs.ts`
 
 **Implementation Details:**
-- `verifyHatInRip(hat, rip)`: Validate `rip.Origin.StateDiff[0].suffixDiffs` contains `currentValue === hat.proof`.
-- Package into verified `PaymentReceipt` struct with complete audit trail.
+- `verifyHatInRip(hat, rip)`: find a `rip.Origin.StateDiff[].suffixDiffs[]` entry whose
+  `currentValue` matches `hat.proof` **after normalization**, and cross-check the Verkle key identity.
+- Package into a verified `PaymentReceipt` (the type already exists in `types.ts`) with the full
+  audit trail.
+
+> **TWO CORRECTIONS, 2026-08-23 (live probe, see `01-VERIFIED-API.md` §16.5).** The earlier version of
+> this task was factually wrong on both counts and would have shipped a permanently-false verifier.
+>
+> **1. `currentValue === hat.proof` ALWAYS FAILS.** `currentValue` is `0x`-prefixed hex;
+> `hat.proof` is bare hex. Strict equality is `false` on every valid proof. Strip `0x` and lowercase
+> both sides before comparing.
+>
+> **2. The suffix is NOT the constant 65.** Measured 204 (`0xcc`) and 250 (`0xfa`) on two real
+> transfers. The 32-byte Verkle key is `stem(31 bytes) || suffix(1 byte)`, so the suffix is just the
+> key's last byte and varies per VTXO. The identity that holds is
+> `Buffer.from(Origin.Keys[0], "base64").toString("hex") === stem_hex + suffixByteHex`.
+> Locate the diff by the normalized value match; assert the key identity structurally. **Never assert
+> `suffix === 65`.**
+>
+> **Scope limit:** `rip.PSBTPayload` is `null` on regtest, so the HAT commitment **cannot** be
+> recomputed locally. This is an **inclusion** proof of the daemon's HAT value in the daemon's Verkle
+> diff, not a recomputation, and the IPA proof is carried as daemon-attested evidence rather than
+> verified client-side. Label both honestly in code and UI.
 
 ### Phase 8 Verification Checklist & Expected Results
-Before proceeding to Phase 9, run and verify:
-1. `fetchHat(transferTxHash)` returns 64-char hex SHA256d commitment.
-2. `fetchRip(...)` returns 50-epoch chained IPA commitments and `FinalRoot`.
-3. `verifyHatInRip(hat, rip)` returns `true` (stem suffix 65 diff exactly matches HAT proof).
+Before proceeding to Phase 9, run and verify (revised 23 Aug; the original three gates assumed
+facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md` §6):
+1. `fetchHat` on a freshly committed live transfer returns a 64-char bare-hex `proof` and a
+   `vtxo_id` equal to the input VTXO that transfer actually spent.
+2. `fetchHat` on an unknown hash surfaces a mapped `RipcordError` (404), not a parsed 404 body.
+3. `fetchRip(txHash, epoch)` at window 0 returns `Origin.EpochNum === tx epoch`, `Chain === null`,
+   and `FinalRoot === Origin.Root`.
+4. A window reaching unclosed epochs surfaces a mapped chain-gap error, not an unhandled 502.
+5. A fully-closed window returns `Chain.length === window` and `FinalRoot === Chain[last].Root`.
+6. `verifyHatInRip` returns `true` for a real matched pair and `false` for a `hat.proof` taken from a
+   different transfer (negative control: prove the verifier can fail).
+7. `Origin.Keys[0]` (base64 → hex) equals `stem || suffix`.
+8. The assembled `PaymentReceipt` survives a `MemoryStore` snapshot round-trip with every field
+   intact.
 
 ---
 

@@ -485,48 +485,178 @@ await client.getWatchtowerReceipts();   // → { count: 0, receipts: [] }
 
 ## 16. HAT / RIP proofs
 
-**The SDK wrapper drops the query params.** `client.getTransaction(hash, {hat:true})` returns a `hat`
-key with no data. Hit the REST route directly.
+> **Re-probed 2026-08-23 against daemon v0.39.0 with three freshly committed transfers**
+> (`D501919D…0476` @ epoch 437172, `F5BD7D7F…E749` @ epoch 437193, `FB650479…1095` @ epoch 437326).
+> Several claims in the earlier (21 Aug) version of this section were **WRONG** and are corrected
+> below. Where the old text disagrees, the 23 Aug probe wins. Every statement in §16.1–§16.6 was
+> re-asserted mechanically against the third transfer: **32 checks, 32 passed, 0 failed.**
+
+### 16.1 The SDK wrapper works. It just needs camelCase.
+
+**CORRECTION.** The old claim ("the SDK wrapper drops the query params, `getTransaction(hash,
+{hat:true})` returns a `hat` key with no data") is **false**. Read the JS:
+
+```js
+// node_modules/@tachibtc/tachi-sdk-ts/dist/client.js
+async getTransaction(hash, options) {
+  const qs = { hash };
+  if (options?.hat) qs.hat = "true";
+  if (options?.rip) qs.rip = "true";
+  if (options?.vtxoId) qs.vtxo_id = options.vtxoId;
+  if (options?.originEpoch !== undefined) qs.origin_epoch = String(options.originEpoch);
+  if (options?.finalEpoch  !== undefined) qs.final_epoch  = String(options.finalEpoch);
+  return this.get("/tachi_tx", qs);
+}
+```
+
+Verified live: `client.getTransaction(hash, { hat: true })` returns the **full** hat payload, and
+`{ rip: true, originEpoch, finalEpoch }` returns the **full** rip. The trap is the casing, not the
+wrapper: passing `origin_epoch` / `final_epoch` (snake, as the REST route wants) means the SDK never
+sets them and the daemon answers `400 rip=true requires origin_epoch and final_epoch`. Use
+`originEpoch` / `finalEpoch`.
+
+Either path is fine. Raw REST keeps `proofs.ts` free of an extra client dependency, so RIPCORD uses
+`fetch`, but the SDK is not broken and the old warning must not be repeated.
+
+### 16.2 HAT
 
 ```ts
-// HAT: requires a SPENT VTXO. Deposits are rejected:
-//   "400 — tx has no inputs; hat/rip proofs require a spent VTXO"
 const r = await fetch(`${DAEMON}/tachi_tx?hash=${txHash}&hat=true`);
 const { hat } = await r.json();
-// → { vtxo_id, btc_timestamp: 0, btc_height: 0,
-//     proof: "f5a780b95eefe297a9d0b8d4f31fcae07a6bfd36ec7b6f92069714791ba86ecf" }
+// → { vtxo_id: "5e150d21…79a2", btc_timestamp: 0, btc_height: 0,
+//     proof: "f631ef7a23577b6df299c0ca73ddea3f4793ffd56fff38fb925439bb098713e2" }
 ```
 
-Spec: *"Proof is the hex-encoded SHA256d commitment over the raw finalized PSBT payload."*
+- `hat.proof` is **bare lowercase hex, 64 chars** (no `0x`).
+- `hat.vtxo_id` is the **spent input's** VTXO id. Verified equal to the input we selected on both probes.
+- The tx hash is **case-insensitive** on this route: uppercase (as `waitForTachiTxCommit` returns it)
+  and lowercase both return the identical payload.
+- A hash the daemon doesn't know → **HTTP 404 `transaction not found`** (not a 200 with an empty body).
+- `btc_height` / `btc_timestamp` are still `0`. See §16.6.
 
-```ts
-// RIP: max 256 epochs, both params required
-const r = await fetch(
-  `${DAEMON}/tachi_tx?hash=${txHash}&rip=true&origin_epoch=${o}&final_epoch=${o + 50}`);
-const { rip } = await r.json();
+**UNVERIFIED (23 Aug):** the old claim that a deposit is rejected with
+`400 — tx has no inputs; hat/rip proofs require a spent VTXO` could **not** be re-confirmed: the last
+40 epochs contained no non-transfer tx to probe. Treat it as a 21-Aug observation, not current fact,
+and re-probe with a fresh deposit before relying on the exact message.
+
+### 16.3 RIP: the window rule is NOT "≤ 50"
+
+**CORRECTION.** The old text said "max 256 epochs, keep windows ≤ 50" and showed `origin + 50`. On a
+freshly committed tx, `origin + 50` **fails**:
+
+```
+GET /tachi_tx?hash=…&rip=true&origin_epoch=437172&final_epoch=437222
+→ HTTP 502  rip proof: rip query failed: chain proof: epoch 437181 not closed (chain gap)
 ```
 
-**VERIFIED**, 114,538 characters of real proof:
-- `Origin`: `EpochNum`, `Keys`, Verkle `Proof` with `commitmentsByPath`, `d`, and an `ipaProof`
-  carrying 8 `cl` + 8 `cr` commitments and `finalEvaluation`; plus `StateDiff`, `Root`, `Commitment`
-- `Chain`: 50 sequential per-epoch Verkle proofs
-- `FinalRoot`
+The real constraint is **every epoch in `[origin_epoch, final_epoch]` must already be CLOSED.** Epochs
+close roughly every 5 s under live traffic, so the usable window on a just-committed tx is however many
+epochs have closed since. Measured sweep from `origin = 437172`:
 
-**The cryptographic link verifies:**
+| window | result |
+|---|---|
+| 0 | OK, 5,021 bytes, `Chain: null` |
+| 1 | OK, 6,937 bytes, `Chain` length 1 |
+| 2 | OK, 8,856 bytes, `Chain` length 2 |
+| 3 | OK, 10,775 bytes, `Chain` length 3 |
+| 5 | OK, 14,611 bytes, `Chain` length 5 |
+| 10 | **HTTP 502** `epoch 437180 not closed (chain gap)` |
+| 25 / 50 | **HTTP 502** same class of error |
+
+The 256-epoch ceiling is real but is a *second*, looser limit:
+`final_epoch - origin_epoch > 256` → `400 final_epoch - origin_epoch exceeds max chain length of 256 epochs`.
+
+**Implication for `proofs.ts`:** do not hardcode a 50-epoch window. Either use **window 0** (self-proof,
+always available the moment the tx commits) or poll `listEpochs` for the newest `status: "closed"` height
+and clamp `final_epoch` to it. A fixed window is a guaranteed 502 on a fresh transfer.
+
+`origin_epoch` need **not** equal the tx's epoch: `origin - 1` and `origin - 5` both succeed and return
+the same `FinalRoot` as window 0 from the tx epoch, because `FinalRoot` tracks `final_epoch`.
+
+Both params are mandatory: omitting either → `400 rip=true requires origin_epoch and final_epoch`.
+
+### 16.4 RIP response shape (measured, not inferred)
 
 ```
-rip.Origin.StateDiff[0].suffixDiffs[0].currentValue = 0xf5a780b9…1ba86ecf
-hat.proof                                           =   f5a780b9…1ba86ecf   → MATCH
+rip = { VTXOID, BTCTimestamp, BTCHeight, PSBTPayload, Origin, Chain, FinalRoot }
+Origin = { EpochNum, Keys, Proof, StateDiff, Root, Commitment }
+Origin.Proof = { otherStems, depthExtensionPresent, commitmentsByPath, d, ipaProof }
+Origin.Proof.ipaProof = { cl: string[8], cr: string[8], finalEvaluation }
 ```
 
-So: our tx → HAT over its finalized PSBT → inserted at Verkle stem suffix 65 in the origin epoch →
-chained recursively → single `FinalRoot`.
+**Encodings are mixed. This is the sharpest trap in the whole section:**
 
-Limits: `final_epoch - origin_epoch > 256` → `exceeds max chain length of 256 epochs`. Near the ceiling
-the daemon's own ABCI query times out. Keep windows small (≤ 50).
+| Field | Encoding |
+|---|---|
+| `Origin.Root`, `Origin.Commitment`, `FinalRoot`, `Chain[i].Root` | **base64**, 44 chars → 32 bytes |
+| `Origin.Keys[i]` | **base64**, 44 chars → 32 bytes |
+| `StateDiff[].stem` | **`0x`-prefixed hex**, 31 bytes |
+| `StateDiff[].suffixDiffs[].currentValue` | **`0x`-prefixed hex**, 32 bytes |
+| `Proof.commitmentsByPath[]`, `Proof.d`, `ipaProof.cl/cr/finalEvaluation` | **`0x`-prefixed hex**, 32 bytes |
+| `hat.proof` | **bare hex**, no `0x` |
+| `VTXOID`, `PSBTPayload` | **JSON byte array** (`[122, 85, …]`), not a string |
 
-**Known gap:** `btc_height: 0`, `btc_timestamp: 0`, and `epoch.bitcoin_block_height: null` on every
-epoch. The chain is complete up to the Verkle root but **not L1-anchored** on regtest. State this.
+`VTXOID` decodes byte-for-byte to the spent VTXO id and to `hat.vtxo_id` (both probes). Reading it as
+base64 or hex silently yields garbage.
+
+`Chain` is **`null`** at window 0 and an array of per-epoch proofs otherwise. Each `Chain[i]` has the
+same keys as `Origin`. Verified: `FinalRoot === Chain[Chain.length - 1].Root`, and at window 0
+`FinalRoot === Origin.Root`.
+
+### 16.5 The cryptographic link, corrected
+
+The link verifies, but **not** the way the old text and `04-BUILD-PLAN.md` describe it.
+
+```
+hat.proof                                          =   f631ef7a…13e2   (bare hex)
+rip.Origin.StateDiff[0].suffixDiffs[0].currentValue = 0xf631ef7a…13e2   (0x-prefixed)
+strict ===                                          → FALSE
+normalized (strip 0x, lowercase both)               → TRUE   ✅
+```
+
+**A strict `===` comparison FAILS.** `verifyHatInRip` must strip the `0x` prefix and lowercase both
+sides. This is exactly the kind of bug that ships as "proof verification" and silently always returns
+false.
+
+**The Verkle suffix is NOT the constant 65.** Both `04-BUILD-PLAN.md` Task 8.2 and the old §16 said
+"stem suffix 65" (both are now corrected in place). Measured across two transfers:
+
+| tx | stem (31 bytes) | suffix |
+|---|---|---|
+| `D501919D…0476` | `786972eadc88ee526c80ef8e43dcaa45d6a00e53e12fc87d67ee18bc215ccb` | **204** (`0xcc`) |
+| `F5BD7D7F…E749` | `e24a67157ee5c0bd55fcd63d7cd468a044a49fa341f081f523bc4824e50d2f` | **250** (`0xfa`) |
+| `FB650479…1095` | `8d769de050cd9ff21f496af5691ae7aa2ca6e5260cbff2eaf6d593f9902f4b` | **148** (`0x94`) |
+
+Three transfers, three different suffixes. It is not a constant under any reading.
+
+The relationship that *does* hold, on all three probes:
+
+```
+Buffer.from(Origin.Keys[0], "base64").toString("hex") === stem_hex + suffix.toString(16).padStart(2, "0")
+```
+
+i.e. the 32-byte Verkle key is `stem(31 bytes) || suffix(1 byte)`, and the suffix is simply the key's
+last byte. It varies per VTXO. **Never assert `suffix === 65`.** Locate the diff by matching the
+normalized `currentValue` against `hat.proof`, and cross-check the stem against `Origin.Keys[0]`.
+
+`Origin.Keys[0]` is not `sha256(vtxo_id)` (checked, no match). The derivation from VTXO id to Verkle
+key is not public; treat the key as opaque and verify it only against the `stem || suffix` identity.
+
+### 16.6 What CANNOT be verified on regtest (state this plainly)
+
+- **`rip.PSBTPayload` is `null`.** So the spec sentence *"Proof is the hex-encoded SHA256d commitment
+  over the raw finalized PSBT payload"* is **not locally checkable**. Confirmed the obvious wrong turn:
+  hashing the empty payload gives `sha256("") = e3b0c442…b855` and
+  `sha256d("") = 5df6e0e2…9456`, neither of which is `hat.proof`. `proofs.ts` must NOT claim to
+  recompute the HAT commitment. It can only assert the daemon's HAT value appears in the daemon's
+  Verkle state diff. Label that honestly in the UI: it is an **inclusion** proof, not a recomputation.
+- **No L1 anchoring.** `hat.btc_height = 0`, `hat.btc_timestamp = 0`, `rip.BTCHeight = 0`,
+  `rip.BTCTimestamp = 0`, and `epoch.bitcoin_block_height = null` on every sampled epoch
+  (`hat_count: 0` too). The chain is complete up to the Verkle root and **stops there** on regtest.
+- **The IPA proof is not verified client-side.** RIPCORD carries `Origin.Proof` / `ipaProof` through to
+  the UI as evidence, but implementing Verkle/IPA verification in TypeScript is out of scope. Say
+  "daemon-attested" and never imply local cryptographic verification of the commitment itself.
+
 
 ## 17. Error codes
 
