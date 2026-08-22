@@ -95,7 +95,7 @@ describe('payment.ts: live end-to-end transfer', { timeout: 300000 }, () => {
 
     // Setup signer
     aliceSigner = makeSigner(ALICE_MNEMONIC, 'regtest', freshIndex);
-  });
+  }, 120000);
 
   it('Alice sends 5000 sats to Bob, transfer commits with code 0', async () => {
     // Find spendable VTXO for Alice's key used in vault creation

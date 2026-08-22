@@ -111,11 +111,14 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
     createdAt: Date.now(),
   };
 
-  if (csvBlocks === 2) {
+  // Fixture check scoped to Alice's index-0 key only. Other indices produce
+  // different valid addresses. The SDK's verifyVaultP2tr above already validates
+  // the cryptographic structure for all vaults.
+  if (csvBlocks === 2 && userKeyDescriptor.index === 0) {
     if (expectedAddress !== ALICE_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
-        `Vault address mismatch for csvBlocks=2: expected ${ALICE_FIXTURE_VAULT_ADDRESS_CSV2}, got ${expectedAddress}`,
+        `Vault address mismatch for csvBlocks=2 index=0: expected ${ALICE_FIXTURE_VAULT_ADDRESS_CSV2}, got ${expectedAddress}`,
         { hint: 'Vault derivation must be deterministic and match verified fixture' }
       );
     }
