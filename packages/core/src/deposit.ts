@@ -15,7 +15,7 @@ export interface DepositToVaultParams {
   userWallet: agg.Wallet;
   rpc: { baseUrl: string };
   amountSats: bigint;
-  /** Optional fee rate in sats/vbyte. If omitted, uses daemon estimate. */
+  /** Optional fee rate in sats/vbyte. Defaults to 2 (the verified regtest rate). */
   feeRateSatVb?: number;
 }
 
@@ -32,6 +32,9 @@ export async function depositToVault(
   params: DepositToVaultParams
 ): Promise<DepositResult> {
   const { vault, userWallet, rpc, amountSats, feeRateSatVb } = params;
+  // The SDK requires feeRateSatVb; default to the verified regtest rate when
+  // the caller omits it rather than passing undefined through.
+  const effectiveFeeRateSatVb = feeRateSatVb ?? 2;
 
   if (!vault.p2tr) {
     throw new RipcordError(
@@ -69,7 +72,7 @@ export async function depositToVault(
     userWallet,
     rpc: bitcoinRpcClient,
     amountSats,
-    ...(feeRateSatVb !== undefined ? { feeRateSatVb } : {}),
+    feeRateSatVb: effectiveFeeRateSatVb,
   });
 
   if (!dep.txid || !dep.rawTxHex) {

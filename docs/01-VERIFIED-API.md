@@ -453,6 +453,24 @@ the daemon rejects a filterless connection. Block events verified via `?blocks=t
 Backpressure: events buffer up to `maxQueuedEvents` (default 10,000), then the stream throws rather
 than silently dropping. Leaving the loop by any means closes the socket.
 
+Field notes (2026-08-22, captured from the SDK-decoded `VaultEvent`, then re-probed):
+
+- **`txHash` case does NOT match REST.** The WSS frame carries the tx hash **lowercase**
+  (`64fd019e…`), while `waitForTachiTxCommit` / `broadcastTachiTx` return it **uppercase**
+  (`64FD019E…`). Always case-normalise before joining a WSS event to its REST commit status.
+- **`vout[].owner` is not a fixed width.** Alice's change output came back as a 64-char x-only
+  key while Bob's received output came back as a 66-char compressed key, in the same transfer.
+  Treat `owner` as an opaque hex pubkey string; do not key on its length.
+- **The SDK's `subscribeVaultEvents` has NO reconnect.** A dropped socket only calls `onClose`;
+  the caller must re-subscribe and re-query state after any gap. `@ripcord/core`'s `VaultIndexer`
+  (`src/indexer.ts`) adds exponential-backoff reconnect plus a bounded client-side event queue.
+- A `block` event (`event:"block"`) carries `block: { height, blockHash, appHash, txCount, epochClosed }`.
+  `txCount` is the transactions in that block; `epochClosed` is `undefined` for a block that
+  closed no epoch. `tx:pending` has `height: 0`, `tx:committed` has `height > 0`.
+- A plain `transfer` frame has `vaultAddress: ""` (a transfer locks no vault) and `vout` populated
+  with one entry per output; `type` is `"transfer"`. Observed pending latency ~300 ms after
+  broadcast, committed ~1 s later (block finalisation is activity-driven, ~5 s cadence).
+
 ## 15. Watchtower
 
 ```ts

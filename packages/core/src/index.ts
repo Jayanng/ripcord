@@ -13,3 +13,5 @@ export * from './recovery.js';
 export * from './coinselect.js';
 export * from './queue.js';
 export * from './payment.js';
+export * from './indexer.js';
+export * from './store.js';
