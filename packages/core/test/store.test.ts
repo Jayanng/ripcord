@@ -160,6 +160,25 @@ describe('MemoryStore', () => {
     expect(typeof receipts[0].amountSats).toBe('bigint');
   });
 
+  it('returns defensive vault copies so callers cannot mutate stored state', async () => {
+    const store = new MemoryStore();
+    const vault = makeVault(VAULT_A, 40000n);
+    await store.saveVault(vault);
+    const returned = (await store.getVaults())[0];
+    returned.csvBlocks = 999;
+    returned.userKeyDescriptor.index = 99;
+    expect((await store.getVaults())[0].csvBlocks).toBe(2);
+    expect((await store.getVaults())[0].userKeyDescriptor.index).toBe(0);
+  });
+
+  it('returns defensive receipt copies so callers cannot mutate stored state', async () => {
+    const store = new MemoryStore();
+    await store.saveReceipt(makeReceipt('aa'.repeat(32), 500n));
+    const returned = (await store.getReceipts())[0];
+    returned.amountSats = 999n;
+    expect((await store.getReceipts())[0].amountSats).toBe(500n);
+  });
+
   it('satisfies the RipcordStore contract', async () => {
     const store: RipcordStore = new MemoryStore();
     await store.saveVault(makeVault(VAULT_A, 1n));

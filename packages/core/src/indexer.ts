@@ -255,6 +255,10 @@ export class VaultIndexer {
   private connected = false;
   private reconnectAttempt = 0;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  /** Identifies the active subscription so a stale socket event cannot mutate current state. */
+  private subscriptionGeneration = 0;
+  /** Prevent duplicate reconnect scheduling from repeated close/error callbacks. */
+  private reconnectScheduled = false;
 
   constructor(options: VaultIndexerOptions) {
     if (!options.url) {
@@ -314,6 +318,8 @@ export class VaultIndexer {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    this.reconnectScheduled = false;
+    this.subscriptionGeneration++;
     try {
       this.sub?.close();
     } catch {
@@ -324,7 +330,10 @@ export class VaultIndexer {
   }
 
   private open(): void {
+    if (this.manuallyClosed) return;
     this.connected = false;
+    this.reconnectScheduled = false;
+    const generation = ++this.subscriptionGeneration;
     this.emitStatus({ state: 'connecting' });
     let sub: VaultEventSubscription;
     try {
@@ -337,9 +346,15 @@ export class VaultIndexer {
         ...(this.options.validators ? { validators: this.options.validators } : {}),
         ...(this.options.webSocketImpl ? { webSocketImpl: this.options.webSocketImpl } : {}),
         ...(this.options.allowInsecureHttp ? { allowInsecureHttp: true } : {}),
-        onEvent: raw => this.handleEvent(raw),
-        onError: err => this.handleError(err),
-        onClose: () => this.handleClose(),
+        onEvent: raw => {
+          if (generation === this.subscriptionGeneration) this.handleEvent(raw);
+        },
+        onError: err => {
+          if (generation === this.subscriptionGeneration) this.handleError(err);
+        },
+        onClose: () => {
+          if (generation === this.subscriptionGeneration) this.handleClose(generation);
+        },
       });
     } catch (err) {
       this.handleError(err);
@@ -347,7 +362,7 @@ export class VaultIndexer {
       return;
     }
     this.sub = sub;
-    this.bindOpenSignal(sub.socket);
+    this.bindOpenSignal(sub.socket, generation);
   }
 
   /**
@@ -355,8 +370,10 @@ export class VaultIndexer {
    * handshake actually completes (the push-only stream replays nothing, so a
    * caller must know it is safe to broadcast only after this fires).
    */
-  private bindOpenSignal(socket: VaultEventSubscription['socket']): void {
-    const onOpen = () => this.onSocketOpen();
+  private bindOpenSignal(socket: VaultEventSubscription['socket'], generation: number): void {
+    const onOpen = () => {
+      if (generation === this.subscriptionGeneration) this.onSocketOpen();
+    };
     if (typeof socket.addEventListener === 'function') {
       socket.addEventListener('open', onOpen);
     } else if (typeof socket.on === 'function') {
@@ -424,7 +441,8 @@ export class VaultIndexer {
     }
   }
 
-  private handleClose(): void {
+  private handleClose(generation: number): void {
+    if (generation !== this.subscriptionGeneration) return;
     this.connected = false;
     if (this.manuallyClosed) {
       this.sub = undefined;
@@ -435,14 +453,16 @@ export class VaultIndexer {
   }
 
   private scheduleReconnect(reason: string): void {
-    if (this.manuallyClosed) {
+    if (this.manuallyClosed || this.reconnectScheduled) {
       return;
     }
+    this.reconnectScheduled = true;
     const attempt = ++this.reconnectAttempt;
     const delayMs = this.computeBackoff(attempt);
     this.emitStatus({ state: 'reconnecting', attempt, delayMs, reason });
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
+      this.reconnectScheduled = false;
       if (!this.manuallyClosed) {
         this.open();
       }

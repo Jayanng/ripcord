@@ -31,27 +31,35 @@ export interface RipcordStore {
  * In-memory store for Node and tests. Persistence is explicit: capture the
  * snapshot string, then rebuild with `MemoryStore.fromSnapshot`.
  */
+function clonePublic<T>(value: T): T {
+  // Use the same lossless path as reboot snapshots. MemoryStore must not expose
+  // its internal mutable objects to callers, especially because VaultRecord.p2tr
+  // contains nested Buffer fields and receipts contain bigint values.
+  return deserializeJson<T>(serializeJson(value));
+}
+
 export class MemoryStore implements RipcordStore {
   private readonly vaults = new Map<string, VaultRecord>();
   private readonly receipts = new Map<string, PaymentReceipt>();
 
   async getVaults(): Promise<VaultRecord[]> {
-    return [...this.vaults.values()];
+    return [...this.vaults.values()].map(vault => clonePublic(vault));
   }
 
   async saveVault(vault: VaultRecord): Promise<void> {
-    this.vaults.set(vault.address, vault);
+    const stored = clonePublic(vault);
+    this.vaults.set(stored.address, stored);
   }
 
   async getReceipts(): Promise<PaymentReceipt[]> {
-    return [...this.receipts.values()];
+    return [...this.receipts.values()].map(receipt => clonePublic(receipt));
   }
 
   async saveReceipt(receipt: PaymentReceipt): Promise<void> {
     // txHash case is inconsistent across the daemon (WSS lowercase, REST
     // uppercase); canonicalise to lowercase so the key is stable and a re-save
     // cannot mint a duplicate. Matches IndexedDbStore, which keys on txHash.
-    const normalized = { ...receipt, txHash: receipt.txHash.toLowerCase() };
+    const normalized = clonePublic({ ...receipt, txHash: receipt.txHash.toLowerCase() });
     this.receipts.set(normalized.txHash, normalized);
   }
 
@@ -72,10 +80,12 @@ export class MemoryStore implements RipcordStore {
     const store = new MemoryStore();
     const data = deserializeJson<{ vaults: VaultRecord[]; receipts: PaymentReceipt[] }>(json);
     for (const vault of data.vaults) {
-      store.vaults.set(vault.address, vault);
+      const stored = clonePublic(vault);
+      store.vaults.set(stored.address, stored);
     }
     for (const receipt of data.receipts) {
-      store.receipts.set(receipt.txHash.toLowerCase(), receipt);
+      const stored = clonePublic({ ...receipt, txHash: receipt.txHash.toLowerCase() });
+      store.receipts.set(stored.txHash, stored);
     }
     return store;
   }

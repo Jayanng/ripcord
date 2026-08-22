@@ -119,6 +119,10 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 17. **Phase 6 implementation boundary:** `sendTransfer` does not automatically call `enqueueReserved`.
     A caller that needs atomic local reservation must enqueue the whole send task or use
     `enqueueReserved` explicitly; the callback alone is not a reservation lock.
+18. **Phase 7 audit:** the indexer tags subscriptions by generation so stale socket callbacks cannot
+    mutate the current stream after reconnect; only one reconnect timer may exist at once. Queue overflow
+    remains terminal until explicit close/restart. `MemoryStore` now returns defensive lossless copies,
+    so callers cannot mutate stored vaults or receipts through `getVaults()`/`getReceipts()` results.
 
 ## 8. Unproven / blocked items (honest state)
 

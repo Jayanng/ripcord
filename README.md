@@ -24,8 +24,9 @@ The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custod
 - Tachi transfers with sender-ownership validation and change returned to the sender's own user P2TR address
 - SDK query-error mapping at the initial VTXO lookup boundary
 - Phase 6 audit coverage for queue contention and fail-closed payment validation
-- Live pending-to-committed activity through the Tachi WebSocket stream
-- Public-data persistence through memory and IndexedDB store adapters
+- Live pending-to-committed activity through the Tachi WebSocket stream with stale-socket protection
+- Public-data persistence through memory and IndexedDB store adapters with defensive reads
+- Phase 7 audit coverage for stale socket callbacks, duplicate reconnect timers, terminal overflow, and mutable store objects
 - HAT and RIP proof fetching and normalized HAT-in-Verkle-diff linking in the Phase 8 design
 - A future unilateral-exit dry-run and broadcast flow
 

@@ -539,8 +539,9 @@ the daemon rejects a filterless connection. Block events verified via `?blocks=t
 
 Backpressure: events buffer up to `maxQueuedEvents` (default 10,000), then the stream throws rather
 than silently dropping. Leaving the loop by any means closes the socket. `@ripcord/core`'s
-`BoundedEventQueue` mirrors this client-side and raises `RipcordCode.QUEUE_OVERFLOW` past its bound
-rather than dropping events.
+`BoundedEventQueue` mirrors this client-side and raises `RipcordCode.QUEUE_OVERFLOW` past the bound
+rather than dropping events. Phase 7 audit hardening leaves overflow terminal until explicit close/restart.
+`MemoryStore` uses defensive lossless copies so callers cannot mutate stored public state through reads.
 
 Field notes (2026-08-22, captured from the SDK-decoded `VaultEvent`, then re-probed):
 
@@ -553,6 +554,9 @@ Field notes (2026-08-22, captured from the SDK-decoded `VaultEvent`, then re-pro
 - **The SDK's `subscribeVaultEvents` has NO reconnect.** A dropped socket only calls `onClose`;
   the caller must re-subscribe and re-query state after any gap. `@ripcord/core`'s `VaultIndexer`
   (`src/indexer.ts`) adds exponential-backoff reconnect plus a bounded client-side event queue.
+  Phase 7 audit hardening tags each subscription generation so stale socket callbacks cannot mutate the
+  current stream, suppresses duplicate reconnect timers, and leaves overflow terminal until explicit
+  close/restart.
 - A `block` event (`event:"block"`) carries `block: { height, blockHash, appHash, txCount, epochClosed }`.
   `txCount` is the transactions in that block; `epochClosed` is `undefined` for a block that
   closed no epoch. `tx:pending` has `height: 0`, `tx:committed` has `height > 0`.

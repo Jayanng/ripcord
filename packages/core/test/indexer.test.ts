@@ -134,6 +134,22 @@ describe('BoundedEventQueue (pure)', () => {
     expect(() => new BoundedEventQueue<number>(0)).toThrow();
     expect(() => new BoundedEventQueue<number>(-1)).toThrow();
   });
+
+  it('keeps overflow terminal until explicitly cleared', () => {
+    const q = new BoundedEventQueue<number>(1);
+    q.push(1);
+    expect(() => q.push(2)).toThrowError(expect.objectContaining({ code: RipcordCode.QUEUE_OVERFLOW }));
+    expect(q.hasOverflowed).toBe(true);
+    expect(() => q.push(3)).toThrowError(expect.objectContaining({ code: RipcordCode.QUEUE_OVERFLOW }));
+    q.clear();
+    expect(q.hasOverflowed).toBe(false);
+    expect(() => q.push(4)).not.toThrow();
+  });
+
+  it('rejects non-integer queue capacity', () => {
+    expect(() => new BoundedEventQueue<number>(1.5)).toThrow();
+    expect(() => new BoundedEventQueue<number>(Number.NaN)).toThrow();
+  });
 });
 
 describe('VaultIndexer (live daemon)', () => {
@@ -145,6 +161,22 @@ describe('VaultIndexer (live daemon)', () => {
     const indexer = new VaultIndexer({ url: `${WSS}?blocks=true` });
     expect(indexer).toBeInstanceOf(VaultIndexer);
     indexer.close();
+  });
+
+  it('does not reopen after close when a stale subscription closes later', async () => {
+    const statuses: IndexerStatus[] = [];
+    const indexer = new VaultIndexer({
+      url: `${WSS}?blocks=true`,
+      onStatus: status => statuses.push(status),
+    });
+    indexer.start();
+    await waitFor(() => (indexer.socket ? true : undefined), 15_000, 'socket object');
+    const oldSocket = indexer.socket!;
+    indexer.close();
+    oldSocket.close();
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect(statuses.filter(s => s.state === 'reconnecting')).toHaveLength(0);
+    expect(statuses.at(-1)?.state).toBe('closed');
   });
 
   it('emits block:new for every committed block (blocks=true)', { timeout: 60_000 }, async () => {

@@ -543,6 +543,13 @@ Before proceeding to Phase 7, run and verify:
 - Connect with `?address=<UserAddress>&blocks=true`.
 - Emit typed events: `tx:pending` (height=0), `tx:committed` (height>0), `block:new`.
 - Auto-reconnect with exponential backoff and queue bounds.
+- Reject stale socket callbacks after a reconnect and suppress duplicate reconnect timers.
+- A queue overflow is terminal until explicit close/restart; never resume by silently discarding queued events.
+
+> **Phase 7 audit correction:** the original lifecycle allowed callbacks from an old socket to mutate the
+> current indexer after a new subscription existed, and repeated close/error callbacks could schedule
+> multiple reconnect timers. The indexer now tags subscriptions by generation and permits one reconnect
+> timer at a time.
 
 ### Task 7.2: Persistence Store Adapter (Memory & IndexedDB)
 **Objective:** Cache public vault records, receipts, and VTXO balances without storing secret keys.
@@ -553,6 +560,7 @@ Before proceeding to Phase 7, run and verify:
 **Implementation Details:**
 - Define `RipcordStore` interface: `getVaults()`, `saveVault()`, `getReceipts()`, `saveReceipt()`, `clear()`.
 - Implement `MemoryStore` for node/testing and `IndexedDbStore` for browser.
+- Store reads and writes use defensive public-data copies so callers cannot mutate the store's internal objects or nested P2TR Buffers.
 
 ### Phase 7 Verification Checklist & Expected Results
 Before proceeding to Phase 8, run and verify:
@@ -578,6 +586,10 @@ Before proceeding to Phase 8, run and verify:
 > passed a green suite. Later phases must assert against **real daemon payloads**, not hand-built
 > objects that dodge the hard fields. `QUEUE_OVERFLOW` was added to `RipcordCode` for the bounded
 > event queue.
+>
+> **Phase 7 audit follow-up:** stale socket callbacks are ignored by subscription generation, duplicate
+> reconnect timers are suppressed, overflow is terminal until explicit close/restart, and store reads
+> return defensive lossless copies.
 
 ---
 

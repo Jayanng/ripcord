@@ -57,9 +57,13 @@ reconnect of its own) and adds:
 
 **`src/store.ts`**: `RipcordStore` contract (`getVaults`/`saveVault`/`getReceipts`/`saveReceipt`/`clear`)
 with `MemoryStore` (explicit `exportSnapshot` / `fromSnapshot` reboot persistence) and
-`IndexedDbStore` (browser). Public data only; no mnemonic/seed/private key ever enters a store.
+`IndexedDbStore` (browser). Public data only; no mnemonic/seed/private key ever enters a store. Store
+reads and writes use defensive lossless copies, so callers cannot mutate internal vault or receipt state
+through returned objects.
 
 ### Live-verified (real daemon, real transfers)
+
+**Phase 7 audit follow-up:** the indexer now rejects stale socket callbacks after reconnect and suppresses duplicate reconnect timers. `MemoryStore` returns defensive lossless copies, preventing callers from mutating stored public state through read results.
 
 - `block:new` fires on every committed block, ~5 s cadence under live traffic
 - `tx:pending` arrived **~300 ms** after broadcast (gate asked for ~500 ms)
@@ -343,6 +347,10 @@ Add `export * from './proofs.js';` to `src/index.ts`.
     sender ownership before VTXO reads and maps initial query errors. `onInputsSelected` is advisory;
     atomic local reservation requires `TxQueue.enqueueReserved`. Live send/re-spend and queue paths pass,
     while the full suite still has the known activity-driven L1 confirmation failure.
+22. **Phase 7 audit:** indexer subscription generations reject stale socket callbacks after reconnect and
+    only one reconnect timer may be scheduled at once. Queue overflow remains terminal until explicit
+    close/restart. `MemoryStore` returns defensive lossless copies so callers cannot mutate stored vault or
+    receipt objects through read results.
 
 **Phase 6 implementation boundary:** `sendTransfer` does not automatically call `enqueueReserved`; callers must enqueue the complete send task or explicitly reserve selected IDs. The `onInputsSelected` callback is advisory only.
 

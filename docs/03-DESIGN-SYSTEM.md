@@ -338,7 +338,10 @@ successful registration badge from the local builder alone; it needs the committ
 
 **Connection states (Phase 7 `VaultIndexer`, live-verified).** The indexer emits a
 `connecting` / `connected` / `reconnecting` / `closed` status stream, so the UI needs all four, not a
-binary online/offline dot:
+binary online/offline dot. Phase 7 audit hardening rejects stale socket callbacks after reconnect and
+suppresses duplicate reconnect timers; the UI must not treat an old socket's events as current. Queue
+overflow is terminal until explicit close/restart, and `MemoryStore` returns defensive lossless copies so
+callers cannot mutate stored public state through reads:
 - `reconnecting` carries `attempt` and `delayMs`. Show "reconnecting" rather than silence; the WSS
   stream is push-only and replays nothing, so a gap means the activity feed is stale until a resync.
 - On reconnect the app must re-query (`getAddressVtxos`) rather than trust the feed. Anything rendered

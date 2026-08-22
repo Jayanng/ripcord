@@ -360,7 +360,8 @@ overlapping IDs, deduplicate IDs within one task, and release only after success
 ### indexer.ts
 
 **As-built in Phase 7** (this section was a pre-build sketch; the shipped API differs, so what follows
-is the real surface):
+is the real surface). Phase 7 audit hardening also tags each subscription generation, suppresses duplicate
+reconnect timers, and treats queue overflow as terminal until explicit close/restart:
 
 ```ts
 class VaultIndexer {
@@ -395,7 +396,7 @@ observed in one transfer).
 
 ### store.ts
 
-**As-built in Phase 7.** Absent from the original contracts list; documented here now.
+**As-built in Phase 7.** Absent from the original contracts list; documented here now. `MemoryStore` returns defensive lossless copies, so callers cannot mutate stored public state through reads.
 
 ```ts
 interface RipcordStore {
