@@ -37,6 +37,18 @@ export interface RecoverVaultsParams {
 }
 
 /** Default CSV candidates: regtest fixture (2) + every daemon CSV tier. */
+/**
+ * Default CSV delay candidates for recovery.
+ *
+ * The daemon redacts `csv_delay` without an API key, so we must rebuild the
+ * vault under every possible CSV value and keep the one whose address matches
+ * the daemon-registered address.
+ *
+ * These values are derived from the daemon's `toSelfDelayForBalance` tiers:
+ * 144 (1 day), 432 (3 days), 1008 (1 week), 2016 (2 weeks), plus the regtest
+ * fixture value 2. If the daemon adds new tiers, this list must be updated.
+ * Without an API key, there is no way to discover the tiers dynamically.
+ */
 export const DEFAULT_RECOVERY_CSV_BLOCKS: readonly number[] = [2, 144, 432, 1008, 2016];
 
 interface FundingBinding {

@@ -65,6 +65,7 @@ describe('register.ts', { timeout: 60000 }, () => {
     ).rejects.toThrow(RipcordError);
   });
 
+  // Env-gated live test – requires manual setup.
   const hasLiveFunds =
     process.env.RIPCORD_LIVE === '1' &&
     Boolean(process.env.LIVE_FUNDING_TXID && process.env.LIVE_VTXO_ID);

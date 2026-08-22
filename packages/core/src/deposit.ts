@@ -1,34 +1,75 @@
-import { VaultRecord, toSdkVault } from './types.js';
-import * as vc from '@tachibtc/taurus-vault-core';
-import * as agg from '@tachibtc/taurus-wallet-aggregator';
+import {
+  VaultRecord,
+  DisplayTxid,
+  asDisplayTxid,
+  isVaultAddress,
+} from './types.js';
+// (import removed because no longer needed)
 import { RipcordError, RipcordCode } from './errors.js';
+import * as agg from '@tachibtc/taurus-wallet-aggregator';
+import * as vc from '@tachibtc/taurus-vault-core';
+import * as btc from 'bitcoinjs-lib';
 
-export interface DepositParams {
+export interface DepositToVaultParams {
   vault: VaultRecord;
   userWallet: agg.Wallet;
   rpc: { baseUrl: string };
   amountSats: bigint;
-  feeRateSatVb: number;
+  /** Optional fee rate in sats/vbyte. If omitted, uses daemon estimate. */
+  feeRateSatVb?: number;
 }
 
 export interface DepositResult {
-  txid: string;
+  txid: DisplayTxid;
   rawTxHex: string;
+  feeSats: bigint;
 }
 
-export async function depositToVault(params: DepositParams): Promise<DepositResult> {
+/**
+ * Deposit funds from the user's L1 wallet into the vault.
+ */
+export async function depositToVault(
+  params: DepositToVaultParams
+): Promise<DepositResult> {
   const { vault, userWallet, rpc, amountSats, feeRateSatVb } = params;
+
+  if (!vault.p2tr) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'Vault missing P2TR data',
+      { hint: 'Vault must have been created with p2tr field' }
+    );
+  }
+
+  const address = vault.address;
+  if (!isVaultAddress(address)) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Invalid vault address: ${address}`,
+      { hint: 'Address must be a valid vault P2TR' }
+    );
+  }
 
   const bitcoinRpcClient = new agg.BitcoinCoreRpcClient({ url: rpc.baseUrl });
 
-  const sdkVault = toSdkVault(vault);
-
   const dep = await vc.depositToVault({
-    vault: sdkVault,
+    vault: {
+      p2tr: vault.p2tr,
+      userKey: {
+        compressedHex: vault.userKeyDescriptor.publicKey,
+        xOnly: Buffer.from(vault.userKeyDescriptor.publicKey.slice(2), 'hex'),
+        derivationPath: vault.userKeyDescriptor.path,
+        address: vault.userKeyDescriptor.address,
+      },
+      nodeKeys: vault.nodePubkeys.map(pk => ({
+        pubkeyHex: pk.slice(2),
+        compressedHex: pk,
+      })),
+    },
     userWallet,
     rpc: bitcoinRpcClient,
     amountSats,
-    feeRateSatVb,
+    ...(feeRateSatVb !== undefined ? { feeRateSatVb } : {}),
   });
 
   if (!dep.txid || !dep.rawTxHex) {
@@ -40,8 +81,9 @@ export async function depositToVault(params: DepositParams): Promise<DepositResu
   }
 
   return {
-    txid: dep.txid,
+    txid: asDisplayTxid(dep.txid),
     rawTxHex: dep.rawTxHex,
+    feeSats: 0n, // not returned by SDK; we estimate separately if needed
   };
 }
 
@@ -50,6 +92,15 @@ export async function verifyDepositProofOfReserves(
   txid: string,
   expectedOutputScriptHex: string
 ): Promise<boolean> {
+  // The txid must be in display order (the order used by Bitcoin RPC).
+  // Ensure it's a 64-character hex string.
+  if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Invalid txid format: ${txid}`,
+      { hint: 'Expected a 64-character hex string in display order' }
+    );
+  }
   const response = await fetch(`${baseUrl}/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -63,28 +114,26 @@ export async function verifyDepositProofOfReserves(
 
   if (!response.ok) {
     throw new RipcordError(
-      RipcordCode.INVALID_FORMAT,
+      RipcordCode.DAEMON_UNREACHABLE,
       `Failed to fetch transaction: ${response.statusText}`,
-      { hint: 'Bitcoin RPC getrawtransaction failed' }
+      { hint: 'Daemon may be down' }
     );
   }
 
   const data = await response.json();
-
   if (data.error) {
     throw new RipcordError(
-      RipcordCode.INVALID_FORMAT,
-      `RPC error: ${data.error.message}`,
-      { hint: 'Bitcoin RPC returned error' }
+      RipcordCode.FUNDING_MISSING,
+      `Transaction not found: ${data.error.message}`,
+      { hint: 'The deposit may not have been confirmed or broadcast' }
     );
   }
 
   const tx = data.result;
-  const vout = tx.vout.find((o: any) => o.scriptPubKey.hex === expectedOutputScriptHex);
-
-  if (!vout) {
+  const output = tx.vout.find((o: any) => o.scriptPubKey.hex === expectedOutputScriptHex);
+  if (!output) {
     return false;
   }
 
-  return vout.scriptPubKey.hex === expectedOutputScriptHex;
+  return true;
 }

@@ -93,7 +93,29 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       // P2TR output script, the only check that binds the rebuild to money.
       const p2tr = vault.p2tr!;
       const expectedOutputScriptHex = Buffer.from(p2tr.output).toString('hex');
-      const verified = await verifyDepositProofOfReserves(DAEMON, txid, expectedOutputScriptHex);
+
+      // The transaction may not be immediately available via getrawtransaction.
+      // Retry with a short backoff.
+      let verified = false;
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          verified = await verifyDepositProofOfReserves(DAEMON, txid, expectedOutputScriptHex);
+          if (verified) break;
+        } catch (err) {
+          lastError = err as Error;
+          // If it's a "not found" error, wait and retry.
+          const msg = String(err);
+          if (!msg.includes('No such mempool or blockchain transaction')) {
+            throw err;
+          }
+          // Wait before retry: 100ms, 200ms, 400ms, 800ms
+          await new Promise(r => setTimeout(r, 100 * (2 ** attempt)));
+        }
+      }
+      if (!verified) {
+        throw lastError || new Error('Transaction not found after retries');
+      }
 
       expect(verified).toBe(true);
     });
