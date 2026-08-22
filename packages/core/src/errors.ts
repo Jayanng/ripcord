@@ -10,6 +10,10 @@ export enum RipcordCode {
   QUEUE_OVERFLOW = 'QUEUE_OVERFLOW',
   DAEMON_UNREACHABLE = 'DAEMON_UNREACHABLE',
   INVALID_CHAIN = 'INVALID_CHAIN',
+  /** HTTP 404 from /tachi_tx?hat= or ?rip= : plain text `transaction not found`. */
+  TX_NOT_FOUND = 'TX_NOT_FOUND',
+  /** HTTP 502 from RIP: an epoch in [origin, final] is not yet closed. */
+  CHAIN_GAP = 'CHAIN_GAP',
   UNKNOWN = 'UNKNOWN',
 }
 

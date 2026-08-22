@@ -175,12 +175,11 @@ interface PaymentReceipt {
 
 ## 6. Core module contracts
 
-> **Status note (23 Aug).** Sections written before a module shipped are pre-build sketches and can
+> **Status note (22 Aug).** Sections written before a module shipped are pre-build sketches and can
 > drift from the real API. Where a section is marked **"As-built"** it was rewritten against the
-> committed code (`indexer.ts`, `store.ts` after Phase 7). `proofs.ts` and `exit.ts` remain
-> pre-build, with their live-probed constraints noted inline. `config.ts`, `ledger.ts`, `refund.ts`,
-> and `watchtower.ts` in the layout above are **planned, not yet written**; the shipped module list
-> is in `06-HANDOFF-PHASE8.md` §2.
+> committed code (`indexer.ts`, `store.ts` after Phase 7; `proofs.ts` after Phase 8.1). `exit.ts`
+> remains pre-build. `config.ts`, `ledger.ts`, `refund.ts`, and `watchtower.ts` in the layout above
+> are **planned, not yet written**; the shipped module list is in `06-HANDOFF-PHASE8.md` §2.
 
 ### health.ts: preflight
 
@@ -431,10 +430,14 @@ Receipt keys are canonicalised to lowercase `txHash` in both implementations, be
 the hash in two different cases (WSS lowercase, REST uppercase).
 
 ### proofs.ts
+
+**As-built** (Phase 8.1, live-probed 2026-08-22):
+
 ```ts
-fetchHat(txHash): Promise<Hat | null>                      // null for deposits (no spent VTXO)
-fetchRip(txHash, originEpoch, window = 0): Promise<Rip>     // see window rule below
+fetchHat(txHash, { baseUrl }): Promise<HatProof>
+fetchRip(txHash, originEpoch, { baseUrl, window = 0, clamp = true }): Promise<RipProof>
 verifyHatInRip(hat, rip): HatRipLink                       // normalized value match + key identity
+buildPaymentReceipt(...): Promise<PaymentReceipt>          // fills existing types.ts fields
 ```
 
 **Corrected 2026-08-23 by live probe** (evidence in `01-VERIFIED-API.md` §16.3 / §16.5):
@@ -456,7 +459,12 @@ verifyHatInRip(hat, rip): HatRipLink                       // normalized value m
   **camelCase** `originEpoch` / `finalEpoch` (snake_case is silently dropped and the daemon 400s).
   Raw `fetch` is still preferred here to keep `proofs.ts` dependency-free.
 - **Two error surfaces.** These routes use real HTTP status codes (404 / 400 / 502), unlike the ledger
-  routes where CometBFT failures arrive inside HTTP 200. Check both. See §10.
+  routes where CometBFT failures arrive inside HTTP 200. Error bodies are **plain text**, not JSON.
+  Unknown hash → `TX_NOT_FOUND`; unclosed window → `CHAIN_GAP`; missing params / 256-cap →
+  `INVALID_FORMAT`. See §10.
+- **Window 0 is `origin = final = <tx epoch>`.** `origin_epoch=0&final_epoch=0` is a proof of epoch 0,
+  not a self-proof of the transfer. The deposit-without-inputs 400 remains UNVERIFIED (see
+  `01-VERIFIED-API.md` §16.2); `fetchHat` throws a mapped error rather than returning null.
 
 ### exit.ts
 ```ts
@@ -525,6 +533,8 @@ Daemon codes mapped to actionable hints:
 | `non-BIP68-final` | `EXIT_IMMATURE` | "Exit needs N more confirmations." |
 | `bad-txns-inputs-missingorspent` | `FUNDING_MISSING` | Byte-order or already-exited guard |
 | (client-side) | `QUEUE_OVERFLOW` | "Event backlog exceeded. Reconnecting." (Phase 7, `indexer.ts`) |
+| HTTP 404 `transaction not found` | `TX_NOT_FOUND` | "The daemon has no transaction for this hash." (Phase 8, proof routes, plain-text body) |
+| HTTP 502 `epoch <N> not closed (chain gap)` | `CHAIN_GAP` | "Use window 0 or clamp to the newest closed epoch." (Phase 8, RIP) |
 
 **Where the reason actually lives (audit 2026-08-23).** `mapDaemonError` must read the rejection text
 from every field the daemon really uses, not just `message`:
@@ -543,10 +553,10 @@ through `mapDaemonError`; never construct `UNKNOWN` at a call site.
 
 **Two error surfaces, not one.** Ledger operations return CometBFT failures **inside HTTP 200**, so
 `result.code` is the authority there. The proof routes (`/tachi_tx?hat=`/`&rip=`) are different: they
-use **real HTTP status codes**, verified 23 Aug: `404 transaction not found` for an unknown hash,
-`400` for missing epoch params or a window past the 256 cap, and `502 … not closed (chain gap)` for a
-window reaching unclosed epochs. `proofs.ts` must check the HTTP status **and** the body, or a 404's
-error text gets JSON-parsed into a bogus proof object.
+use **real HTTP status codes** with **plain-text** bodies, verified 23 Aug and re-asserted 22 Aug:
+`404 transaction not found` for an unknown hash, `400` for missing epoch params or a window past the
+256 cap, and `502 … not closed (chain gap)` for a window reaching unclosed epochs. Read the body as
+text, then map it. Never `response.json()` a 404/400/502: the body is not JSON.
 
 ## 11. Security posture
 
@@ -591,4 +601,7 @@ no mocks, no simulations, docs are field notes not truth).
 2. Ripcord Wallet deployed as a static PWA (Netlify or Vercel).
 3. Demo video following the golden path.
 4. Root README: what works, what doesn't, and why, with real txids for every claim.
-5. An issue filed on `tachibtc/tachi-sdk-ts` for the `getTransaction` HAT/RIP param bug.
+5. Honest proof language in the UI: inclusion of the daemon HAT in the daemon Verkle diff, no local
+   HAT recomputation, no client-side IPA verification, no L1 anchoring on regtest. The SDK
+   `getTransaction` wrapper is **not** broken; it requires camelCase `originEpoch` / `finalEpoch`.
+   RIPCORD uses raw `fetch` so `proofs.ts` stays free of that client.

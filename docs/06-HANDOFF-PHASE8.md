@@ -29,12 +29,13 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 | 5 | Cold-start recovery (`recovery.ts`) |
 | 6 | VTXO coin selection (`coinselect.ts`), single-writer queue (`queue.ts`), transfers (`payment.ts`) |
 | 7 | **Real-time WSS indexer (`indexer.ts`) + persistence store (`store.ts`)** |
+| 8.1 / linker | **HAT/RIP fetchers + normalized Verkle inclusion (`proofs.ts`)** |
 
 `packages/core/src/`: `index.ts`, `types.ts`, `bytes.ts`, `errors.ts`, `health.ts`, `keys.ts`,
 `quorum.ts`, `vault.ts`, `deposit.ts`, `register.ts`, `recovery.ts`, `coinselect.ts`, `queue.ts`,
-`payment.ts`, `indexer.ts`, `store.ts`.
+`payment.ts`, `indexer.ts`, `store.ts`, `proofs.ts`.
 
-16 test files, all live against the real daemon (zero mocks).
+17 test files, all live against the real daemon (zero mocks).
 
 ## 3. Git state (as of handoff)
 
@@ -98,7 +99,7 @@ why a data-corrupting bug passed a green suite. When you write `proofs.test.ts`,
 
 | Phase | Work | Notes |
 |-------|------|-------|
-| **8** | Cryptographic Proofs & Verkle Linker (`proofs.ts`) | **START HERE** |
+| **8** | Cryptographic Proofs & Verkle Linker (`proofs.ts`) | 8.1 + linker implemented; remaining Phase 8 polish if any, then 9 |
 | 9 | Unilateral Exit & Dry-Run Engine (`exit.ts`) | a builder exists in probe form only, not committed |
 | 10 | PWA Shell, Design System, Core State | `apps/wallet` scaffold |
 | 11 | High-Assurance UI Components | |

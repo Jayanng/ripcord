@@ -603,7 +603,8 @@ Before proceeding to Phase 8, run and verify:
 
 **Implementation Details:**
 - `fetchHat(txHash)`: `GET /tachi_tx?hash=<txHash>&hat=true`. Extract `vtxo_id` and the `proof`
-  (bare lowercase hex, no `0x`). An unknown hash returns **HTTP 404 `transaction not found`**; map it.
+  (bare lowercase hex, no `0x`). An unknown hash returns **HTTP 404** with a **plain-text** body
+  `transaction not found` (not JSON); map it to `RipcordError(TX_NOT_FOUND)`.
 - `fetchRip(txHash, originEpoch, window = 0)`:
   `GET /tachi_tx?hash=<txHash>&rip=true&origin_epoch=<o>&final_epoch=<o+window>`.
   Extract `Origin.Proof`, `Origin.StateDiff`, `Origin.Keys`, `Origin.Root`, and `FinalRoot`.

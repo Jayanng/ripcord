@@ -583,6 +583,23 @@ await client.getWatchtowerReceipts();   // → { count: 0, receipts: [] }
 > Several claims in the earlier (21 Aug) version of this section were **WRONG** and are corrected
 > below. Where the old text disagrees, the 23 Aug probe wins. Every statement in §16.1 to §16.6 was
 > re-asserted mechanically against the third transfer: **32 checks, 32 passed, 0 failed.**
+>
+> **Re-asserted 2026-08-22** (Phase 8.1 implementation probe, same three hashes, daemon still
+> v0.39.0, chain height ~440198). All encodings, suffixes (148 / 204 / 250), normalized HAT-in-RIP
+> matches, and `Origin.Keys[0] === stem || suffix` identities still hold. Additional facts from
+> this pass, not previously recorded:
+> - HAT/RIP error bodies are **plain text**, not JSON. `404 transaction not found`,
+>   `400 rip=true requires origin_epoch and final_epoch query parameters`,
+>   `400 final_epoch - origin_epoch exceeds max chain length of 256 epochs`, and
+>   `502 … epoch <N> not closed (chain gap)` must be read with `response.text()`, never
+>   `response.json()`.
+> - `suffixDiffs[]` also carries `newValue` alongside `suffix` and `currentValue`. Inclusion
+>   matching uses `currentValue`.
+> - `origin_epoch=0&final_epoch=0` is HTTP 200, but it is a proof of **epoch 0**, not a
+>   self-proof of the transaction. Window 0 means `origin = final = <tx epoch>`.
+> - Closed-epoch listing is `GET /tachi_listEpochs` (newest-first page). Historical window 50
+>   now succeeds because those epochs have closed; a window that reaches past the newest
+>   closed epoch still 502s.
 
 ### 16.1 The SDK wrapper works. It just needs camelCase.
 
@@ -625,7 +642,9 @@ const { hat } = await r.json();
   probes.
 - The tx hash is **case-insensitive** on this route: uppercase (as `waitForTachiTxCommit` returns it)
   and lowercase both return the identical payload.
-- A hash the daemon doesn't know → **HTTP 404 `transaction not found`** (not a 200 with an empty body).
+- A hash the daemon doesn't know → **HTTP 404** with a **plain-text** body
+  `transaction not found` (not a 200 with an empty body, and not JSON). Parsing the 404 as JSON
+  throws; mapping it to `RipcordError(TX_NOT_FOUND)` is the correct handling.
 - `btc_height` / `btc_timestamp` are still `0`. See §16.6.
 
 **UNVERIFIED (23 Aug):** the old claim that a deposit is rejected with
@@ -657,6 +676,8 @@ epochs have closed since. Measured sweep from `origin = 437172`:
 | 10 | **HTTP 502** `epoch 437180 not closed (chain gap)` |
 | 25 / 50 | **HTTP 502** same class of error |
 
+That sweep was taken while those epochs were still open. Re-probe 2026-08-22: the same historical hashes now accept window 50 (`Chain.length === 50`) because 437172+50 has long since closed. The rule has not changed. A window that still reaches an unclosed epoch 502s (measured: `origin_epoch=<current_epoch>&final_epoch=<current+50>` → `epoch 440201 not closed (chain gap)`).
+
 The 256-epoch ceiling is real but is a *second*, looser limit:
 `final_epoch - origin_epoch > 256` → `400 final_epoch - origin_epoch exceeds max chain length of 256 epochs`.
 
@@ -667,7 +688,9 @@ and clamp `final_epoch` to it. A fixed window is a guaranteed 502 on a fresh tra
 `origin_epoch` need **not** equal the tx's epoch: `origin - 1` and `origin - 5` both succeed and return
 the same `FinalRoot` as window 0 from the tx epoch, because `FinalRoot` tracks `final_epoch`.
 
-Both params are mandatory: omitting either → `400 rip=true requires origin_epoch and final_epoch`.
+Both params are mandatory: omitting either → `400 rip=true requires origin_epoch and final_epoch query parameters`
+(plain text). Passing `origin_epoch=0&final_epoch=0` is **not** "window 0 for this tx": it is a
+valid RIP of epoch 0. Window 0 for a transfer is `origin_epoch = final_epoch = <tx epoch>`.
 
 ### 16.4 RIP response shape (measured, not inferred)
 
@@ -686,6 +709,7 @@ Origin.Proof.ipaProof = { cl: string[8], cr: string[8], finalEvaluation }
 | `Origin.Keys[i]` | **base64**, 44 chars → 32 bytes |
 | `StateDiff[].stem` | **`0x`-prefixed hex**, 31 bytes |
 | `StateDiff[].suffixDiffs[].currentValue` | **`0x`-prefixed hex**, 32 bytes |
+| `StateDiff[].suffixDiffs[].newValue` | **`0x`-prefixed hex**, 32 bytes (present on the 22 Aug re-probe; inclusion matching uses `currentValue`) |
 | `Proof.commitmentsByPath[]`, `Proof.d`, `ipaProof.cl/cr/finalEvaluation` | **`0x`-prefixed hex**, 32 bytes |
 | `hat.proof` | **bare hex**, no `0x` |
 | `VTXOID`, `PSBTPayload` | **JSON byte array** (`[122, 85, …]`), not a string |

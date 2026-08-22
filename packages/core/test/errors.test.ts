@@ -17,6 +17,8 @@ describe('RipcordCode', () => {
     expect(RipcordCode.FUNDING_MISSING).toBe('FUNDING_MISSING');
     expect(RipcordCode.DAEMON_UNREACHABLE).toBe('DAEMON_UNREACHABLE');
     expect(RipcordCode.INVALID_CHAIN).toBe('INVALID_CHAIN');
+    expect(RipcordCode.TX_NOT_FOUND).toBe('TX_NOT_FOUND');
+    expect(RipcordCode.CHAIN_GAP).toBe('CHAIN_GAP');
     expect(RipcordCode.UNKNOWN).toBe('UNKNOWN');
   });
 });

@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 7 are implemented in `@ripcord/core`. Phase 8 documentation and live API findings are complete. The PWA, cryptographic proof module, unilateral exit module, and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 8.1 are implemented in `@ripcord/core`. HAT/RIP fetch, normalized Verkle inclusion linking, and live proof tests are in `proofs.ts`. The PWA, unilateral exit module, and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -27,7 +27,7 @@ The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custod
 - Live pending-to-committed activity through the Tachi WebSocket stream with stale-socket protection
 - Public-data persistence through memory and IndexedDB store adapters with defensive reads
 - Phase 7 audit coverage for stale socket callbacks, duplicate reconnect timers, terminal overflow, and mutable store objects
-- HAT and RIP proof fetching and normalized HAT-in-Verkle-diff linking in the Phase 8 design
+- HAT and RIP proof fetching and normalized HAT-in-Verkle-diff linking (`proofs.ts`)
 - A future unilateral-exit dry-run and broadcast flow
 
 ## Important limitations
@@ -37,7 +37,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 - The current implementation is **regtest-only**.
 - There is no signet or mainnet support.
 - The browser PWA has not yet arrived in the repository's implemented phases.
-- `@ripcord/core` currently exports the implemented phases. `proofs.ts` and `exit.ts` are specified and live-probed but are not yet committed as core modules.
+- `@ripcord/core` currently exports the implemented phases, including `proofs.ts`. `exit.ts` is specified and live-probed but is not yet committed as a core module.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
 - The IPA proof is carried as daemon-attested evidence. RIPCORD does not currently verify the Verkle/IPA commitment locally.
@@ -87,6 +87,7 @@ ripcord/
 │   │   ├── payment.ts     # VTXO transfers
 │   │   ├── indexer.ts     # WSS events with reconnect and bounded queue
 │   │   ├── store.ts       # MemoryStore and IndexedDbStore
+│   │   ├── proofs.ts      # HAT/RIP fetch and normalized Verkle inclusion
 │   │   └── index.ts       # public package barrel
 │   └── test/              # live-regtest test suite
 ├── docs/
@@ -111,7 +112,7 @@ ripcord/
 | 5 | Complete | Cold-start recovery and public metadata reconstruction |
 | 6 | Complete | VTXO coin selection, queue and transfers |
 | 7 | Complete and audited | WSS indexer, reconnect lifecycle, bounded event queue, stores |
-| 8 | Documentation and live probing complete | HAT/RIP fetch and Verkle-link design; implementation pending |
+| 8 | 8.1 implemented; 8.2 linker included | HAT/RIP fetch, normalized Verkle inclusion, live proof tests |
 | 9-14 | Planned | Exit engine, PWA, UI flows, browser-wipe recovery, final verification |
 
 ## Getting started
