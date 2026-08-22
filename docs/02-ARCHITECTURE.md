@@ -177,7 +177,7 @@ interface PaymentReceipt {
 
 > **Status note (22 Aug).** Sections written before a module shipped are pre-build sketches and can
 > drift from the real API. Where a section is marked **"As-built"** it was rewritten against the
-> committed code (`indexer.ts`, `store.ts` after Phase 7; `proofs.ts` after Phase 8.1). `exit.ts`
+> committed code (`indexer.ts`, `store.ts` after Phase 7; `proofs.ts` after Phase 8). `exit.ts`
 > remains pre-build. `config.ts`, `ledger.ts`, `refund.ts`, and `watchtower.ts` in the layout above
 > are **planned, not yet written**; the shipped module list is in `06-HANDOFF-PHASE8.md` §2.
 
@@ -431,7 +431,7 @@ the hash in two different cases (WSS lowercase, REST uppercase).
 
 ### proofs.ts
 
-**As-built** (Phase 8.1, live-probed 2026-08-22):
+**As-built** (Phase 8, live-probed 2026-08-22):
 
 ```ts
 fetchHat(txHash, { baseUrl }): Promise<HatProof>
@@ -576,8 +576,11 @@ text, then map it. Never `response.json()` a 404/400/502: the body is not JSON.
 ## 12. Testing strategy
 
 **Unit (vitest, in `packages/core/test`)**: byte-order round trips, bigint JSON, coin selection
-including dust and insufficient-funds, error-code mapping, HAT⊂RIP comparison against a captured
-fixture, branded-type guards.
+including dust and insufficient-funds, error-code mapping, branded-type guards.
+
+**Live proof tests**: `proofs.test.ts` (Task 8.1 fetchers, HTTP mapping, encodings) and
+`verkle.test.ts` (Task 8.2 normalized HAT-in-RIP inclusion, `Origin.Keys[0]` identity,
+`PaymentReceipt` store round-trip). Both hit the real daemon. No captured fake proofs.
 
 **Integration (vitest, live daemon, `RIPCORD_LIVE=1`)**: preflight; create/verify/deterministic
 re-derive; deposit + `verifyReserves`; onboard; register + commit; recover with and without `csvBlocks`

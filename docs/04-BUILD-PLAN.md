@@ -596,6 +596,7 @@ Before proceeding to Phase 8, run and verify:
 ## Phase 8: Cryptographic Proofs & Verkle Linker
 
 ### Task 8.1: Direct REST HAT & RIP Fetchers (TDD)
+**Status:** complete. Live tests in `packages/core/test/proofs.test.ts`.
 **Objective:** Fetch raw HAT and RIP proofs via REST endpoints.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/proofs.test.ts`
@@ -622,6 +623,7 @@ Before proceeding to Phase 8, run and verify:
 > is still preferred here to keep `proofs.ts` dependency-free.
 
 ### Task 8.2: Verkle Inclusion Verification Linker (TDD)
+**Status:** complete. Live tests in `packages/core/test/verkle.test.ts`.
 **Objective:** Link the HAT proof to the RIP Verkle state diff.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/verkle.test.ts`
@@ -653,6 +655,7 @@ Before proceeding to Phase 8, run and verify:
 > verified client-side. Label both honestly in code and UI.
 
 ### Phase 8 Verification Checklist & Expected Results
+**Status:** complete. Gates 1-5 live in `proofs.test.ts`; gates 6-8 live in `verkle.test.ts`.
 Before proceeding to Phase 9, run and verify (revised 23 Aug; the original three gates assumed
 facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md` §6):
 1. `fetchHat` on a freshly committed live transfer returns a 64-char bare-hex `proof` and a

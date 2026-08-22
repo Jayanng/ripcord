@@ -1,15 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import {
-  fetchHat,
-  fetchRip,
-  verifyHatInRip,
-  buildPaymentReceipt,
-  normalizeProofHex,
-  type HatProof,
-  type RipProof,
-} from '../src/proofs.js';
+import { fetchHat, fetchRip, type HatProof, type RipProof } from '../src/proofs.js';
 import { RipcordCode, RipcordError } from '../src/errors.js';
-import { MemoryStore } from '../src/store.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -18,14 +9,12 @@ import {
   sendTransfer,
   toSdkVault,
 } from '../src/index.js';
-import type { XOnlyHex } from '../src/types.js';
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
 
 /**
- * Live-committed transfers from the 2026-08-23 Phase 8 probe, re-fetched
- * 2026-08-22. Values (proof, vtxo_id, suffix) are read from the daemon in
- * beforeAll, not invented here.
+ * Live-committed transfers from the 2026-08-23 Phase 8 probe, re-fetched live.
+ * Proof bytes are read from the daemon, not invented here.
  */
 const HIST_A = {
   hash: 'FB650479B490DA680776E4F1EBA4B5700FCAD1F1DE68D180634FF35DF1E31095',
@@ -35,24 +24,17 @@ const HIST_B = {
   hash: 'F5BD7D7FB0F4BDA75C6C2D46117F0EAB8D5B07403B53392520A121C9E1D4E749',
   epoch: 437193,
 };
-const HIST_C = {
-  hash: 'D501919DD9914D453163B36F5C89BB187E3E802C0780310A5FD1C1B97EDA0476',
-  epoch: 437172,
-};
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
-const BOB_XONLY = '028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80';
 
 const UNKNOWN_HASH = 'ff'.repeat(32);
 
-describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () => {
+describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeout: 300000 }, () => {
   let hatA: HatProof;
-  let hatB: HatProof;
   let ripA0: RipProof;
-  let ripB0: RipProof;
   let currentEpoch: number;
 
   beforeAll(async () => {
@@ -61,13 +43,11 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
     currentEpoch = stats.current_epoch;
 
     hatA = await fetchHat(HIST_A.hash, { baseUrl: DAEMON });
-    hatB = await fetchHat(HIST_B.hash, { baseUrl: DAEMON });
     ripA0 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });
-    ripB0 = await fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 0 });
   }, 60000);
 
   describe('fetchHat', () => {
-    it('returns a 64-char bare lowercase hex proof and the spent-input vtxo_id', async () => {
+    it('returns a 64-char bare lowercase hex proof and the spent-input vtxo_id', () => {
       expect(hatA.proof).toMatch(/^[0-9a-f]{64}$/);
       expect(hatA.proof.startsWith('0x')).toBe(false);
       expect(hatA.vtxoId).toMatch(/^[0-9a-f]{64}$/);
@@ -113,7 +93,9 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
     });
 
     it('decodes VTXOID as a JSON byte array, not a string', async () => {
-      const raw = await fetch(`${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch}`);
+      const raw = await fetch(
+        `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch}`,
+      );
       const body = (await raw.json()) as { rip: { VTXOID: unknown } };
       expect(Array.isArray(body.rip.VTXOID)).toBe(true);
       expect(Buffer.from(body.rip.VTXOID as number[]).toString('hex')).toBe(ripA0.vtxoId);
@@ -123,10 +105,20 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
   describe('fetchRip windows and errors', () => {
     it('returns Chain.length === window and FinalRoot === Chain[last].Root when the window is closed', async () => {
       const rip5 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 5 });
+      const raw = await fetch(
+        `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch + 5}`,
+      );
+      const body = (await raw.json()) as {
+        rip: { Chain: Array<{ Root: string }>; FinalRoot: string };
+      };
+
+      expect(Array.isArray(body.rip.Chain)).toBe(true);
+      expect(body.rip.Chain).toHaveLength(5);
+      expect(body.rip.FinalRoot).toBe(body.rip.Chain[4].Root);
       expect(rip5.chainLength).toBe(5);
       expect(rip5.originEpoch).toBe(HIST_A.epoch);
       expect(rip5.finalEpoch).toBe(HIST_A.epoch + 5);
-      expect(rip5.finalRoot).not.toBe('');
+      expect(rip5.finalRoot).toBe(body.rip.FinalRoot);
     });
 
     it('maps a window into unclosed epochs to CHAIN_GAP, not an unhandled 502', async () => {
@@ -157,99 +149,11 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
         fetchRip(UNKNOWN_HASH, 1, { baseUrl: DAEMON, window: 0 }),
       ).rejects.toMatchObject({ code: RipcordCode.TX_NOT_FOUND });
     });
-  });
 
-  describe('verifyHatInRip (normalized inclusion + key identity)', () => {
-    it('returns verified for a real matched pair after 0x/case normalization', () => {
-      const link = verifyHatInRip(hatA, ripA0);
-      expect(link.verified).toBe(true);
-      expect(link.keyIdentityHolds).toBe(true);
-      expect(link.suffix).not.toBe(65);
-      expect(normalizeProofHex(link.matchedValue)).toBe(hatA.proof);
-
-      const rawValue = ripA0.stateDiff[0]?.suffixDiffs[0]?.currentValue ?? '';
-      expect(rawValue === hatA.proof).toBe(false);
-      expect(rawValue.toLowerCase().startsWith('0x')).toBe(true);
-    });
-
-    it('accepts an uppercase 0x-prefixed HAT proof against the same RIP', () => {
-      const mutated: HatProof = {
-        ...hatA,
-        proof: `0x${hatA.proof.toUpperCase()}`,
-      };
-      expect(verifyHatInRip(mutated, ripA0).verified).toBe(true);
-    });
-
-    it('returns false for a HAT proof taken from a different transfer', () => {
-      const link = verifyHatInRip(hatB, ripA0);
-      expect(link.verified).toBe(false);
-      expect(link.keyIdentityHolds).toBe(false);
-      expect(link.reason).toMatch(/not present/i);
-    });
-
-    it('asserts Origin.Keys[0] (base64) === stem || suffix, and suffix is not 65', async () => {
-      const pairs: Array<{ hat: HatProof; rip: RipProof; label: string }> = [
-        { hat: hatA, rip: ripA0, label: 'A' },
-        { hat: hatB, rip: ripB0, label: 'B' },
-      ];
-      const hatC = await fetchHat(HIST_C.hash, { baseUrl: DAEMON });
-      const ripC = await fetchRip(HIST_C.hash, HIST_C.epoch, { baseUrl: DAEMON, window: 0 });
-      pairs.push({ hat: hatC, rip: ripC, label: 'C' });
-
-      const suffixes = new Set<number>();
-      for (const { hat, rip, label } of pairs) {
-        const link = verifyHatInRip(hat, rip);
-        expect(link.verified, label).toBe(true);
-        expect(link.keyIdentityHolds, label).toBe(true);
-        expect(link.suffix, `${label} suffix must not be the old constant 65`).not.toBe(65);
-        suffixes.add(link.suffix);
-
-        const keyHex = Buffer.from(rip.keys[0], 'base64').toString('hex');
-        const stemHex = normalizeProofHex(link.stem);
-        const suffixHex = link.suffix.toString(16).padStart(2, '0');
-        expect(keyHex).toBe(stemHex + suffixHex);
-        expect(stemHex.length).toBe(62);
-      }
-      expect(suffixes.size).toBeGreaterThan(1);
-    });
-  });
-
-  describe('buildPaymentReceipt + MemoryStore', () => {
-    it('assembles a receipt whose proofs survive a snapshot round-trip', async () => {
-      const receipt = await buildPaymentReceipt({
-        txHash: HIST_A.hash,
-        epoch: HIST_A.epoch,
-        code: 0,
-        fromXOnly: ALICE_XONLY as XOnlyHex,
-        toXOnly: BOB_XONLY as XOnlyHex,
-        amountSats: 1000n,
-        feeSats: 1n,
-        baseUrl: DAEMON,
-        window: 0,
-      });
-
-      expect(receipt.hat?.proof).toBe(hatA.proof);
-      expect(receipt.hat?.vtxoId).toBe(hatA.vtxoId);
-      expect(receipt.hat?.btcHeight).toBe(0);
-      expect(receipt.rip?.hatInStateDiff).toBe(true);
-      expect(receipt.rip?.originEpoch).toBe(HIST_A.epoch);
-      expect(receipt.rip?.chainLength).toBe(0);
-      expect(receipt.rip?.finalRoot).toBe(ripA0.finalRoot);
-      expect(receipt.txHash).toBe(HIST_A.hash.toLowerCase());
-
-      const store = new MemoryStore();
-      await store.saveReceipt(receipt);
-      const restored = MemoryStore.fromSnapshot(store.exportSnapshot());
-      const [roundTripped] = await restored.getReceipts();
-
-      expect(roundTripped.txHash).toBe(receipt.txHash);
-      expect(roundTripped.amountSats).toBe(1000n);
-      expect(typeof roundTripped.amountSats).toBe('bigint');
-      expect(roundTripped.hat?.proof).toBe(hatA.proof);
-      expect(roundTripped.hat?.vtxoId).toBe(hatA.vtxoId);
-      expect(roundTripped.rip?.hatInStateDiff).toBe(true);
-      expect(roundTripped.rip?.finalRoot).toBe(ripA0.finalRoot);
-      expect(roundTripped.rip?.originEpoch).toBe(HIST_A.epoch);
+    it('keeps a closed historical window 50 intact when clamping', async () => {
+      const rip50 = await fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 50 });
+      expect(rip50.chainLength).toBe(50);
+      expect(rip50.finalEpoch).toBe(HIST_B.epoch + 50);
     });
   });
 
@@ -264,6 +168,8 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
         csvBlocks: 2,
         userKeyDescriptor: alice.userKeyDescriptor,
       });
+
+      let spentIds: string[] = [];
       const result = await sendTransfer({
         vault: toSdkVault(aliceVault),
         senderXOnly: ALICE_XONLY,
@@ -273,14 +179,18 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
         baseUrl: DAEMON,
         network: 'regtest',
         userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
+        onInputsSelected: ids => {
+          spentIds = [...ids];
+        },
       });
 
       expect(result.code).toBe(0);
       expect(result.epoch).toBeGreaterThan(0);
+      expect(spentIds.length).toBeGreaterThan(0);
 
       const hat = await fetchHat(result.txHash, { baseUrl: DAEMON });
       expect(hat.proof).toMatch(/^[0-9a-f]{64}$/);
-      expect(hat.vtxoId).toMatch(/^[0-9a-f]{64}$/);
+      expect(spentIds.map(id => id.toLowerCase())).toContain(hat.vtxoId);
 
       const rip = await fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 });
       expect(rip.originEpoch).toBe(result.epoch);
@@ -288,23 +198,6 @@ describe('proofs.ts: live HAT / RIP (daemon v0.39.0)', { timeout: 300000 }, () =
       expect(rip.finalRoot).toBe(rip.originRoot);
       expect(rip.vtxoId).toBe(hat.vtxoId);
       expect(rip.psbtPayloadPresent).toBe(false);
-
-      const link = verifyHatInRip(hat, rip);
-      expect(link.verified).toBe(true);
-      expect(link.keyIdentityHolds).toBe(true);
-      expect(link.suffix).not.toBe(65);
-
-      const receipt = await buildPaymentReceipt({
-        txHash: result.txHash,
-        epoch: result.epoch,
-        code: result.code,
-        fromXOnly: ALICE_XONLY,
-        toXOnly: BOB_XONLY,
-        amountSats: 1000n,
-        feeSats: 1n,
-        baseUrl: DAEMON,
-      });
-      expect(receipt.rip?.hatInStateDiff).toBe(true);
     });
   });
 });

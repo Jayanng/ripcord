@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 8.1 are implemented in `@ripcord/core`. HAT/RIP fetch, normalized Verkle inclusion linking, and live proof tests are in `proofs.ts`. The PWA, unilateral exit module, and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 8 are implemented in `@ripcord/core`. HAT/RIP fetch, normalized Verkle inclusion linking, and live proof tests are in `proofs.ts` (`proofs.test.ts` + `verkle.test.ts`). The PWA, unilateral exit module, and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -89,7 +89,7 @@ ripcord/
 │   │   ├── store.ts       # MemoryStore and IndexedDbStore
 │   │   ├── proofs.ts      # HAT/RIP fetch and normalized Verkle inclusion
 │   │   └── index.ts       # public package barrel
-│   └── test/              # live-regtest test suite
+│   └── test/              # live-regtest test suite (proofs.test.ts, verkle.test.ts, …)
 ├── docs/
 │   ├── 01-VERIFIED-API.md # live-probed API contract
 │   ├── 02-ARCHITECTURE.md # module contracts and boundaries
@@ -112,7 +112,7 @@ ripcord/
 | 5 | Complete | Cold-start recovery and public metadata reconstruction |
 | 6 | Complete | VTXO coin selection, queue and transfers |
 | 7 | Complete and audited | WSS indexer, reconnect lifecycle, bounded event queue, stores |
-| 8 | 8.1 implemented; 8.2 linker included | HAT/RIP fetch, normalized Verkle inclusion, live proof tests |
+| 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
 | 9-14 | Planned | Exit engine, PWA, UI flows, browser-wipe recovery, final verification |
 
 ## Getting started
@@ -372,4 +372,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README was written against the implemented Phases 1 through 7, the Phase 3 audit, and the live-probed Phase 8 findings. It intentionally distinguishes implemented code from planned modules and documents the known regtest environmental failure instead of presenting an all-green lifecycle.
+This README was written against the implemented Phases 1 through 8. It intentionally distinguishes implemented code from planned modules and documents the known regtest environmental failure instead of presenting an all-green lifecycle.

@@ -188,7 +188,14 @@ function jsonBytesToHex(value: unknown, field: string): string {
       `${field} contains a non-byte value`,
     );
   }
-  return Buffer.from(value as number[]).toString('hex');
+  const hex = Buffer.from(value as number[]).toString('hex');
+  if (hex.length !== BARE_PROOF_LEN) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `${field} must decode to 32 bytes, got ${hex.length / 2}`,
+    );
+  }
+  return hex;
 }
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -303,8 +310,15 @@ function parseHat(json: unknown): HatProof {
       `hat.proof must be 64-character hex, got length ${proof.length}`,
     );
   }
+  const vtxoId = asString(hat.vtxo_id, 'hat.vtxo_id').toLowerCase();
+  if (!TX_HASH_RE.test(vtxoId)) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'hat.vtxo_id must be a 64-character hex string',
+    );
+  }
   return {
-    vtxoId: asString(hat.vtxo_id, 'hat.vtxo_id').toLowerCase(),
+    vtxoId,
     proof,
     btcHeight: asNumber(hat.btc_height, 'hat.btc_height'),
     btcTimestamp: asNumber(hat.btc_timestamp, 'hat.btc_timestamp'),
@@ -313,8 +327,15 @@ function parseHat(json: unknown): HatProof {
 
 function parseSuffixDiff(value: unknown, index: number): RipSuffixDiff {
   const row = asRecord(value, `suffixDiffs[${index}]`);
+  const suffix = asNumber(row.suffix, `suffixDiffs[${index}].suffix`);
+  if (!Number.isInteger(suffix) || suffix < 0 || suffix > 255) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `suffixDiffs[${index}].suffix must be an integer in 0..255, got ${suffix}`,
+    );
+  }
   const parsed: RipSuffixDiff = {
-    suffix: asNumber(row.suffix, `suffixDiffs[${index}].suffix`),
+    suffix,
     currentValue: asString(row.currentValue, `suffixDiffs[${index}].currentValue`),
   };
   if (typeof row.newValue === 'string') {
@@ -426,7 +447,7 @@ function parseRip(json: unknown, originEpoch: number, finalEpoch: number): RipPr
     originCommitment: asString(origin.Commitment, 'Origin.Commitment'),
     stateDiff: parseStateDiff(origin.StateDiff),
     keys: origin.Keys as string[],
-    vtxoId: jsonBytesToHex(rip.VTXOID, 'rip.VTXOID'),
+    vtxoId: jsonBytesToHex(rip.VTXOID, 'rip.VTXOID').toLowerCase(),
     psbtPayloadPresent: rip.PSBTPayload !== null && rip.PSBTPayload !== undefined,
     btcHeight: asNumber(rip.BTCHeight, 'rip.BTCHeight'),
     btcTimestamp: asNumber(rip.BTCTimestamp, 'rip.BTCTimestamp'),
@@ -566,16 +587,23 @@ export function verifyHatInRip(hat: HatProof, rip: RipProof): HatRipLink {
 
       const stemHex = normalizeProofHex(diff.stem);
       const suffixByte = suffixDiff.suffix.toString(16).padStart(2, '0');
-      const keyIdentityHolds = keyHex.length > 0 && keyHex === stemHex + suffixByte;
+      const keyIdentityHolds =
+        keyHex.length === 64 && stemHex.length === 62 && keyHex === stemHex + suffixByte;
+      const vtxoMatch = hat.vtxoId.toLowerCase() === rip.vtxoId.toLowerCase();
+      const verified = keyIdentityHolds && vtxoMatch;
+      let reason: string | undefined;
+      if (!keyIdentityHolds) {
+        reason = 'HAT value matched StateDiff but Origin.Keys[0] is not stem||suffix';
+      } else if (!vtxoMatch) {
+        reason = 'HAT value matched StateDiff but hat.vtxoId does not equal rip.vtxoId';
+      }
       return {
-        verified: keyIdentityHolds,
+        verified,
         stem: diff.stem,
         suffix: suffixDiff.suffix,
         matchedValue: suffixDiff.currentValue,
         keyIdentityHolds,
-        reason: keyIdentityHolds
-          ? undefined
-          : 'HAT value matched StateDiff but Origin.Keys[0] is not stem||suffix',
+        reason,
       };
     }
   }
