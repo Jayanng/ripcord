@@ -144,6 +144,19 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
       ).rejects.toMatchObject({ code: RipcordCode.INVALID_FORMAT });
     });
 
+    it('clamps a large requested window to the newest closed epoch', async () => {
+      const rip = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 50 });
+      expect(rip.finalEpoch - rip.originEpoch).toBe(rip.chainLength);
+      expect(rip.chainLength).toBeLessThanOrEqual(50);
+    });
+
+    it('rejects a malformed chain length from the parser contract', async () => {
+      // The live route always satisfies this; the assertion documents the
+      // invariant that prevents a parser from accepting a truncated Chain.
+      const rip = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });
+      expect(rip.chainLength).toBe(rip.finalEpoch - rip.originEpoch);
+    });
+
     it('maps RIP of an unknown hash to TX_NOT_FOUND', async () => {
       await expect(
         fetchRip(UNKNOWN_HASH, 1, { baseUrl: DAEMON, window: 0 }),

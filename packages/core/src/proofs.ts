@@ -410,6 +410,13 @@ function parseRip(json: unknown, originEpoch: number, finalEpoch: number): RipPr
       'rip.Chain must be null (window 0) or an array',
     );
   }
+  const expectedChainLength = finalEpoch - originEpoch;
+  if (chainLength !== expectedChainLength) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `RIP Chain length ${chainLength} does not match requested epoch span ${expectedChainLength}`,
+    );
+  }
 
   const originEpochNum = asNumber(origin.EpochNum, 'Origin.EpochNum');
   if (originEpochNum !== originEpoch) {
@@ -637,6 +644,7 @@ export async function buildPaymentReceipt(params: BuildReceiptParams): Promise<P
   const rip = await fetchRip(params.txHash, params.epoch, {
     ...fetchOpts,
     window: params.window ?? 0,
+    clamp: true,
   });
   const link = verifyHatInRip(hat, rip);
 

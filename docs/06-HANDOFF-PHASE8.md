@@ -370,6 +370,9 @@ Add `export * from './proofs.js';` to `src/index.ts`.
 - **Unilateral exit broadcast**: probe-proven historically, but no committed `exit.ts`. Phase 9.
 - **`IndexedDbStore` is unexercised in Node** (throws a clear error when `indexedDB` is absent). Real
   browser verification lands in Phase 10.
+- **Phase 8 parser audit:** `fetchRip` now fails closed if the daemon's `Chain.length` does not equal
+  `finalEpoch - originEpoch`, preventing a truncated or mismatched chain from being presented as a valid
+  proof.
 
 ## 10. Working principles
 

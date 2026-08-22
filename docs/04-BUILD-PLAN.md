@@ -655,7 +655,7 @@ Before proceeding to Phase 8, run and verify:
 > verified client-side. Label both honestly in code and UI.
 
 ### Phase 8 Verification Checklist & Expected Results
-**Status:** complete. Gates 1-5 live in `proofs.test.ts`; gates 6-8 live in `verkle.test.ts`.
+**Status:** implementation complete and live-verified. Gates 1-5 live in `proofs.test.ts`; gates 6-8 live in `verkle.test.ts`. The parser additionally enforces `Chain.length === finalEpoch - originEpoch`, and the Phase 7 audit changes to stale-socket handling and defensive stores remain in the shared core gates.
 Before proceeding to Phase 9, run and verify (revised 23 Aug; the original three gates assumed
 facts the live probe disproved; the authoritative list is `06-HANDOFF-PHASE8.md` §6):
 1. `fetchHat` on a freshly committed live transfer returns a 64-char bare-hex `proof` and a
