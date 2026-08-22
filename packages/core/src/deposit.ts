@@ -1,4 +1,4 @@
-import { VaultRecord } from './types.js';
+import { VaultRecord, toSdkVault } from './types.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import { RipcordError, RipcordCode } from './errors.js';
@@ -21,7 +21,7 @@ export async function depositToVault(params: DepositParams): Promise<DepositResu
 
   const bitcoinRpcClient = new agg.BitcoinCoreRpcClient({ url: rpc.baseUrl });
 
-  const sdkVault = vault as any;
+  const sdkVault = toSdkVault(vault);
 
   const dep = await vc.depositToVault({
     vault: sdkVault,

@@ -91,7 +91,7 @@ describe('deposit.ts', { timeout: 120000 }, () => {
 
       // Proof of reserves: the on-chain scriptPubKey must equal the vault's
       // P2TR output script, the only check that binds the rebuild to money.
-      const p2tr = vault.p2tr as { output: Buffer };
+      const p2tr = vault.p2tr!;
       const expectedOutputScriptHex = Buffer.from(p2tr.output).toString('hex');
       const verified = await verifyDepositProofOfReserves(DAEMON, txid, expectedOutputScriptHex);
 

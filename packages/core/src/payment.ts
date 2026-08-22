@@ -30,12 +30,14 @@ import { isUserAddress } from './types.js';
 import type { TxQueue } from './queue.js';
 
 export interface TransferParams {
-  /** Vault whose cooperative leaf commits the sender's user key. */
+  /** Vault (SDK shape) whose cooperative leaf commits the sender's user key. */
   readonly vault: Vault;
   /** Sender's x-only pubkey (hex). Must match vault.userKey.xOnly. */
   readonly senderXOnly: string;
   /** Recipient's user P2TR address (bech32m). */
   readonly recipientAddress: string;
+  /** Chain the transfer is signed for. Currently regtest only. */
+  readonly network: 'regtest';
   readonly amountSats: bigint;
   readonly feeSats: bigint;
   readonly baseUrl: string;
@@ -107,7 +109,7 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
   ];
   if (selection.changeSats > 0n) {
     // Change goes to the SENDER's user P2TR address so the user owns it.
-    const changeAddress = userAddressForXOnly(params.senderXOnly, 'regtest');
+    const changeAddress = userAddressForXOnly(params.senderXOnly, params.network);
     outputs.push({ address: changeAddress, valueSats: selection.changeSats });
   }
 

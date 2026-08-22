@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as vc from '@tachibtc/taurus-vault-core';
-import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { deriveIdentity, getQuorum, createVault, makeSigner, sendTransfer, TxQueue } from '../src/index.js';
+import { deriveIdentity, getQuorum, createVault, makeSigner, sendTransfer, TxQueue, toSdkVault } from '../src/index.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
@@ -47,36 +46,39 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
 
   it('rejects a vault-address recipient (sendTransfer guard)', async () => {
     await expect(sendTransfer({
-      vault: aliceVault as unknown as vc.Vault,
+      vault: toSdkVault(aliceVault),
       senderXOnly: ALICE_XONLY,
       recipientAddress: (aliceVault as any).p2tr.address,
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
+      network: 'regtest',
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient cannot be the sender\'s vault address');
   });
 
   it('rejects a non-address recipient (sendTransfer guard)', async () => {
     await expect(sendTransfer({
-      vault: aliceVault as unknown as vc.Vault,
+      vault: toSdkVault(aliceVault),
       senderXOnly: ALICE_XONLY,
       recipientAddress: 'not-an-address',
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
+      network: 'regtest',
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient must be a user P2TR address');
   });
 
   it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async () => {
     const result = await sendTransfer({
-      vault: aliceVault as unknown as vc.Vault,
+      vault: toSdkVault(aliceVault),
       senderXOnly: ALICE_XONLY,
       recipientAddress: bobUserAddr,
       amountSats: 5000n,
       feeSats: 1n,
       baseUrl: DAEMON,
+      network: 'regtest',
       userSigner: aliceSigner,
     });
 
@@ -104,12 +106,13 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
 
   it('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async () => {
     const result = await sendTransfer({
-      vault: bobVault as unknown as vc.Vault,
+      vault: toSdkVault(bobVault),
       senderXOnly: BOB_XONLY,
       recipientAddress: aliceUserAddr,
       amountSats: 2000n,
       feeSats: 1n,
       baseUrl: DAEMON,
+      network: 'regtest',
       userSigner: bobSigner,
     });
 
@@ -117,8 +120,11 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
 
     await new Promise(r => setTimeout(r, 2000));
 
+    // Prove the payment: a new unspent 2000-sat VTXO owned by Alice, minted at
+    // an epoch >= this transfer's commit epoch (i.e. produced by THIS tx, not
+    // pre-existing funds).
     const aliceVtxos = await vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON });
-    const received = aliceVtxos.vtxos.find(v => !v.spent && v.amountSats === 2000n);
+    const received = aliceVtxos.vtxos.find(v => !v.spent && v.amountSats === 2000n && v.height >= result.epoch);
     expect(received).toBeDefined();
     expect(received!.owner).toBe(ALICE_XONLY);
   });
@@ -140,12 +146,13 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
 
     const sendTask = (amount: bigint, tag: string) => async (): Promise<{ code: number; epoch: number }> => {
       const r = await sendTransfer({
-        vault: bobVault as unknown as vc.Vault,
+        vault: toSdkVault(bobVault),
         senderXOnly: BOB_XONLY,
         recipientAddress: aliceUserAddr,
         amountSats: amount,
         feeSats: 1n,
         baseUrl: DAEMON,
+        network: 'regtest',
         userSigner: bobSigner,
         queue,
         onInputsSelected: ids => { selectedIds.push(...ids); },

@@ -1,4 +1,6 @@
 import { address as btcAddress, networks } from 'bitcoinjs-lib';
+import type { Vault as SdkVault, VaultP2tr, ValidatorNodeKey } from '@tachibtc/taurus-vault-core';
+import { RipcordError, RipcordCode } from './errors.js';
 
 export type DisplayTxid = string & { readonly __brand: 'DisplayTxid' };
 export type InternalTxid = Buffer & { readonly __brand: 'InternalTxid' };
@@ -155,7 +157,8 @@ export interface VaultRecord {
   userKeyDescriptor: UserKeyDescriptor;
   nodePubkeys: CompressedHex[];
   quorumFingerprint: string;
-  p2tr?: unknown;
+  /** SDK-verified P2TR bundle. Always set on records from createVault/recoverVaults. */
+  p2tr?: VaultP2tr;
   exitLeaf?: string;
   cooperativeLeaf?: string;
   funding?: {
@@ -166,6 +169,36 @@ export interface VaultRecord {
   registered: boolean;
   registrationTxHash?: string;
   createdAt: number;
+}
+
+/**
+ * Adapt a VaultRecord to the SDK's Vault shape (p2tr + userKey + nodeKeys).
+ * Throws INVALID_FORMAT when the record lacks its verified p2tr bundle,
+ * so a hand-built record can never silently masquerade as a spendable vault.
+ */
+export function toSdkVault(record: VaultRecord): SdkVault {
+  if (!record.p2tr) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'VaultRecord has no verified p2tr bundle; rebuild it via createVault or recoverVaults',
+      { hint: 'Only records produced by the vault lifecycle carry a spendable p2tr' },
+    );
+  }
+  const pub = record.userKeyDescriptor.publicKey;
+  const nodeKeys: ValidatorNodeKey[] = record.nodePubkeys.map(c => ({
+    pubkeyHex: c.slice(2).toLowerCase(),
+    compressedHex: c,
+  }));
+  return {
+    p2tr: record.p2tr,
+    userKey: {
+      compressedHex: pub,
+      xOnly: Buffer.from(pub.slice(2), 'hex'),
+      derivationPath: record.userKeyDescriptor.path,
+      address: record.userKeyDescriptor.address,
+    },
+    nodeKeys,
+  };
 }
 
 export interface LedgerVtxo {

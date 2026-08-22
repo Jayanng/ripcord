@@ -1,8 +1,10 @@
 import * as vc from '@tachibtc/taurus-vault-core';
+import type { Vault as SdkVaultShape } from '@tachibtc/taurus-vault-core';
+import { VaultRecord, toSdkVault } from './types.js';
 import { mapDaemonError } from './errors.js';
 
 export interface RegisterVaultParams {
-  vault: any;
+  vault: VaultRecord | SdkVaultShape;
   fundingTxid?: string;
   txid?: string;
   fundingVout?: number;
@@ -19,11 +21,11 @@ export interface RegisterVaultParams {
 
 export async function registerVault(params: RegisterVaultParams): Promise<{ vaultId: string }> {
   try {
+    const rec = params.vault as Partial<VaultRecord>;
     const txid =
       params.fundingTxid ??
       params.txid ??
-      (params as any).outpoint?.fundingTxid ??
-      (params as any).funding?.txid;
+      rec.funding?.txid;
 
     if (!txid) {
       throw new Error('fundingTxid is required');
@@ -38,20 +40,20 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
     const fundingVout =
       params.fundingVout ??
       params.vout ??
-      (params as any).outpoint?.fundingVout ??
-      (params as any).funding?.vout ??
+      rec.funding?.vout ??
       0;
 
     const vtxoIdBuf = Buffer.isBuffer(params.vtxoId)
       ? params.vtxoId
       : Buffer.from(params.vtxoId, 'hex');
 
+    const v = params.vault as SdkVaultShape | VaultRecord;
     const rawOwner =
       params.owner ??
       params.xOnly ??
       params.userXOnly ??
-      (params.vault as any)?.userKey?.xOnly ??
-      (params.vault as any)?.userKeyDescriptor?.publicKey?.slice(2);
+      ('userKey' in v && v.userKey ? Buffer.from(v.userKey.xOnly).toString('hex') : undefined) ??
+      ('userKeyDescriptor' in v && v.userKeyDescriptor ? v.userKeyDescriptor.publicKey.slice(2) : undefined);
 
     if (!rawOwner) {
       throw new Error('owner is required');
@@ -67,18 +69,9 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
     }
     const { vault, userSigner, baseUrl } = params;
 
-    const sdkVault = (vault as any).userKey
-      ? vault
-      : {
-          ...vault,
-          userKey: {
-            compressedHex: (vault as any).userKeyDescriptor?.publicKey,
-            xOnly: Buffer.from(
-              (vault as any).userKeyDescriptor?.publicKey?.slice(2) ?? '',
-              'hex'
-            ),
-          },
-        };
+    const sdkVault = (vault as SdkVaultShape | VaultRecord) && ('userKey' in vault && vault.userKey !== undefined)
+      ? (vault as SdkVaultShape)
+      : toSdkVault(vault as VaultRecord);
 
     const reg = await vc.registerVault({
       vault: sdkVault,
