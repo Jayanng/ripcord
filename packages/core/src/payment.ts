@@ -1,8 +1,12 @@
 /**
  * Envelope transfer builder and signer for TachiTx transfers.
  * Builds, signs, broadcasts, and waits for commit.
- * Recipient must be a user x-only key (P2TR address), never a VaultAddress.
- * Does NOT call the banned PSBT finalization function (architecture rule).
+ *
+ * Ownership rules, live-proven on regtest 2026-08-22:
+ * - Recipient and change outputs go to USER P2TR addresses (x-only-key owned).
+ * - A change output sent to the vault address is owned by the vault's tweaked
+ *   output key and is permanently unspendable by the user (daemon rejects with
+ *   code=6 unauthorized: pubkey does not own vtxo). Never send change there.
  */
 
 import type { Vault } from '@tachibtc/taurus-vault-core';
@@ -21,16 +25,25 @@ import {
 } from '@tachibtc/taurus-vault-core';
 import { selectCoins, type SpendableVtxo } from './coinselect.js';
 import { RipcordError, RipcordCode, mapDaemonError } from './errors.js';
-import { isVaultAddress } from './types.js';
+import { userAddressForXOnly } from './keys.js';
+import { isUserAddress } from './types.js';
+import type { TxQueue } from './queue.js';
 
 export interface TransferParams {
+  /** Vault whose cooperative leaf commits the sender's user key. */
   readonly vault: Vault;
+  /** Sender's x-only pubkey (hex). Must match vault.userKey.xOnly. */
   readonly senderXOnly: string;
+  /** Recipient's user P2TR address (bech32m). */
   readonly recipientAddress: string;
   readonly amountSats: bigint;
   readonly feeSats: bigint;
   readonly baseUrl: string;
   readonly userSigner: TaprootSigner;
+  /** Optional queue whose reservations are skipped during coin selection. */
+  readonly queue?: TxQueue;
+  /** Callback with selected input ids before broadcast (for reservation). */
+  readonly onInputsSelected?: (vtxoIds: readonly string[]) => void;
 }
 
 export interface TransferResult {
@@ -40,22 +53,46 @@ export interface TransferResult {
 }
 
 export async function sendTransfer(params: TransferParams): Promise<TransferResult> {
-  if (isVaultAddress(params.recipientAddress)) {
+  if (!isUserAddress(params.recipientAddress)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
-      'Recipient cannot be a vault address',
+      `Recipient must be a user P2TR address, got: ${params.recipientAddress}`,
+      { hint: 'User and vault P2TR addresses are structurally identical; the recipient must not be the sender vault address' },
+    );
+  }
+  if (params.recipientAddress === params.vault.p2tr.address) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'Recipient cannot be the sender\'s vault address: change sent there is unspendable by the user',
+    );
+  }
+  if (params.amountSats <= 0n) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `amountSats must be positive, got ${params.amountSats}`,
+    );
+  }
+  if (params.feeSats < 1n) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `feeSats must be >= 1, got ${params.feeSats}`,
     );
   }
 
   const vtxoResult = await getAddressVtxos(params.senderXOnly, { baseUrl: params.baseUrl });
-  const spendable: SpendableVtxo[] = vtxoResult.vtxos.map(v => ({
-    id: v.id,
-    amountSats: v.amountSats,
-    spent: v.spent,
-    locked: v.locked,
-  }));
+  const spendable: SpendableVtxo[] = vtxoResult.vtxos.map(v => {
+    const reserved = params.queue?.isReserved(v.id) ?? false;
+    return {
+      id: v.id,
+      amountSats: v.amountSats,
+      spent: v.spent,
+      locked: v.locked,
+      localSpentAt: reserved ? Date.now() : undefined,
+    };
+  });
 
   const selection = selectCoins(spendable, params.amountSats, params.feeSats);
+  params.onInputsSelected?.(selection.inputs.map(v => v.id));
 
   const inputs: VtxoInput[] = selection.inputs.map(v => ({
     txid: v.id,
@@ -69,7 +106,9 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     { address: params.recipientAddress, valueSats: params.amountSats },
   ];
   if (selection.changeSats > 0n) {
-    outputs.push({ address: params.vault.p2tr.address, valueSats: selection.changeSats });
+    // Change goes to the SENDER's user P2TR address so the user owns it.
+    const changeAddress = userAddressForXOnly(params.senderXOnly, 'regtest');
+    outputs.push({ address: changeAddress, valueSats: selection.changeSats });
   }
 
   const built = buildVtxoPsbt({

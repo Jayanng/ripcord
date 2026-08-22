@@ -16,13 +16,19 @@ interface PendingTask<T = unknown> {
 }
 
 /**
- * FIFO queue that executes one task at a time. Tasks are marked with
- * localSpentAt before broadcast and released on failure.
+ * FIFO queue that executes one task at a time.
+ *
+ * localSpentAt reservation: while a task that reserves VTXO ids is in flight,
+ * those ids are marked reserved in this queue's store. coin selection
+ * (selectCoins) skips reserved ids, so a second queued transfer cannot
+ * double-spend the same VTXO before the first transfer commits.
+ * On success the ids stay spent on the daemon; on failure they are released.
  */
 export class TxQueue {
   private running = false;
   private readonly pending: Array<PendingTask> = [];
   private _processedCount = 0;
+  private readonly reserved = new Map<string, number>();
 
   get processedCount(): number {
     return this._processedCount;
@@ -32,10 +38,49 @@ export class TxQueue {
     return this.pending.length;
   }
 
+  /** Vtxo ids currently reserved by an in-flight task. */
+  get reservedIds(): readonly string[] {
+    return [...this.reserved.keys()];
+  }
+
+  /** True when the given vtxo id is reserved by an in-flight task. */
+  isReserved(id: string): boolean {
+    return this.reserved.has(id);
+  }
+
   enqueue<T>(task: QueuedTask<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       this.pending.push({ task, resolve, reject } as PendingTask);
       void this.drain();
+    });
+  }
+
+  /**
+   * Enqueue a task whose inputs must be reserved. vtxoIds are marked reserved
+   * immediately (before the task runs) and released only if the task throws.
+   */
+  enqueueReserved<T>(vtxoIds: readonly string[], task: QueuedTask<T>): Promise<T> {
+    const now = Date.now();
+    for (const id of vtxoIds) {
+      this.reserved.set(id, now);
+    }
+    return this.enqueue({
+      id: task.id,
+      execute: async () => {
+        try {
+          const result = await task.execute();
+          // Success: the daemon now marks these spent; drop local reservations.
+          for (const id of vtxoIds) {
+            this.reserved.delete(id);
+          }
+          return result;
+        } catch (err) {
+          for (const id of vtxoIds) {
+            this.reserved.delete(id);
+          }
+          throw err;
+        }
+      },
     });
   }
 

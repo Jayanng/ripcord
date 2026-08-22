@@ -99,5 +99,33 @@ describe('TxQueue', () => {
     expect(queue.processedCount).toBe(1);
     expect(queue.pendingCount).toBe(0);
   });
-});
 
+  it('enqueueReserved marks ids reserved during execution and releases on success', async () => {
+    const queue = new TxQueue();
+    let sawReserved = false;
+    const p = queue.enqueueReserved(['vtxo-1'], {
+      id: 'reserved-task',
+      execute: async () => {
+        sawReserved = queue.isReserved('vtxo-1');
+        return 'done';
+      },
+    });
+    // Reservation is visible immediately, before the task runs
+    expect(queue.isReserved('vtxo-1')).toBe(true);
+    const result = await p;
+    expect(result).toBe('done');
+    expect(sawReserved).toBe(true);
+    expect(queue.isReserved('vtxo-1')).toBe(false);
+    expect(queue.reservedIds).toHaveLength(0);
+  });
+
+  it('enqueueReserved releases ids when the task fails', async () => {
+    const queue = new TxQueue();
+    const p = queue.enqueueReserved(['vtxo-fail'], {
+      id: 'failing-task',
+      execute: async () => { throw new Error('broadcast rejected'); },
+    });
+    await expect(p).rejects.toThrow('broadcast rejected');
+    expect(queue.isReserved('vtxo-fail')).toBe(false);
+  });
+});

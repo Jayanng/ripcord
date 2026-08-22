@@ -19,6 +19,10 @@ export interface CreateVaultParams {
 }
 
 const ALICE_FIXTURE_VAULT_ADDRESS_CSV2 = 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
+// Live-verified 2026-08-22: Alice's index-0 compressed user pubkey (BIP39 vector 1).
+const ALICE_FIXTURE_USER_PUBKEY = '02e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
+// Live-verified 2026-08-22: Bob's (BIP39 vector 2) index-0 csv=2 vault address.
+const BOB_FIXTURE_VAULT_ADDRESS_CSV2 = 'bcrt1p6vrucm5g4gke5x4cdl5eygl4uf2muv0mct37wdxef72rfggvhxcsrr9hka';
 
 function validateNodePubkeys(nodePubkeys: CompressedHex[]): void {
   if (!Array.isArray(nodePubkeys) || nodePubkeys.length !== 7) {
@@ -111,14 +115,25 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
     createdAt: Date.now(),
   };
 
-  // Fixture check scoped to Alice's index-0 key only. Other indices produce
-  // different valid addresses. The SDK's verifyVaultP2tr above already validates
-  // the cryptographic structure for all vaults.
-  if (csvBlocks === 2 && userKeyDescriptor.index === 0) {
+  // Determinism fixtures, scoped to the exact user key that was live-verified.
+  // Scoping by index alone was wrong: any user's index-0 csv=2 vault would hit
+  // Alice's fixture (live-proven 2026-08-22: Bob's index-0 csv=2 vault derives
+  // to a different address). The SDK's verifyVaultP2tr above already validates
+  // the cryptographic structure for every vault.
+  if (csvBlocks === 2 && userKeyDescriptor.publicKey === ALICE_FIXTURE_USER_PUBKEY) {
     if (expectedAddress !== ALICE_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
-        `Vault address mismatch for csvBlocks=2 index=0: expected ${ALICE_FIXTURE_VAULT_ADDRESS_CSV2}, got ${expectedAddress}`,
+        `Vault address mismatch for Alice csvBlocks=2: expected ${ALICE_FIXTURE_VAULT_ADDRESS_CSV2}, got ${expectedAddress}`,
+        { hint: 'Vault derivation must be deterministic and match verified fixture' }
+      );
+    }
+  }
+  if (csvBlocks === 2 && userKeyDescriptor.publicKey === '02028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80') {
+    if (expectedAddress !== BOB_FIXTURE_VAULT_ADDRESS_CSV2) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Vault address mismatch for Bob csvBlocks=2: expected ${BOB_FIXTURE_VAULT_ADDRESS_CSV2}, got ${expectedAddress}`,
         { hint: 'Vault derivation must be deterministic and match verified fixture' }
       );
     }
