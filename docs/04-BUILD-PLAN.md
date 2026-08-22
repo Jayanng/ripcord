@@ -346,6 +346,25 @@ Before proceeding to Phase 8, run and verify:
 2. WSS fires `tx:committed` with valid block height when CometBFT finalizes the block.
 3. IndexedDB/Memory store persists receipts and restores them cleanly across simulated reboots.
 
+> **DONE, and what it taught us (2026-08-23).** All three gates passed live: `tx:pending` at ~300 ms,
+> `tx:committed` with a positive height on finalize, snapshot round-trip clean. Shipped as
+> `2446d54`, then audited, which found real bugs fixed in `1ae9da4`. Three findings bind later phases:
+>
+> - **`Buffer.toJSON()` runs BEFORE a `JSON.stringify` replacer.** `MemoryStore` snapshots were
+>   silently degrading `VaultRecord.p2tr` Buffer fields (P2TR `output`, control blocks, leaf hashes)
+>   into `{type:'Buffer',data:[…]}` objects, making a restored vault unspendable. `bytes.ts`
+>   `serializeJson` / `deserializeJson` now handle Buffer and `Uint8Array` losslessly. **Never
+>   hand-roll `JSON.stringify` on daemon payloads or vault records.**
+> - **WSS `txHash` is lowercase, REST is uppercase.** Case-normalize before joining an event to its
+>   receipt or proof.
+> - **`vout[].owner` is not fixed width** (64-char x-only and 66-char compressed both observed in one
+>   transfer). Treat it as an opaque hex pubkey.
+>
+> Process lesson: the original store test used a fixture with **no `p2tr`**, so a data-corrupting bug
+> passed a green suite. Later phases must assert against **real daemon payloads**, not hand-built
+> objects that dodge the hard fields. `QUEUE_OVERFLOW` was added to `RipcordCode` for the bounded
+> event queue.
+
 ---
 
 ## Phase 8: Cryptographic Proofs & Verkle Linker
@@ -363,9 +382,9 @@ Before proceeding to Phase 8, run and verify:
   `GET /tachi_tx?hash=<txHash>&rip=true&origin_epoch=<o>&final_epoch=<o+window>`.
   Extract `Origin.Proof`, `Origin.StateDiff`, `Origin.Keys`, `Origin.Root`, and `FinalRoot`.
 
-> **CORRECTED 2026-08-23 (live probe, see `01-VERIFIED-API.md` §16.3).** An earlier version of this
-> plan used `window = 50`. That **502s** on a freshly committed tx: every epoch in
-> `[origin_epoch, final_epoch]` must already be CLOSED, or the daemon answers
+> **CORRECTED 2026-08-23 (live probe against three committed transfers; see `01-VERIFIED-API.md`
+> §16.3).** An earlier version of this plan used `window = 50`. That **502s** on a freshly committed tx:
+> every epoch in `[origin_epoch, final_epoch]` must already be CLOSED, or the daemon answers
 > `502 … chain proof: epoch <N> not closed (chain gap)`. Measured: windows 0/1/2/3/5 succeed,
 > 10/25/50 fail. Default to **window 0** (self-proof, always available at commit) or clamp
 > `final_epoch` to the newest `status: "closed"` epoch from `listEpochs`. The 256-epoch cap is a
@@ -394,9 +413,9 @@ Before proceeding to Phase 8, run and verify:
 > `hat.proof` is bare hex. Strict equality is `false` on every valid proof. Strip `0x` and lowercase
 > both sides before comparing.
 >
-> **2. The suffix is NOT the constant 65.** Measured 204 (`0xcc`) and 250 (`0xfa`) on two real
-> transfers. The 32-byte Verkle key is `stem(31 bytes) || suffix(1 byte)`, so the suffix is just the
-> key's last byte and varies per VTXO. The identity that holds is
+> **2. The suffix is NOT the constant 65.** Measured 204 (`0xcc`), 250 (`0xfa`), and 148 (`0x94`) on
+> three real transfers. The 32-byte Verkle key is `stem(31 bytes) || suffix(1 byte)`, so the suffix is
+> just the key's last byte and varies per VTXO. The identity that holds is
 > `Buffer.from(Origin.Keys[0], "base64").toString("hex") === stem_hex + suffixByteHex`.
 > Locate the diff by the normalized value match; assert the key identity structurally. **Never assert
 > `suffix === 65`.**

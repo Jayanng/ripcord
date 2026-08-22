@@ -184,6 +184,19 @@ Amber left-border while `pending`, jade once `committed`. Shows amount, counterp
 (truncated, mono), epoch, and a proof chip. The chip is dimmed until the HAT arrives, then becomes
 clickable.
 
+**Data-contract notes (live-probed 2026-08-22, `01-VERIFIED-API.md` §14):**
+- The WSS frame's `txHash` is **lowercase**; REST (`waitForTachiTxCommit`) returns **uppercase**.
+  Joining a row to its receipt or proof requires case-normalizing, or the chip never lights up.
+- `vout[].owner` is **not fixed width** (a 64-char x-only key and a 66-char compressed key appeared
+  in the same transfer). Truncate for display, never slice at a fixed offset assuming one width.
+- Anything cached for offline render goes through `bytes.ts` `serializeJson` / `deserializeJson`.
+  A naive `JSON.stringify` degrades `Buffer` fields into `{type:'Buffer',data:[…]}` (Phase 7 bug), which
+  would render a tapscript or scriptPubKey panel as `[object Object]` or worse, as plausible garbage.
+- Proof fetches surface real HTTP failures (`404` unknown hash, `400` bad params, `502` chain gap), so
+  the chip needs a distinct "proof unavailable" state, not just dimmed-vs-clickable. If the wallet ever
+  reads proofs through the SDK client instead of raw `fetch`, the options are **camelCase**
+  (`originEpoch` / `finalEpoch`); snake_case is silently dropped and 400s.
+
 ### ProofSheet
 Bottom sheet on mobile, side panel on desktop. Renders the actual verification chain:
 ```
@@ -206,12 +219,19 @@ L1 ANCHOR     not populated on regtest (btc_height 0)
 ```
 The last two lines are deliberately present. Showing the gap honestly is more persuasive than hiding it.
 
-**Corrected 2026-08-23 by live probe** (see `01-VERIFIED-API.md` §16.5 / §16.6):
+**Corrected 2026-08-23 by live probe** (see `01-VERIFIED-API.md` §16.3 / §16.5 / §16.6):
 - The suffix is **not** a constant 65. It is the Verkle key's last byte and varies per VTXO (measured
-  204 and 250). Render whatever the proof carries; never hardcode.
+  204, 250, and 148 across three transfers). Render whatever the proof carries; never hardcode.
+- The "matches HAT ✓" row is a **normalized** comparison. `currentValue` is `0x`-prefixed hex while
+  `hat.proof` is bare hex, so a strict equality check is false on every valid proof. If the chip ever
+  shows a permanent ✗, suspect the normalization before suspecting the chain.
 - Do not label HAT as a locally recomputed `SHA256d`. `rip.PSBTPayload` is `null` on regtest, so the
   commitment cannot be recomputed client-side. This is an **inclusion** proof: the daemon's HAT value
   appears in the daemon's Verkle state diff. Word the UI accordingly.
+- **Never promise a fixed chain length** (the old copy said "50 epochs"). Every epoch in the requested
+  window must already be CLOSED or the daemon answers `502 … not closed (chain gap)`. On a fresh
+  transfer only a self-proof (window 0, `Chain: null`) is guaranteed. Render "self-proof" or the actual
+  `Chain.length`, and let the sheet grow as epochs close rather than showing a broken promise.
 - `FinalRoot` and the other root/commitment fields are **base64**, while stems and diff values are
   `0x`-hex. Truncate for display but do not imply a single encoding.
 
@@ -260,3 +280,16 @@ the faucet" with the address pre-filled and copyable.
 Errors show the mapped hint from the core error model plus a "details" disclosure carrying the raw
 daemon message. Never swallow the original text; a builder reading our error should be able to search
 it.
+
+**Connection states (Phase 7 `VaultIndexer`, live-verified).** The indexer emits a
+`connecting` / `connected` / `reconnecting` / `closed` status stream, so the UI needs all four, not a
+binary online/offline dot:
+- `reconnecting` carries `attempt` and `delayMs`. Show "reconnecting" rather than silence; the WSS
+  stream is push-only and replays nothing, so a gap means the activity feed is stale until a resync.
+- On reconnect the app must re-query (`getAddressVtxos`) rather than trust the feed. Anything rendered
+  from a pre-gap snapshot should be marked stale, not shown as current.
+- `RipcordCode.QUEUE_OVERFLOW` means the consumer drained slower than the daemon published and the
+  indexer stopped deliberately rather than dropping events. Surface it as a recoverable "event backlog
+  exceeded, reconnecting" state, never as a silent no-op.
+- `isConnected` flips only after the real WebSocket handshake, so it is safe to gate a "live" badge on
+  it. Do not gate on "subscription created".

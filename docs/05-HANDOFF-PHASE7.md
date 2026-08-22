@@ -1,11 +1,11 @@
-# RIPCORD — Phase 7 Handoff
+# RIPCORD: Phase 7 Handoff
 
 > For the next session. Read this first, then `AGENTS.md`, `docs/01-VERIFIED-API.md`,
 > `docs/02-ARCHITECTURE.md`, and `docs/04-BUILD-PLAN.md` before writing any code.
 
 ## 1. What this project is
 
-**RIPCORD** — a self-custodial Bitcoin vault wallet on the Tachi (TAURUS) network.
+**RIPCORD** is a self-custodial Bitcoin vault wallet on the Tachi (TAURUS) network.
 Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 
 - Repo: `github.com/Jayanng/ripcord` (private), branch `main`
@@ -13,7 +13,7 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 - Monorepo: `packages/core` (`@ripcord/core`, the publishable library) + `apps/*` (arrives in Phase 10)
 - Build model: the library wraps `@tachibtc/*` SDKs. The UI (apps/wallet) may NOT import `@tachibtc/*` directly (layering, enforced by `check:rules`).
 
-## 2. Current state — Phases 1–6 DONE
+## 2. Current state: Phases 1-6 DONE
 
 | Phase | Delivered |
 |-------|-----------|
@@ -30,16 +30,16 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 
 ## 3. Git state (as of handoff)
 
-- Last commit: **`659d6c8`** — "fix(core): audit fixes - deposit txid reversal, recovery csv docs, e2e lifecycle test"
+- Last commit: **`659d6c8`**, "fix(core): audit fixes - deposit txid reversal, recovery csv docs, e2e lifecycle test"
 - Pushed to `origin/main`. Working tree **clean**.
 
-## 4. Remaining phases (7–14)
+## 4. Remaining phases (7 to 14)
 
 | Phase | Work | Notes |
 |-------|------|-------|
 | **7** | Real-Time WSS Indexer & Activity Store | **START HERE** |
 | 8 | Cryptographic Proofs & Verkle Linker (HAT/RIP) | `proofs.ts` |
-| 9 | Unilateral Exit & Dry-Run Engine | `exit.ts` — only a builder exists today, not committed |
+| 9 | Unilateral Exit & Dry-Run Engine | `exit.ts`, only a builder exists today, not committed |
 | 10 | PWA Shell, Design System, Core State | `apps/wallet` scaffold |
 | 11 | High-Assurance UI Components | |
 | 12 | Interactive Transaction Flows | |
@@ -48,15 +48,15 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 
 ## 5. Phase 7 spec (from `04-BUILD-PLAN.md`)
 
-### Task 7.1 — Filtered WSS Indexer (`src/indexer.ts` + `test/indexer.test.ts`)
+### Task 7.1: Filtered WSS Indexer (`src/indexer.ts` + `test/indexer.test.ts`)
 - Connect to `wss://rpc-regtest.tachibtc.com/tachi_ws` with `?address=<UserAddress>&blocks=true`.
 - Emit typed events: `tx:pending` (height=0), `tx:committed` (height>0), `block:new`.
 - Auto-reconnect with exponential backoff and a bounded event queue.
-- The SDK exposes `subscribeVaultEvents({ url, onEvent, onError })` — verified in `01-VERIFIED-API.md` §14.
+- The SDK exposes `subscribeVaultEvents({ url, onEvent, onError })`, verified in `01-VERIFIED-API.md` §14.
   At least one filter is required (address/vault/vaultId/blocks); a filterless connection is rejected.
   `maxQueuedEvents` default 10000; the stream throws past the bound rather than dropping.
 
-### Task 7.2 — Persistence store (`src/store.ts` + `test/store.test.ts`)
+### Task 7.2: Persistence store (`src/store.ts` + `test/store.test.ts`)
 - `RipcordStore` interface: `getVaults()`, `saveVault()`, `getReceipts()`, `saveReceipt()`, `clear()`.
 - `MemoryStore` (node/test) and `IndexedDbStore` (browser).
 - Store only public data (vault records, receipts, VTXO snapshots). **Never secret keys** (mnemonic/seed live in memory only).
@@ -77,7 +77,7 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 - All SDK reads verified (§13 of `01-VERIFIED-API.md`): `getAddressVtxos`, `getBalance`, `getAccountNonce`,
   `listVaults`, `listVtxos`, `getLockedVtxos`, `getFeeEstimate`, `subscribeVaultEvents`.
 
-## 7. Hard traps (from memory — these cost days to re-learn)
+## 7. Hard traps (from memory, these cost days to re-learn)
 
 1. **User P2TR and vault P2TR addresses are structurally identical.** `isVaultAddress` accepts both.
    NEVER gate recipients on it. The only correct check is `recipientAddress === vault.p2tr.address`.
@@ -86,7 +86,7 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 3. **Recipients re-spend via their OWN vault** (their own user key), not the sender's.
 4. **`csvBlocks` must be persisted per vault** and passed to `discoverVaults`, or the rebuild silently
    defaults to 1008 and matches nothing.
-5. **L1 blocks are activity-driven** — no scheduled miner. A csv=2 vault matures in minutes of traffic,
+5. **L1 blocks are activity-driven**, no scheduled miner. A csv=2 vault matures in minutes of traffic,
    never show a wall-clock countdown.
 6. **Vaults are atomic (one deposit each).** Use a fresh `userKeyIndex` per funded run.
 7. **SDK pin:** `taurus-vault-core@0.3.3` + `taurus-wallet-aggregator@0.4.3` + `tachi-sdk-ts@0.2.1`.
@@ -95,7 +95,7 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
    `.tendermintCode`. `mapDaemonError` in `errors.ts` already handles this.
 9. **`funding_txid` from the daemon is internal byte order**; reverse at display boundaries. `bytes.ts`
    has `toDisplayTxid`/`toInternalTxid`.
-10. **CometBFT errors arrive inside HTTP 200** — inspect `result.code`, not HTTP status.
+10. **CometBFT errors arrive inside HTTP 200**, inspect `result.code`, not HTTP status.
 11. **Never call** `addressTransactions`, `listTransactions` (full unindexed scans), or
     `finalizeVtxoPsbt` on the send path. Enforced by `check:rules`.
 12. `getAccountNonce` is **not** a replay guard (returns 0n before and after). Double-spend protection
@@ -136,5 +136,5 @@ npx tsc --noEmit                         # src typecheck
 npx tsc --noEmit -p tsconfig.test.json   # test typecheck
 ```
 
-Live probes exceed the 600s foreground terminal limit — run them as `background=true` + wait on the
+Live probes exceed the 600s foreground terminal limit, so run them as `background=true` + wait on the
 process handle. SDK `node_modules` are hoisted to the repo root (no package-level `node_modules/@tachibtc`).

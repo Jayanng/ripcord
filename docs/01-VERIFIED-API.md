@@ -27,6 +27,11 @@ npm install @tachibtc/taurus-vault-core@0.3.3 \
 - bitcoinjs-lib v7 returns `Uint8Array`, not `Buffer`. Use the SDK's exported `toBuf` and `bytesEqual`
   at every PSBT boundary. `sig.pubkey.toString("hex")` silently yields `"1,2,3,…"`.
 - Node >= 22 (the SDK's WSS support uses the global `WebSocket`).
+- **`Buffer.toJSON()` runs BEFORE a `JSON.stringify` replacer** (found 23 Aug, the hard way). A custom
+  replacer never sees a `Buffer`, only its `{type:'Buffer',data:[…]}` form, so any naive
+  `JSON.stringify` on a daemon payload or vault record silently degrades every Buffer field (P2TR
+  `output`, control blocks, leaf hashes) into a plain object. Always serialize through `bytes.ts`
+  `serializeJson` / `deserializeJson`, which handle bigint, `Buffer`, and `Uint8Array` losslessly.
 
 ## 1. Endpoints
 
@@ -451,7 +456,9 @@ Filters: `address`, `vault`, `vaultId`, `blocks`, `validators`. **At least one f
 the daemon rejects a filterless connection. Block events verified via `?blocks=true`.
 
 Backpressure: events buffer up to `maxQueuedEvents` (default 10,000), then the stream throws rather
-than silently dropping. Leaving the loop by any means closes the socket.
+than silently dropping. Leaving the loop by any means closes the socket. `@ripcord/core`'s
+`BoundedEventQueue` mirrors this client-side and raises `RipcordCode.QUEUE_OVERFLOW` past its bound
+rather than dropping events.
 
 Field notes (2026-08-22, captured from the SDK-decoded `VaultEvent`, then re-probed):
 
@@ -488,7 +495,7 @@ await client.getWatchtowerReceipts();   // → { count: 0, receipts: [] }
 > **Re-probed 2026-08-23 against daemon v0.39.0 with three freshly committed transfers**
 > (`D501919D…0476` @ epoch 437172, `F5BD7D7F…E749` @ epoch 437193, `FB650479…1095` @ epoch 437326).
 > Several claims in the earlier (21 Aug) version of this section were **WRONG** and are corrected
-> below. Where the old text disagrees, the 23 Aug probe wins. Every statement in §16.1–§16.6 was
+> below. Where the old text disagrees, the 23 Aug probe wins. Every statement in §16.1 to §16.6 was
 > re-asserted mechanically against the third transfer: **32 checks, 32 passed, 0 failed.**
 
 ### 16.1 The SDK wrapper works. It just needs camelCase.
@@ -528,7 +535,8 @@ const { hat } = await r.json();
 ```
 
 - `hat.proof` is **bare lowercase hex, 64 chars** (no `0x`).
-- `hat.vtxo_id` is the **spent input's** VTXO id. Verified equal to the input we selected on both probes.
+- `hat.vtxo_id` is the **spent input's** VTXO id. Verified equal to the input we selected on all three
+  probes.
 - The tx hash is **case-insensitive** on this route: uppercase (as `waitForTachiTxCommit` returns it)
   and lowercase both return the identical payload.
 - A hash the daemon doesn't know → **HTTP 404 `transaction not found`** (not a 200 with an empty body).
@@ -596,8 +604,8 @@ Origin.Proof.ipaProof = { cl: string[8], cr: string[8], finalEvaluation }
 | `hat.proof` | **bare hex**, no `0x` |
 | `VTXOID`, `PSBTPayload` | **JSON byte array** (`[122, 85, …]`), not a string |
 
-`VTXOID` decodes byte-for-byte to the spent VTXO id and to `hat.vtxo_id` (both probes). Reading it as
-base64 or hex silently yields garbage.
+`VTXOID` decodes byte-for-byte to the spent VTXO id and to `hat.vtxo_id` (all three probes). Reading it
+as base64 or hex silently yields garbage.
 
 `Chain` is **`null`** at window 0 and an array of per-epoch proofs otherwise. Each `Chain[i]` has the
 same keys as `Origin`. Verified: `FinalRoot === Chain[Chain.length - 1].Root`, and at window 0

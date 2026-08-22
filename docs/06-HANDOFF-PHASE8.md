@@ -145,6 +145,14 @@ to 0, accept an optional window, and clamp it. Never hardcode 50.
 The 256-epoch ceiling is a separate, looser limit
 (`400 … exceeds max chain length of 256 epochs`).
 
+**Bonus correction: the SDK wrapper is not broken.** `01-VERIFIED-API.md` used to warn that
+`client.getTransaction(hash, {hat:true})` "drops the query params and returns a `hat` key with no
+data". False. Reading the JS shows it forwards them; it just expects **camelCase**
+`originEpoch` / `finalEpoch`. Verified live: camelCase returns the full `rip`, while snake_case
+`origin_epoch` / `final_epoch` is silently dropped and the daemon answers
+`400 rip=true requires origin_epoch and final_epoch`. Either transport works, so `proofs.ts` uses raw
+`fetch` to stay dependency-free, but do not repeat the old "SDK is broken" warning.
+
 ### Task 8.2: Verkle linker (`verifyHatInRip`)
 
 **Two hard corrections to the build plan. Read both.**

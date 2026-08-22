@@ -47,7 +47,9 @@ ripcord/
 │   ├── 01-VERIFIED-API.md
 │   ├── 02-ARCHITECTURE.md
 │   ├── 03-DESIGN-SYSTEM.md
-│   └── 04-BUILD-PLAN.md
+│   ├── 04-BUILD-PLAN.md
+│   ├── 05-HANDOFF-PHASE7.md
+│   └── 06-HANDOFF-PHASE8.md
 ├── packages/
 │   └── core/                     # @ripcord/core - publishable
 │       ├── src/
@@ -55,7 +57,7 @@ ripcord/
 │       │   ├── config.ts         # network config, endpoints, constants
 │       │   ├── types.ts          # branded types, VaultRecord, Vtxo, …
 │       │   ├── errors.ts         # RipcordError hierarchy + daemon code map
-│       │   ├── bytes.ts          # byte order, bigint JSON, toBuf/bytesEqual
+│       │   ├── bytes.ts          # byte order, bigint+Buffer JSON, toBuf/bytesEqual
 │       │   ├── keys.ts           # derivation, signer construction
 │       │   ├── quorum.ts         # fetchConsensusQuorum wrapper + cache
 │       │   ├── vault.ts          # create, verify, describe, register
@@ -65,8 +67,8 @@ ripcord/
 │       │   ├── payment.ts        # transfer build/sign/broadcast
 │       │   ├── coinselect.ts     # VTXO selection + local spent tracking
 │       │   ├── queue.ts          # single-writer send queue
-│       │   ├── indexer.ts        # WSS subscription → local store
-│       │   ├── store.ts          # persistence interface + memory impl
+│       │   ├── indexer.ts        # WSS subscription → typed events
+│       │   ├── store.ts          # persistence: RipcordStore + Memory/IndexedDb
 │       │   ├── proofs.ts         # HAT/RIP fetch + HAT⊂RIP verification
 │       │   ├── exit.ts           # unilateral exit + dry-run
 │       │   ├── refund.ts         # cooperative refund (secondary)
@@ -173,6 +175,13 @@ interface PaymentReceipt {
 
 ## 6. Core module contracts
 
+> **Status note (23 Aug).** Sections written before a module shipped are pre-build sketches and can
+> drift from the real API. Where a section is marked **"As-built"** it was rewritten against the
+> committed code (`indexer.ts`, `store.ts` after Phase 7). `proofs.ts` and `exit.ts` remain
+> pre-build, with their live-probed constraints noted inline. `config.ts`, `ledger.ts`, `refund.ts`,
+> and `watchtower.ts` in the layout above are **planned, not yet written**; the shipped module list
+> is in `06-HANDOFF-PHASE8.md` §2.
+
 ### health.ts: preflight
 ```ts
 preflight(cfg): Promise<{
@@ -248,16 +257,70 @@ Serialises every mutating operation for one identity (R8). Marks selected VTXOs 
 enqueue and rolls back on failure.
 
 ### indexer.ts
+
+**As-built in Phase 7** (this section was a pre-build sketch; the shipped API differs, so what follows
+is the real surface):
+
 ```ts
-class Indexer {
-  start(filters: { address?: string; vault?: string; blocks?: boolean }): void
-  stop(): void
-  on(evt: "pending" | "committed" | "block" | "error", cb): void
+class VaultIndexer {
+  constructor(o: { url: string; address?; vault?; vaultId?; blocks?; validators?;
+                   maxQueuedEvents?; reconnectBaseDelayMs?; reconnectMaxDelayMs?; reconnectJitter?;
+                   onEvent?: (e: IndexerEvent) => void | Promise<void>;
+                   onError?: (e: RipcordError) => void;
+                   onStatus?: (s: IndexerStatus) => void })
+  start(): void
+  close(): void
+  get isConnected(): boolean      // true only after the WS handshake completes
+  get queuedCount(): number
+  get socket(): WebSocketLike | undefined
 }
+type IndexerEvent = IndexerTxEvent | IndexerBlockEvent    // kind: tx:pending | tx:committed | block:new
+export function mapVaultEvent(raw: VaultEvent): IndexerEvent | null   // pure, unit-testable
+class BoundedEventQueue<T>        // throws QUEUE_OVERFLOW past the bound, never drops
 ```
+
 The **only** source of activity data (R2). Subscribes to the recipient's user address so incoming
-payments surface at `state:"pending"` and again at `state:"committed"`. Reconnects with jittered
-backoff, resyncs from `getAddressVtxos` on reconnect, and bounds its queue.
+payments surface as `tx:pending` and again as `tx:committed`. Wraps the SDK's `subscribeVaultEvents`,
+which has **no reconnect of its own**, and adds exponential backoff with full jitter plus a
+`connecting` / `connected` / `reconnecting` / `closed` status stream. A caller that reconnects must
+re-query state (`getAddressVtxos`) because the stream is push-only and replays nothing.
+
+**Live-verified:** `tx:pending` ~300 ms after broadcast, `tx:committed` on finalize with a positive
+height, `block:new` ~5 s cadence, reconnect after a socket drop in ~807 ms.
+
+**Two joining traps (§14):** the WSS `txHash` is lowercase while REST returns uppercase (normalize
+before joining), and `vout[].owner` is not fixed width (64-char x-only and 66-char compressed both
+observed in one transfer).
+
+### store.ts
+
+**As-built in Phase 7.** Absent from the original contracts list; documented here now.
+
+```ts
+interface RipcordStore {
+  getVaults(): Promise<VaultRecord[]>;   saveVault(v: VaultRecord): Promise<void>
+  getReceipts(): Promise<PaymentReceipt[]>; saveReceipt(r: PaymentReceipt): Promise<void>
+  clear(): Promise<void>
+}
+class MemoryStore implements RipcordStore {      // node/test
+  exportSnapshot(): string
+  static fromSnapshot(json: string): MemoryStore
+}
+class IndexedDbStore implements RipcordStore {}  // browser; throws if indexedDB is absent
+```
+
+**Public data only.** Vault records, receipts, and VTXO snapshots. No mnemonic, seed, or private key
+ever enters a store; those live in memory only (`keys.ts` / the signer).
+
+Persistence goes through `bytes.ts` `serializeJson` / `deserializeJson`, which are **bigint- and
+Buffer-safe**. This is load-bearing: `VaultRecord.p2tr` carries `Buffer` fields (P2TR `output`, control
+blocks, leaf hashes), and `Buffer.toJSON()` runs **before** a `JSON.stringify` replacer, so a naive
+implementation silently degrades them to `{type:'Buffer',data:[…]}` objects and the restored vault is
+unspendable. That was a real Phase 7 bug, found by audit and fixed. **Never hand-roll `JSON.stringify`
+on daemon payloads or vault records.**
+
+Receipt keys are canonicalised to lowercase `txHash` in both implementations, because the daemon emits
+the hash in two different cases (WSS lowercase, REST uppercase).
 
 ### proofs.ts
 ```ts
@@ -272,8 +335,8 @@ verifyHatInRip(hat, rip): HatRipLink                       // normalized value m
   daemon returns `502 … epoch <N> not closed (chain gap)`. Measured: 0/1/2/3/5 succeed on a fresh tx;
   10/25/50 fail. Clamp `final_epoch` to the newest `status:"closed"` epoch from `listEpochs` when a
   window is requested. The 256-epoch cap is a separate, looser limit. `Chain` is `null` at window 0.
-- **There is no fixed "suffix 65".** Measured 204 and 250 on two real transfers. The 32-byte Verkle
-  key is `stem(31) || suffix(1)`, so the suffix is the key's last byte and varies per VTXO.
+- **There is no fixed "suffix 65".** Measured 204, 250, and 148 on three real transfers. The 32-byte
+  Verkle key is `stem(31) || suffix(1)`, so the suffix is the key's last byte and varies per VTXO.
 - **`verifyHatInRip` must normalize before comparing.** `StateDiff[].suffixDiffs[].currentValue` is
   `0x`-prefixed hex; `hat.proof` is bare hex. A strict `===` is false on every valid proof. It returns
   a structured `HatRipLink` (matched value, stem, suffix, key-identity flag) rather than a bare boolean
@@ -281,6 +344,11 @@ verifyHatInRip(hat, rip): HatRipLink                       // normalized value m
 - **Scope:** `rip.PSBTPayload` is `null` on regtest, so the HAT commitment cannot be recomputed
   locally. This is an inclusion proof of the daemon's HAT value in the daemon's Verkle diff. The IPA
   proof is carried as daemon-attested evidence, not verified client-side.
+- **The SDK wrapper is not broken.** The old "it drops the query params" warning was false; it needs
+  **camelCase** `originEpoch` / `finalEpoch` (snake_case is silently dropped and the daemon 400s).
+  Raw `fetch` is still preferred here to keep `proofs.ts` dependency-free.
+- **Two error surfaces.** These routes use real HTTP status codes (404 / 400 / 502), unlike the ledger
+  routes where CometBFT failures arrive inside HTTP 200. Check both. See §10.
 
 ### exit.ts
 ```ts
@@ -348,6 +416,14 @@ Daemon codes mapped to actionable hints:
 | - | `AMOUNT_MISMATCH` | "Inputs and outputs don't balance." |
 | `non-BIP68-final` | `EXIT_IMMATURE` | "Exit needs N more confirmations." |
 | `bad-txns-inputs-missingorspent` | `FUNDING_MISSING` | Byte-order or already-exited guard |
+| (client-side) | `QUEUE_OVERFLOW` | "Event backlog exceeded. Reconnecting." (Phase 7, `indexer.ts`) |
+
+**Two error surfaces, not one.** Ledger operations return CometBFT failures **inside HTTP 200**, so
+`result.code` is the authority there. The proof routes (`/tachi_tx?hat=`/`&rip=`) are different: they
+use **real HTTP status codes**, verified 23 Aug: `404 transaction not found` for an unknown hash,
+`400` for missing epoch params or a window past the 256 cap, and `502 … not closed (chain gap)` for a
+window reaching unclosed epochs. `proofs.ts` must check the HTTP status **and** the body, or a 404's
+error text gets JSON-parsed into a bogus proof object.
 
 ## 11. Security posture
 
