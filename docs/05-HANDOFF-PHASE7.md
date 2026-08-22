@@ -100,6 +100,11 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
     `finalizeVtxoPsbt` on the send path. Enforced by `check:rules`.
 12. `getAccountNonce` is **not** a replay guard (returns 0n before and after). Double-spend protection
     comes from VTXO state (`code=5`) plus the local `TxQueue`.
+13. **Phase 3 audit:** `deriveIdentity(mnemonic, network, index = 0)` and `makeSigner(..., index)` now
+    reach the same per-vault BIP-84 receive index. The SDK uses an options object `{ index }`, not
+    positional indices. `quorum.ts` has the single canonical, threshold-aware fingerprint; cached
+    quorum objects are frozen; duplicate node keys are rejected; and `VaultRecord` persists
+    `quorumThreshold` alongside `quorumFingerprint`.
 
 ## 8. Unproven / blocked items (honest state)
 

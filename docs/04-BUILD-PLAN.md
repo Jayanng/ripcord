@@ -275,6 +275,26 @@ Before proceeding to Phase 3, run and verify:
 - Construct `normalizeTaprootSigner` supporting both ECDSA `sign` and Schnorr `signSchnorr`.
 - Derive `UserAddress` (bech32m) from x-only pubkey: `btc.address.fromOutputScript(concat([0x51, 0x20], xOnlyBuf), network)`.
 
+> **CORRECTED 2026-08-23 (audit).** The signature above is wrong. The real SDK call is
+> **`deriveUserKey(mnemonic, network, opts?)`** where `opts` is
+> `{ account?, passphrase?, change?, index? }`, not positional `accountIndex, keyIndex`. The
+> implementation passed **no options at all**, so only `m/84'/1'/0'/0/0` was reachable.
+>
+> That contradicts the rest of the system: `VaultRecord.userKeyIndex` exists, vaults are atomic (one
+> deposit each) so trap 6 requires a **fresh `userKeyIndex` per funded run**, and `recovery.ts` already
+> rebuilds descriptors at arbitrary indices via `userKeyDescriptorFromWallet`. A vault recovered at
+> index 3 therefore had no matching `deriveIdentity` or `makeSigner` path. `deriveIdentity` now takes
+> `index = 0`, and `deriveIdentity(index)` and `makeSigner(index)` are verified to return the same key.
+>
+> Two error-taxonomy holes closed at the same time:
+> - `deriveUserKey` / `Keystore.fromMnemonic` throw the SDK's own **`InvalidMnemonicError`** (verified
+>   live for empty, non-BIP39, and bad-checksum input), which is not a `RipcordError`. A caller
+>   branching on `err.code` per the error model got a foreign class. Now wrapped, cause preserved.
+> - `btc.address.fromOutputScript` throws a **bare bitcoinjs `Error`** ("OP_1 <hex> has no matching
+>   Address") when the x-only value is not a valid curve point. `isXOnlyHex` only checks 64 hex chars,
+>   so all-ff, all-zero, and the field prime all reached it (verified live). Now wrapped as
+>   `INVALID_FORMAT`, since silently minting an unspendable P2TR address is the worst outcome here.
+
 ### Task 3.2: Quorum Manager & Fingerprint Cache
 **Objective:** Fetch authoritative 5-of-7 consensus quorum and compute unique fingerprint.
 **Files:**
@@ -286,11 +306,72 @@ Before proceeding to Phase 3, run and verify:
 - Validate threshold = 5, nodes = 7.
 - Compute SHA256 quorum fingerprint over sorted `compressedHex` node keys.
 
+> **REVISED 2026-08-23 (audit).** "SHA256 over sorted keys" is not sufficient. The fingerprint exists so
+> a `VaultRecord` can **detect a quorum change** instead of silently deriving a different vault address,
+> which means it must cover everything that changes the vault and must not change for anything that
+> does not. Four defects, all live-proven:
+>
+> 1. **Not case-stable.** `isCompressedHex` accepts uppercase hex, so the same 7-node quorum returned in
+>    a different case produced a completely different fingerprint and would have read as a rotation.
+>    Keys are lowercased before hashing.
+> 2. **The threshold was not covered.** `sha256(sorted keys)` is identical for a 3-of-7 and a 5-of-7
+>    quorum over the same node set, yet the threshold changes the cooperative leaf and therefore the
+>    address. `computeFingerprint(keys, threshold)` now takes it as a required argument.
+> 3. **Uniqueness was never validated.** A keyset with a repeated node key still has length 7 and passes
+>    every per-key format check, but the duplicated node can satisfy two of the five required
+>    cooperative signatures. `assertDistinctPubkeys` rejects it, case-insensitively.
+> 4. **The cache was poisonable.** `getQuorumWithCache` returned the cached object by reference, so a
+>    caller could set `threshold = 1` or push an eighth key and every later consumer saw the poisoned
+>    value with validation already past. Proven live before the fix. `QuorumInfo` and its key array are
+>    now frozen.
+>
+> The preimage is domain-tagged (`ripcord/quorum/v1`) and includes the key count, so it does not rely on
+> the 66-char length invariant to keep `:` unambiguous.
+
 ### Phase 3 Verification Checklist & Expected Results
 Before proceeding to Phase 4, run and verify:
 1. `npm test -- packages/core/test/keys.test.ts` passes (derives `m/84'/1'/0'/0/0` p2wpkh address starting with `bcrt1q...` and x-only 64-char hex).
 2. Taproot signer signs 32-byte hash with Schnorr returning 64-byte Buffer verifiable with BIP-340.
 3. `npm test -- packages/core/test/quorum.test.ts` passes against live daemon (returns 7 compressed node pubkeys starting with `02...` or `03...`, threshold 5, source `"consensus"`).
+
+> **EXTENDED 2026-08-23 (audit).** All three gates above passed while six defects sat in the code. Add:
+>
+> 4. `deriveIdentity(m, 'regtest', N)` for N in 0,1,2,7 yields **distinct** keys on path
+>    `m/84'/1'/0'/0/N`, and `makeSigner(m, 'regtest', N).publicKey` equals that index's descriptor
+>    pubkey. Index 0 must be byte-identical to the pre-fix fixture (no regression).
+> 5. A bad mnemonic (empty, non-BIP39, bad checksum) and an off-curve x-only key (all-ff, all-zero,
+>    field prime) each surface a **`RipcordError` with `code === INVALID_FORMAT`**, not a foreign SDK or
+>    bitcoinjs error class, with the original error preserved as `cause`.
+> 6. `computeFingerprint` is case-stable, order-independent, **changes** when the threshold changes, and
+>    is not a bare `sha256(sorted.join(':'))`.
+> 7. A duplicate node key is rejected by both `assertDistinctPubkeys` and `createVault`, including a
+>    case-variant duplicate.
+> 8. A cached `QuorumInfo` is frozen, and an attempt to mutate `threshold` or push a key leaves the
+>    cache at 5-of-7 with 7 keys.
+> 9. `createVault(...).quorumFingerprint === getQuorum(...).fingerprint`, and the record persists
+>    `quorumThreshold` alongside it. One canonical definition plus persisted M means a created vault is
+>    actually comparable against a freshly fetched quorum, including a threshold change.
+
+### Phase 3 audit outcome (2026-08-23)
+
+Audited after Phase 2, using the same method: probe the real SDK and live daemon rather than re-reading
+the tests. **Six defects, five silent.**
+
+| # | Defect | Impact |
+|---|---|---|
+| 1 | Two different quorum fingerprint definitions (`vault.ts` hand-rolled its own) | a created vault could NEVER match its own quorum; the change check false-alarms forever |
+| 2 | Fingerprint not case-stable | the same quorum reads as a rotation |
+| 3 | Fingerprint did not cover the threshold | a 3-of-7 vs 5-of-7 change is invisible |
+| 4 | Duplicate node keys accepted | not a real 5-of-7; one node can sign twice |
+| 5 | Quorum cache mutable by reference | any caller can poison the shared 5-of-7 for everyone |
+| 6 | `deriveIdentity` had no `index` | only key index 0 reachable, contradicting `userKeyIndex` and trap 6 |
+
+Plus two error-taxonomy holes: `InvalidMnemonicError` and a bare bitcoinjs `Error` both leaked past
+`RipcordError`.
+
+**Defect 1 is the one to remember.** Both fingerprint implementations were individually reasonable and
+both were tested. The bug only exists in the *relationship* between them, which no single-module test
+could see. When a value is written by one module and compared by another, test the round trip.
 
 ---
 

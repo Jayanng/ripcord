@@ -256,6 +256,25 @@ restoring activity                    ✓ 14 receipts
 ```
 This screen *is* the demo. It has to feel like a machine proving something.
 
+**Notes from the Phase 3 audit (2026-08-23):**
+- **The derivation path is per vault, not global.** Vaults are atomic (one deposit each), so each vault
+  carries its own `userKeyIndex` and the row above should render the index actually recovered
+  (`m/84'/1'/0'/0/3`), not a hardcoded `/0/0`. A multi-vault recovery may legitimately show several paths.
+  `deriveIdentity` takes the index explicitly (the SDK's own `deriveUserKey` needs an options **object**,
+  `{ index }`, not positional args), so the UI can always show the real path.
+- **"5 of 7" is two facts, both fingerprinted.** The quorum fingerprint covers the node keys *and* the
+  threshold, so a change to either is a real quorum change. If a rebuilt vault's fingerprint disagrees
+  with the live quorum, say which part moved (threshold vs node set) rather than a bare
+  "quorum changed"; the two have very different consequences for the user.
+- **A quorum-change warning must never be a false alarm.** Before the audit, `createVault` and
+  `recovery.ts` computed the fingerprint two different ways, so every created vault would have compared
+  unequal. There is now one canonical `computeFingerprint`, and a cached quorum is a **frozen** object so
+  no view code can accidentally mutate the 5-of-7 that later screens read. If the UI ever shows this
+  warning, treat it as real.
+- Mnemonic entry errors now arrive as `RipcordError` with `code: INVALID_FORMAT` (the SDK's
+  `InvalidMnemonicError` is wrapped), so the field can show one consistent "that phrase isn't valid"
+  message with the raw reason in the details disclosure.
+
 ## 6. Layout
 
 Mobile-first, single column, max 480px content width. Bottom tab bar: Balance, Send, Activity, Ripcord.

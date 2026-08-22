@@ -315,6 +315,18 @@ Add `export * from './proofs.js';` to `src/index.ts`.
 16. **New (Phase 2 audit, 23 Aug):** `preflight` now returns `probeFailures[]` and `unreachable`. Do
     not read a zero as verified: `quorumSize: 0` means the quorum probe failed, and `l1Height: null`
     means the Bitcoin RPC proxy did not answer.
+17. **New (Phase 3 audit, 23 Aug):** there is exactly **one** quorum fingerprint definition,
+    `quorum.ts` `computeFingerprint(nodePubkeys, threshold)`. Never recompute it inline. `vault.ts`
+    used to hand-roll a second one, so a created vault could never match its own quorum and the
+    `VaultRecord` quorum-change check false-alarmed on every vault. The fingerprint lowercases keys
+    (the daemon's hex case is not canonical) and covers the threshold (a 3-of-7 and a 5-of-7 over the
+    same nodes are different vaults). Quorum keysets must also be asserted **distinct**; a repeated
+    key still has length 7 but is not a real 5-of-7.
+18. **New (Phase 3 audit, 23 Aug):** `deriveIdentity(mnemonic, network, index)` takes a key index, and
+    it matters: vaults are atomic, so each funded run needs a fresh `userKeyIndex`. The SDK's
+    `deriveUserKey` third argument is an options **object** (`{ index }`), not positional indices;
+    omitting it pins everything to index 0. `getQuorumWithCache` returns a **frozen** object, so do not
+    try to mutate a cached quorum.
 
 ## 9. Known-failing / blocked (honest state)
 

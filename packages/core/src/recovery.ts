@@ -246,7 +246,10 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
       ).map((pk) => asCompressedHex(pk));
       const quorumFingerprint =
         fromDaemon && d.summary.quorumKeyset
-          ? computeFingerprint(recordNodePubkeys)
+          // The daemon disclosed its own keyset for this vault. The threshold is
+          // not part of that snapshot, so the live quorum's threshold is used;
+          // it is the only threshold this daemon will enforce.
+          ? computeFingerprint(recordNodePubkeys, quorum.threshold)
           : quorum.fingerprint;
 
       // The user key at the index the vault was found at, same derivation
@@ -269,6 +272,7 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
         userKeyIndex: d.userKeyIndex,
         userKeyDescriptor: toUserKeyDescriptor(descriptor),
         nodePubkeys: recordNodePubkeys,
+        quorumThreshold: quorum.threshold,
         quorumFingerprint,
         p2tr: d.vault.p2tr,
         exitLeaf: Buffer.from(d.vault.p2tr.exitLeaf.script).toString('hex'),

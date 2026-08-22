@@ -39,6 +39,7 @@ function makeVault(address: string, valueSats: bigint): VaultRecord {
       addressType: 'p2wpkh',
     },
     nodePubkeys: [('02' + 'ee'.repeat(32)) as CompressedHex, ('03' + 'ff'.repeat(32)) as CompressedHex],
+    quorumThreshold: 5,
     quorumFingerprint: 'ff'.repeat(32),
     funding: { txid: '11'.repeat(32) as DisplayTxid, vout: 0, valueSats },
     registered: true,

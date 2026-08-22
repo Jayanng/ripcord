@@ -156,6 +156,8 @@ export interface VaultRecord {
   userKeyIndex: number;
   userKeyDescriptor: UserKeyDescriptor;
   nodePubkeys: CompressedHex[];
+  /** Cooperative M-of-N threshold used to build this vault and covered by quorumFingerprint. */
+  quorumThreshold: number;
   quorumFingerprint: string;
   /** SDK-verified P2TR bundle. Always set on records from createVault/recoverVaults. */
   p2tr?: VaultP2tr;

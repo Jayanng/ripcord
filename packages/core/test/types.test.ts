@@ -299,6 +299,7 @@ describe('Domain interfaces', () => {
       csvBlocks: 2,
       userKeyIndex: 0,
       nodePubkeys: [VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02],
+      quorumThreshold: 5,
       userKeyDescriptor: {
         version: 1,
         scheme: 'bip84-p2wpkh',
@@ -335,6 +336,7 @@ describe('Domain interfaces', () => {
       csvBlocks: 1008,
       userKeyIndex: 1,
       nodePubkeys: [VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02, VALID_COMPRESSED_HEX_03, VALID_COMPRESSED_HEX_02],
+      quorumThreshold: 5,
       userKeyDescriptor: {
         version: 1,
         scheme: 'bip84-p2wpkh',

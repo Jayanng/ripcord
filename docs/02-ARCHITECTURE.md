@@ -218,26 +218,73 @@ fully interrogated first.
   verified quorum, and `chainId: ''` means `getNodeInfo` failed rather than a chain mismatch.
 
 ### quorum.ts
+
+**As-built** (Phase 3, revised by the 23 Aug audit):
+
 ```ts
-getQuorum(cfg): Promise<{ nodePubkeys: CompressedHex[]; threshold: number; fingerprint: string }>
+getQuorum(baseUrl: string): Promise<QuorumInfo>            // always refetches
+getQuorumWithCache(baseUrl: string): Promise<QuorumInfo>   // session cache, FROZEN result
+clearQuorumCache(): void
+computeFingerprint(nodePubkeys: CompressedHex[], threshold: number): string
+assertDistinctPubkeys(nodePubkeys: CompressedHex[]): void
+interface QuorumInfo { nodePubkeys: CompressedHex[]; threshold: number; fingerprint: string; source: string }
 ```
-Cached for the session. `fingerprint` is stored on every `VaultRecord` so a quorum change is detectable
-rather than producing a silently different address.
+
+`fingerprint` is stored on every `VaultRecord` so a quorum change is detectable rather than producing a
+silently different address. That guarantee dictates the design, and four audit fixes came out of taking
+it seriously:
+
+- **The threshold is part of the fingerprint.** `computeFingerprint` takes it as a required argument.
+  A bare `sha256(sorted keys)` is identical for a 3-of-7 and a 5-of-7 quorum over the same node set, yet
+  the threshold changes the cooperative leaf and therefore the vault address.
+- **Keys are lowercased first.** `isCompressedHex` accepts uppercase, so the same quorum in a different
+  case used to produce a different fingerprint and would have read as a rotation.
+- **The preimage is domain-tagged** (`ripcord/quorum/v1:<threshold>:<count>:<sorted keys>`) rather than
+  relying on the 66-char length invariant to keep `:` unambiguous.
+- **Node keys must be distinct.** `assertDistinctPubkeys` rejects a repeated key (case-insensitively).
+  A duplicate still has length 7 and passes every format check, but the duplicated node could satisfy
+  two of the five cooperative signatures, so it is not a real 5-of-7.
+
+`getQuorumWithCache` returns a **frozen** `QuorumInfo` with a frozen key array. It previously handed out
+the cached object by reference, so any caller could set `threshold = 1` or push an eighth key and poison
+the shared quorum for every later consumer, after validation had already passed.
+
+**There is exactly one fingerprint definition.** `vault.ts` used to hand-roll its own SHA-256 over
+`sorted.join(':')`, which disagreed with this one, so a vault built by `createVault` could never match
+the quorum it was built against. Any new code that needs a quorum fingerprint imports
+`computeFingerprint`; it must never be recomputed inline.
 
 ### keys.ts
 ```ts
-deriveIdentity(mnemonic, network): Identity              // descriptor + xOnly + userAddress
+deriveIdentity(mnemonic, network, index = 0): Identity   // descriptor + xOnly + userAddress
 makeSigner(mnemonic, network, index): TaprootSigner
-userAddressFor(xOnly, network): UserAddress              // bech32m of the user key (R1)
+userAddressForXOnly(xOnly, network): UserAddress         // bech32m of the user key (R1)
 ```
+
+`index` is the BIP-84 receive-address index (`m/84'/1'/0'/0/<index>`). It is **required for
+correctness**, not a convenience: vaults are atomic (one deposit each), so each funded run needs a fresh
+`userKeyIndex`, `VaultRecord` records it, and `recovery.ts` rebuilds descriptors at arbitrary indices.
+`deriveIdentity(N)` and `makeSigner(N)` are verified to return the same key. Audit note: `index` did not
+exist, so only index 0 was reachable and a vault recovered at index 3 had no matching signer path. The
+SDK's `deriveUserKey` third argument is an options **object** (`{ account?, passphrase?, change?, index? }`),
+not positional indices; omitting it silently pins every derivation to index 0.
+
+Both functions raise `RipcordError` for a bad mnemonic; the SDK's own `InvalidMnemonicError` is wrapped
+with the cause preserved. `userAddressForXOnly` also wraps the bare bitcoinjs error thrown for an x-only
+value that is not a valid curve point (all-ff, all-zero, the field prime), because silently minting an
+unspendable P2TR address is the worst possible outcome there.
 
 ### vault.ts
 ```ts
-createVault(id: Identity, q: Quorum, csvBlocks: number, index: number): Promise<VaultRecord>
+createVault({ network, nodePubkeys, csvBlocks, userKeyDescriptor, threshold? }): Promise<VaultRecord>
+// VaultRecord also persists quorumThreshold alongside quorumFingerprint
 describeVault(rec): { exitScript: string; coopScript: string; csvBlocks: number;
                       internalKeyIsNums: boolean; controlBlockBytes: number }
 registerVault(rec, funding, feeVtxo, signer): Promise<{ vaultIdHex; txHash; committed: true }>
 ```
+`threshold` defaults to 5 (the SDK's `DEFAULT_THRESHOLD` and what regtest enforces) and is passed to the
+SDK explicitly, so the value the vault is built with is the same value that gets fingerprinted. It is
+validated as a positive integer `<= nodePubkeys.length`; `M > N` would be cooperatively unspendable.
 `registerVault` internally: fetch nonce → build → sign → broadcast → **waitForCommit** (R9). Refuses
 if no ledger VTXO is available and tells the caller to onboard first.
 

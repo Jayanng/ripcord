@@ -89,6 +89,21 @@ named. A failed probe leaves its fields at zero, and **a zero is not a verified 
 `l1HeightSource: 'unavailable'` means the Bitcoin RPC proxy did not answer. Never substitute the
 CometBFT height (~437k) for the Bitcoin L1 height (~9k).
 
+**Quorum keys are returned in a stable set but not a canonical form.** `compressedHex` is hex, and
+`isCompressedHex`-style validation accepts either case, so anything that fingerprints or compares a
+keyset must normalize case first. Live-verified 23 Aug: `@ripcord/core`'s quorum fingerprint changed
+entirely when the same 7 keys were uppercased, which would have read as a validator rotation. The
+threshold is a separate field from the keyset, so a fingerprint over keys alone cannot distinguish a
+3-of-7 from a 5-of-7 over the same nodes; include the threshold. `fetchConsensusQuorum` does **not**
+guarantee the 7 keys are distinct, so uniqueness must be asserted by the caller: a repeated key still
+has length 7 but lets one node satisfy two of the five cooperative signatures.
+
+Client-side consequence: keep **one** canonical fingerprint function
+(`@ripcord/core` `computeFingerprint(keys, threshold)`) and cache the quorum as a **frozen** object.
+Two independent implementations of "hash the quorum" will disagree and turn the quorum-change check
+into a permanent false alarm; a mutable cached quorum lets one caller poison the 5-of-7 that every
+later consumer reads, after validation has already passed. Both were real bugs, found 23 Aug.
+
 ## 3. Key derivation
 
 ```ts
@@ -102,6 +117,33 @@ const desc = vc.deriveUserKey(MNEMONIC, netObj);
 
 **VERIFIED.** Passing the string `"regtest"` throws
 `Invalid format: … received "m/84'/undefined'/0'"`. The docs show the string form. The docs are wrong.
+
+**The third argument is an options OBJECT, not positional indices** (verified 23 Aug against the
+aggregator's `.d.ts` and live):
+
+```ts
+deriveUserKey(mnemonic, network, opts?: { account?, passphrase?, change?, index? })
+vc.deriveUserKey(MNEMONIC, netObj, { index: 1 }).path   // → "m/84'/1'/0'/0/1"
+```
+
+Omitting `opts` silently pins every call to `m/84'/1'/0'/0/0`. Since vaults are atomic (one deposit
+each, §"vaults are atomic") every funded run needs a **fresh index**, so a wrapper that cannot pass
+`index` cannot create a second vault or rebuild a recovered one. `Keystore.signerFor(change, index)` is
+positional and takes the matching index; live-verified that
+`deriveUserKey(m, net, { index: N }).publicKey === signerFor(false, N).publicKey` for N in 0,1,2,7.
+
+**Phase 3 audit result:** `@ripcord/core` now exposes `deriveIdentity(mnemonic, network, index = 0)` and
+`makeSigner(mnemonic, network, index)`, so the wrapper reaches the same indices as the SDK. Bad mnemonics
+and off-curve x-only values are wrapped as `RipcordError(INVALID_FORMAT)` with their original causes.
+
+**Bad input throws the SDK's own error classes, not yours.** `deriveUserKey` and
+`Keystore.fromMnemonic` both raise `InvalidMnemonicError` (code `"INVALID_MNEMONIC"`) for empty,
+non-BIP39, and bad-checksum phrases. Wrap them if your callers branch on your own error taxonomy.
+
+Separately, `btc.address.fromOutputScript` on a P2TR script throws a **bare bitcoinjs `Error`**
+(`"OP_1 <hex> has no matching Address"`) when the 32-byte x-only value is not a valid secp256k1
+x-coordinate. Verified for all-`ff`, all-zero, and the field prime. A 64-hex-char check does **not**
+imply a valid curve point, and an unchecked value would otherwise mint an unspendable address.
 
 Signer construction that works:
 
@@ -178,7 +220,7 @@ coop              <userXOnly> OP_CHECKSIGVERIFY <n1> OP_CHECKSIG <n2..n7> OP_CHE
 `internalKey` equals `vc.NUMS_INTERNAL_KEY`, so the key path is provably unusable.
 
 **Vaults are atomic: one deposit each.** A second `depositToVault` on a funded vault is rejected:
-*"vault … is already funded (1 UTXO(s), 40000 sats) — vaults are atomic (one deposit per vault);
+*"vault … is already funded (1 UTXO(s), 40000 sats) - vaults are atomic (one deposit per vault);
 create a new vault for another deposit."* Use a fresh `userKeyIndex` per vault.
 
 ## 6. Deposit (L1 → vault)
@@ -562,7 +604,7 @@ const { hat } = await r.json();
 - `btc_height` / `btc_timestamp` are still `0`. See §16.6.
 
 **UNVERIFIED (23 Aug):** the old claim that a deposit is rejected with
-`400 — tx has no inputs; hat/rip proofs require a spent VTXO` could **not** be re-confirmed: the last
+`400 - tx has no inputs; hat/rip proofs require a spent VTXO` could **not** be re-confirmed: the last
 40 epochs contained no non-transfer tx to probe. Treat it as a 21-Aug observation, not current fact,
 and re-probe with a fresh deposit before relying on the exact message.
 

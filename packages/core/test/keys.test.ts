@@ -44,6 +44,100 @@ describe('keys.ts', () => {
     });
   });
 
+  /**
+   * AUDIT (2026-08-23). `deriveIdentity` had no `index` parameter, so only
+   * `m/84'/1'/0'/0/0` was reachable. That contradicts the rest of the system:
+   * `VaultRecord.userKeyIndex` exists, vaults are atomic (one deposit each) so a
+   * fresh index is required per funded run, and `recovery.ts` already rebuilds
+   * descriptors at arbitrary indices via `userKeyDescriptorFromWallet`. A vault
+   * recovered at index 3 therefore had no matching identity or signer path.
+   * The SDK supports it (`deriveUserKey(mnemonic, network, { index })`); only the
+   * wrapper did not.
+   */
+  describe('deriveIdentity index support (audit 2026-08-23)', () => {
+    // Live-verified against the SDK for the BIP-39 vector-1 mnemonic.
+    const INDEX_0_PUBKEY = '02e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
+
+    it('defaults to index 0, unchanged from before the fix', () => {
+      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      expect(identity.userKeyDescriptor.index).toBe(0);
+      expect(identity.userKeyDescriptor.path).toBe("m/84'/1'/0'/0/0");
+      expect(identity.userKeyDescriptor.publicKey).toBe(INDEX_0_PUBKEY);
+      expect(identity.xOnly).toBe('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
+      expect(identity.userAddress).toBe('bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg');
+    });
+
+    it('derives a distinct identity at each index, with the right BIP-84 path', () => {
+      const seen = new Set<string>();
+      for (const index of [0, 1, 2, 7]) {
+        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest', index);
+        expect(identity.userKeyDescriptor.index).toBe(index);
+        expect(identity.userKeyDescriptor.path).toBe(`m/84'/1'/0'/0/${index}`);
+        expect(identity.xOnly).toHaveLength(64);
+        expect(seen.has(identity.userKeyDescriptor.publicKey)).toBe(false);
+        seen.add(identity.userKeyDescriptor.publicKey);
+      }
+      expect(seen.size).toBe(4);
+    });
+
+    it('makeSigner(index) signs for the SAME key deriveIdentity(index) reports', () => {
+      // This is the invariant that matters: a vault built from the descriptor at
+      // index N must be spendable by the signer at index N.
+      for (const index of [0, 1, 2, 7]) {
+        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest', index);
+        const signer = makeSigner(TEST_MNEMONIC, 'regtest', index);
+        expect(Buffer.from(signer.publicKey).toString('hex')).toBe(identity.userKeyDescriptor.publicKey);
+        expect(Buffer.from(signer.publicKey).toString('hex').slice(2)).toBe(identity.xOnly);
+      }
+    });
+
+    it('rejects a non-integer or negative index', () => {
+      for (const bad of [-1, 1.5, Number.NaN]) {
+        expect(() => deriveIdentity(TEST_MNEMONIC, 'regtest', bad)).toThrowError(
+          expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
+        );
+        expect(() => makeSigner(TEST_MNEMONIC, 'regtest', bad)).toThrowError(
+          expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
+        );
+      }
+    });
+  });
+
+  /**
+   * AUDIT (2026-08-23). The SDK throws its own `InvalidMnemonicError` for bad
+   * input (live-verified for empty, non-BIP39, and bad-checksum phrases). That is
+   * not a `RipcordError`, so a caller branching on `err.code` per the documented
+   * error model got `undefined` from a foreign error class.
+   */
+  describe('mnemonic validation surfaces RipcordError (audit 2026-08-23)', () => {
+    const BAD_MNEMONICS: [string, string][] = [
+      ['empty', ''],
+      ['not bip39 words', 'hello world this is not a mnemonic at all friend'],
+      ['bad checksum', Array(12).fill('abandon').join(' ')],
+    ];
+
+    it.each(BAD_MNEMONICS)('deriveIdentity rejects %s as a RipcordError', (_label, mnemonic) => {
+      expect(() => deriveIdentity(mnemonic, 'regtest')).toThrow(RipcordError);
+      expect(() => deriveIdentity(mnemonic, 'regtest')).toThrowError(
+        expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
+      );
+    });
+
+    it.each(BAD_MNEMONICS)('makeSigner rejects %s as a RipcordError', (_label, mnemonic) => {
+      expect(() => makeSigner(mnemonic, 'regtest', 0)).toThrow(RipcordError);
+    });
+
+    it('preserves the original SDK error as the cause', () => {
+      try {
+        deriveIdentity('', 'regtest');
+        expect.unreachable('should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(RipcordError);
+        expect((err as RipcordError).cause).toBeDefined();
+      }
+    });
+  });
+
   describe('makeSigner', () => {
     it('produces a signer that can create valid Schnorr signatures', () => {
       const signer = makeSigner(TEST_MNEMONIC, 'regtest', 0);
@@ -107,6 +201,45 @@ describe('keys.ts', () => {
       expect(() => userAddressForXOnly('', 'regtest')).toThrowError(
         expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
       );
+    });
+
+    /**
+     * AUDIT (2026-08-23). `isXOnlyHex` only checks 64 hex chars, and
+     * `btc.address.fromOutputScript` throws a bare bitcoinjs `Error`
+     * ("OP_1 <hex> has no matching Address") when the value is not a valid
+     * secp256k1 x-coordinate. Live-verified for all-ff, all-zero, and the field
+     * prime. That foreign error leaked past the RipcordError taxonomy with
+     * `code === undefined`, so a caller following the documented error model had
+     * nothing to branch on for an unspendable-key input.
+     */
+    describe('off-curve x-only keys (audit 2026-08-23)', () => {
+      const OFF_CURVE: [string, string][] = [
+        ['all 0xff', 'ff'.repeat(32)],
+        ['all zero', '00'.repeat(32)],
+        ['secp256k1 field prime', 'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f'],
+      ];
+
+      it.each(OFF_CURVE)('rejects %s as a RipcordError, not a raw bitcoinjs Error', (_label, key) => {
+        expect(() => userAddressForXOnly(key, 'regtest')).toThrow(RipcordError);
+        expect(() => userAddressForXOnly(key, 'regtest')).toThrowError(
+          expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
+        );
+      });
+
+      it('preserves the underlying bitcoinjs error as the cause', () => {
+        try {
+          userAddressForXOnly('ff'.repeat(32), 'regtest');
+          expect.unreachable('should have thrown');
+        } catch (err) {
+          expect(err).toBeInstanceOf(RipcordError);
+          expect((err as RipcordError).cause).toBeInstanceOf(Error);
+        }
+      });
+
+      it('still accepts a real derived x-only key', () => {
+        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+        expect(userAddressForXOnly(identity.xOnly, 'regtest')).toBe(identity.userAddress);
+      });
     });
   });
 });

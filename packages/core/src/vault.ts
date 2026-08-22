@@ -10,12 +10,26 @@ import {
 import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import { RipcordError, RipcordCode } from './errors.js';
+import { computeFingerprint, assertDistinctPubkeys } from './quorum.js';
+
+/** The daemon's cooperative threshold on regtest (SDK `DEFAULT_THRESHOLD`). */
+const REGTEST_THRESHOLD = 5;
 
 export interface CreateVaultParams {
   network: 'regtest';
   nodePubkeys: CompressedHex[];
   csvBlocks: number;
   userKeyDescriptor: UserKeyDescriptor;
+  /**
+   * Cooperative quorum threshold (M in M-of-N). Defaults to 5, which is both the
+   * SDK's `DEFAULT_THRESHOLD` and the value regtest enforces.
+   *
+   * AUDIT NOTE (2026-08-23): this used to be absent and the SDK default was
+   * relied on implicitly, while the quorum fingerprint recorded on the vault did
+   * not cover the threshold at all. The threshold changes the cooperative leaf
+   * and therefore the vault address, so it is now explicit and fingerprinted.
+   */
+  threshold?: number;
 }
 
 const ALICE_FIXTURE_VAULT_ADDRESS_CSV2 = 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
@@ -42,6 +56,29 @@ function validateNodePubkeys(nodePubkeys: CompressedHex[]): void {
       );
     }
   }
+
+  // AUDIT FIX (2026-08-23): uniqueness was never checked here either. A keyset
+  // with a repeated node key is length 7 and passes every format check, but the
+  // duplicated node can satisfy two of the five cooperative signatures, so it is
+  // not a real 5-of-7.
+  assertDistinctPubkeys(nodePubkeys);
+}
+
+function validateThreshold(threshold: number, nodeCount: number): void {
+  if (!Number.isInteger(threshold) || threshold < 1) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Threshold must be a positive integer, got ${threshold}`,
+      { hint: 'Cooperative threshold M must be at least 1' }
+    );
+  }
+  if (threshold > nodeCount) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Threshold ${threshold} exceeds node count ${nodeCount}`,
+      { hint: 'M cannot exceed N in an M-of-N quorum; the vault would be unspendable cooperatively' }
+    );
+  }
 }
 
 function toSdkUserKeyDescriptor(desc: UserKeyDescriptor): agg.UserKeyDescriptor {
@@ -64,8 +101,10 @@ function toSdkUserKeyDescriptor(desc: UserKeyDescriptor): agg.UserKeyDescriptor 
 
 export async function createVault(params: CreateVaultParams): Promise<VaultRecord> {
   const { network, nodePubkeys, csvBlocks, userKeyDescriptor } = params;
+  const threshold = params.threshold ?? REGTEST_THRESHOLD;
 
   validateNodePubkeys(nodePubkeys);
+  validateThreshold(threshold, nodePubkeys.length);
 
   const sdkUserKeyDescriptor = toSdkUserKeyDescriptor(userKeyDescriptor);
 
@@ -73,6 +112,9 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
     network: 'regtest',
     nodePubkeys,
     csvBlocks,
+    // Passed explicitly rather than relying on the SDK default, so the value the
+    // vault was built with is the same value that gets fingerprinted below.
+    threshold,
     userKeyDescriptor: sdkUserKeyDescriptor,
   });
 
@@ -96,9 +138,15 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
 
   const expectedAddress = vault.p2tr.address;
 
-  const quorumFingerprint = [...nodePubkeys].sort().join(':');
-  const fingerprintHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(quorumFingerprint));
-  const fingerprint = Array.from(new Uint8Array(fingerprintHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  // AUDIT FIX (2026-08-23): this used to hand-roll its own SHA-256 over
+  // `sorted.join(':')` via crypto.subtle, a SECOND definition of the quorum
+  // fingerprint that disagreed with `quorum.ts` computeFingerprint (which
+  // recovery.ts uses). Live-proven: the same live quorum produced
+  // ddd8831244…900e here and 5ecee6319f…008a there, so a vault created through
+  // createVault could NEVER match the quorum it was built against and the
+  // VaultRecord quorum-change check would false-alarm on every vault forever.
+  // There is now exactly one definition, imported.
+  const fingerprint = computeFingerprint(nodePubkeys, threshold);
 
   const record: VaultRecord = {
     vaultIdHex: '',
@@ -107,6 +155,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
     userKeyIndex: userKeyDescriptor.index,
     userKeyDescriptor,
     nodePubkeys,
+    quorumThreshold: threshold,
     quorumFingerprint: fingerprint,
     p2tr: vault.p2tr,
     exitLeaf: Buffer.from(vault.p2tr.exitLeaf.script).toString('hex'),
