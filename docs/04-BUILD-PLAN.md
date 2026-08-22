@@ -431,22 +431,32 @@ Before proceeding to Phase 5, run and verify:
 ## Phase 5: Cold-Start Recovery Engine
 
 ### Task 5.1: Multi-CSV Discovery & Vault Reconciliation (TDD)
-**Objective:** Implement bulletproof cold-start recovery from mnemonic alone, resolving redacted `csv_delay`.
+**Objective:** Implement cold-start recovery from mnemonic alone, resolving redacted `csv_delay`.
 **Files:**
 - Test: `/home/ubuntu/ripcord/packages/core/test/recovery.test.ts`
 - Create: `/home/ubuntu/ripcord/packages/core/src/recovery.ts`
 
 **Implementation Details:**
-- Implement `recoverVaults(identity, quorum, knownCsvBlocks = [2, 1008])`.
+- Implement `recoverVaults({ identity, quorum, baseUrl, knownCsvBlocks?, startIndex?, gapLimit?, maxIndex? })`.
 - Query `discoverVaults` across candidate CSV parameters with nested `query: { baseUrl }`.
+- Validate CSV candidates and scan bounds locally as `RipcordError(INVALID_FORMAT)` before creating a wallet or querying the daemon.
 - Filter strictly for `addressMatchesRebuild === true` and `verified === true`.
-- Return fully reconstituted `VaultRecord[]` including funding outpoint, balance, and tapscript trees.
+- Deduplicate by daemon `vaultId` across repeated CSV candidates.
+- Return fully reconstituted `VaultRecord[]` including funding outpoint, exact on-chain value, quorum threshold/fingerprint, and tapscript trees.
+
+> **Phase 5 audit correction:** the SDK throws its own `InvalidVaultArgsError` for malformed `startIndex`,
+> `gapLimit`, and `maxIndex`. The wrapper previously passed those values through, leaking the foreign SDK
+> error taxonomy. It now validates them before discovery. Recovery also persists `quorumThreshold` so
+> the threshold used to rebuild is not lost.
 
 ### Phase 5 Verification Checklist & Expected Results
 Before proceeding to Phase 6, run and verify:
 1. Running recovery with only 12 words discovers the previously registered vault.
 2. Rebuilt vault has `addressMatchesRebuild: true` and `verified: true`.
-3. Funding outpoint is correctly parsed into display-order txid and verified with `verifyReserves`.
+3. Funding outpoint is correctly parsed into display-order txid and verified with the exact output script.
+4. Recovered records preserve `quorumThreshold` and `quorumFingerprint`.
+5. Invalid scan bounds surface `RipcordError(INVALID_FORMAT)` before daemon discovery.
+6. Repeated CSV candidates do not duplicate recovered records.
 
 ---
 

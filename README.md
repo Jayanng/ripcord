@@ -16,6 +16,9 @@ The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custod
 - Taproot vault outputs with a provably unusable NUMS internal key
 - Bitcoin L1 deposits with proof-of-reserves binding through an exact `scriptPubKey` comparison
 - Cold-start recovery from mnemonic plus persisted public vault metadata
+- Multi-candidate CSV recovery with exact on-chain funding-script binding
+- Scan-bound validation and vault-ID deduplication during recovery
+- Phase 5 recovery audit coverage for invalid bounds, placeholder lifecycle fields, and persisted quorum metadata
 - VTXO coin selection and single-writer transaction serialization
 - Tachi transfers with change returned to the sender's own user P2TR address
 - Live pending-to-committed activity through the Tachi WebSocket stream

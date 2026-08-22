@@ -314,7 +314,10 @@ binding, not merely an address lookup.
 recoverVaults(id, q, knownCsvBlocks: number[]): Promise<VaultRecord[]>
 ```
 Tries each known `csvBlocks` value and keeps results where `addressMatchesRebuild === true` (R5).
-Defaults to `[2, 1008]`. Throws a typed error naming the fix if nothing matches.
+Defaults to `[2, 144, 432, 1008, 2016]`. Validates scan bounds before discovery, deduplicates by
+`vaultId`, and returns exact funding binding plus persisted quorum threshold/fingerprint. The wrapper
+validates `startIndex`, `gapLimit`, and `maxIndex` before the SDK scan, mapping malformed bounds to
+`RipcordError(INVALID_FORMAT)`. Throws a typed error naming the fix if nothing matches.
 
 ### coinselect.ts
 ```ts

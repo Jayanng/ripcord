@@ -89,18 +89,19 @@ Target: **OP_FREEDOM Bounty #1** (TAURUS non-custodial wallet / custody).
 5. **L1 blocks are activity-driven**, no scheduled miner. A csv=2 vault matures in minutes of traffic,
    never show a wall-clock countdown.
 6. **Vaults are atomic (one deposit each).** Use a fresh `userKeyIndex` per funded run.
-7. **SDK pin:** `taurus-vault-core@0.3.3` + `taurus-wallet-aggregator@0.4.3` + `tachi-sdk-ts@0.2.1`.
+7. **Recovery scan bounds** (`startIndex`, `gapLimit`, `maxIndex`) must be positive/integer-safe; the Phase 5 wrapper validates them before SDK discovery and maps failures to `INVALID_FORMAT`.
+8. **SDK pin:** `taurus-vault-core@0.3.3` + `taurus-wallet-aggregator@0.4.3` + `tachi-sdk-ts@0.2.1`.
    Do NOT bump without re-probing.
-8. **SDK errors carry a string `.code`** (e.g. `"VTXO_BROADCAST"`); the real CometBFT code is in
+9. **SDK errors carry a string `.code`** (e.g. `"VTXO_BROADCAST"`); the real CometBFT code is in
    `.tendermintCode`. `mapDaemonError` in `errors.ts` already handles this.
-9. **`funding_txid` from the daemon is internal byte order**; reverse at display boundaries. `bytes.ts`
-   has `toDisplayTxid`/`toInternalTxid`.
-10. **CometBFT errors arrive inside HTTP 200**, inspect `result.code`, not HTTP status.
-11. **Never call** `addressTransactions`, `listTransactions` (full unindexed scans), or
+10. **`funding_txid` from the daemon is internal byte order**; reverse at display boundaries. `bytes.ts`
+    has `toDisplayTxid`/`toInternalTxid`.
+11. **CometBFT errors arrive inside HTTP 200**, inspect `result.code`, not HTTP status.
+12. **Never call** `addressTransactions`, `listTransactions` (full unindexed scans), or
     `finalizeVtxoPsbt` on the send path. Enforced by `check:rules`.
-12. `getAccountNonce` is **not** a replay guard (returns 0n before and after). Double-spend protection
+13. `getAccountNonce` is **not** a replay guard (returns 0n before and after). Double-spend protection
     comes from VTXO state (`code=5`) plus the local `TxQueue`.
-13. **Phase 3 audit:** `deriveIdentity(mnemonic, network, index = 0)` and `makeSigner(..., index)` now
+14. **Phase 3 audit:** `deriveIdentity(mnemonic, network, index = 0)` and `makeSigner(..., index)` now
     reach the same per-vault BIP-84 receive index. The SDK uses an options object `{ index }`, not
     positional indices. `quorum.ts` has the single canonical, threshold-aware fingerprint; cached
     quorum objects are frozen; duplicate node keys are rejected; and `VaultRecord` persists

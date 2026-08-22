@@ -256,6 +256,12 @@ restoring activity                    ✓ 14 receipts
 ```
 This screen *is* the demo. It has to feel like a machine proving something.
 
+**Recovery data must be labeled precisely:** the daemon's listed `state` and `latestStateNum` are
+placeholders on the verified build (`open` and `0`), not lifecycle truth. Show the exact funding script
+binding as the evidence that the recovered vault names real money. Show the recovered CSV candidate,
+user-key index, quorum threshold, and fingerprint as reconstruction parameters, not as fresh on-chain
+claims.
+
 **Notes from the Phase 3 audit (2026-08-23):**
 - **The derivation path is per vault, not global.** Vaults are atomic (one deposit each), so each vault
   carries its own `userKeyIndex` and the row above should render the index actually recovered

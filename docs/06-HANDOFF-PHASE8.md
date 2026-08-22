@@ -333,6 +333,11 @@ Add `export * from './proofs.js';` to `src/index.ts`.
     `scriptPubKey` comparison against the vault's P2TR output, not an address-only assertion.
     Registration validation rejects malformed txids, VTXO ids, owners, output amounts, and outpoint
     indexes before submission. The full funded registration loop remains env-gated and unproven.
+20. **Phase 5 audit:** `recoverVaults` validates CSV candidates and scan bounds before daemon discovery,
+    maps malformed `startIndex`, `gapLimit`, and `maxIndex` to `RipcordError(INVALID_FORMAT)`, deduplicates
+    repeated CSV candidates by `vaultId`, and persists `quorumThreshold` with the recovered fingerprint.
+    The daemon's listed `state`/`latestStateNum` are placeholders (`open`/`0`) on the verified build;
+    lifecycle UI must rely on L1 and vault data instead.
 
 ## 9. Known-failing / blocked (honest state)
 

@@ -202,6 +202,31 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
     }
   }
 
+  const resolvedStartIndex = startIndex ?? 0;
+  const resolvedGapLimit = gapLimit ?? 3;
+  const resolvedMaxIndex = maxIndex ?? 100;
+  if (!Number.isInteger(resolvedStartIndex) || resolvedStartIndex < 0) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Invalid startIndex: ${resolvedStartIndex}`,
+      { hint: 'startIndex must be a non-negative integer' }
+    );
+  }
+  if (!Number.isInteger(resolvedGapLimit) || resolvedGapLimit < 1) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Invalid gapLimit: ${resolvedGapLimit}`,
+      { hint: 'gapLimit must be a positive integer' }
+    );
+  }
+  if (!Number.isInteger(resolvedMaxIndex) || resolvedMaxIndex < resolvedStartIndex) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `Invalid maxIndex: ${resolvedMaxIndex}`,
+      { hint: `maxIndex must be an integer >= startIndex (${resolvedStartIndex})` }
+    );
+  }
+
   // Wallet for the gap scan: discovery re-derives receive keys from the same
   // mnemonic, so a wiped client rebuilds the exact keys the vaults were
   // registered under. No wallet sync, discovery only derives keys and reads
@@ -223,9 +248,9 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
       threshold: quorum.threshold,
       csvBlocks,
       query: { baseUrl },
-      ...(startIndex !== undefined ? { startIndex } : {}),
-      ...(gapLimit !== undefined ? { gapLimit } : {}),
-      ...(maxIndex !== undefined ? { maxIndex } : {}),
+      startIndex: resolvedStartIndex,
+      gapLimit: resolvedGapLimit,
+      maxIndex: resolvedMaxIndex,
     });
 
     for (const d of discovered) {

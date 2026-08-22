@@ -89,5 +89,52 @@ describe('recovery.ts', { timeout: 300000 }, () => {
       });
       expect(vaults).toEqual([]);
     });
+
+    /**
+     * AUDIT (2026-08-23). `recoverVaults` validated CSV candidates but passed
+     * `startIndex`, `gapLimit`, and `maxIndex` directly into the SDK. Invalid
+     * values therefore leaked the SDK's foreign InvalidVaultArgsError instead of
+     * the core error taxonomy. Validate before creating the wallet or issuing
+     * discovery requests.
+     */
+    it('rejects invalid scan bounds as RipcordError before discovery', async () => {
+      for (const [label, options] of [
+        ['negative start', { startIndex: -1 }],
+        ['fraction start', { startIndex: 1.5 }],
+        ['zero gap', { gapLimit: 0 }],
+        ['negative gap', { gapLimit: -1 }],
+        ['negative max', { maxIndex: -1 }],
+        ['fraction max', { maxIndex: 1.5 }],
+      ] as const) {
+        await expect(recoverVaults({ identity: aliceIdentity, quorum, baseUrl: DAEMON_URL, ...options }))
+          .rejects.toThrowError(expect.objectContaining({ code: 'INVALID_FORMAT' }));
+        expect(label).toBeTypeOf('string');
+      }
+    });
+
+    it('preserves recovered quorum threshold and fingerprint', async () => {
+      const vaults = await recoverVaults({ identity: aliceIdentity, quorum, baseUrl: DAEMON_URL });
+      for (const vault of vaults) {
+        expect(vault.quorumThreshold).toBe(quorum.threshold);
+        expect(vault.quorumFingerprint).toBe(quorum.fingerprint);
+      }
+    });
+
+    it('rejects unsupported CSV candidates before network discovery', async () => {
+      for (const knownCsvBlocks of [[], [0], [-1], [1.5], [NaN], [Infinity]]) {
+        await expect(recoverVaults({ identity: aliceIdentity, quorum, baseUrl: DAEMON_URL, knownCsvBlocks }))
+          .rejects.toThrowError(expect.objectContaining({ code: 'INVALID_FORMAT' }));
+      }
+    });
+
+    it('accepts duplicate CSV candidates but returns each vault only once', async () => {
+      const vaults = await recoverVaults({
+        identity: aliceIdentity,
+        quorum,
+        baseUrl: DAEMON_URL,
+        knownCsvBlocks: [2, 2, 2],
+      });
+      expect(new Set(vaults.map(v => v.vaultIdHex)).size).toBe(vaults.length);
+    });
   });
 });

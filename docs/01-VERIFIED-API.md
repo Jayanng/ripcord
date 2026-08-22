@@ -328,13 +328,20 @@ const vaults = await vc.discoverVaults({
 1. `network` is required or it throws.
 2. A quorum source is required (`nodePubkeys`, `validators`, or `query.apiKey`).
 3. `baseUrl` must be nested under `query`.
-4. **`csvBlocks` must match the vault or the rebuild is silently wrong.** The daemon **redacts
+4. **`csvBlocks` candidates must include the vault's real delay or the rebuild is silently wrong.** The daemon **redacts
    `csv_delay`** from `listVaults` without an apiKey, so `discoverVaults` defaults to 1008. Measured:
    without `csvBlocks` → 0/2 vaults matched; with `csvBlocks: 2` → 2/2 and
    `addressMatchesRebuild: true`. **Persist each vault's `csvBlocks` locally, or pass an apiKey.**
 
 `summary` carries `vaultId`, `state`, `latestStateNum`, `fundingTxid` (**internal** byte order),
-`fundingVout`, `address`.
+`fundingVout`, `address`. `state` and `latestStateNum` are daemon placeholders on the verified build:
+listed vaults report `open` and `0`, so do not use them as lifecycle truth. The address is parameter
+agreement evidence, not proof that the L1 funding output pays the address; only the exact
+`vault.p2tr.output` versus on-chain `scriptPubKey` comparison binds recovery to money.
+
+**RIPCORD recovery validation (Phase 5 audit):** malformed `startIndex`, `gapLimit`, and `maxIndex` are rejected locally
+as `RipcordError(INVALID_FORMAT)` instead of leaking the SDK's `InvalidVaultArgsError`. Recovered records
+persist the quorum threshold alongside the threshold-aware fingerprint.
 
 ## 10. Off-chain transfer: the load-bearing discovery
 
