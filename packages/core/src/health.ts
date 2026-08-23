@@ -17,6 +17,11 @@ export interface ProbeFailure {
   readonly message: string;
 }
 
+export interface PreflightOptions {
+  readonly allowInsecureHttp?: boolean;
+  readonly bitcoinRpcBaseUrl?: string;
+}
+
 export interface PreflightResult {
   daemonOk: boolean;
   chainId: string;
@@ -52,7 +57,7 @@ function errText(err: unknown): string {
   return 'unknown error';
 }
 
-export async function preflight(baseUrl: string): Promise<PreflightResult> {
+export async function preflight(baseUrl: string, options: PreflightOptions = {}): Promise<PreflightResult> {
   const client = new TachiClient({ baseUrl });
 
   const failures: ProbeFailure[] = [];
@@ -119,7 +124,8 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
     // No CometBFT fallback: stats.height is the CometBFT chain height (~424k),
     // NOT Bitcoin L1 (~9k). Substituting it on failure would silently report
     // a wildly wrong height, so unavailability is surfaced as null + source flag.
-    const rpcRes = await fetch(`${baseUrl}/`, {
+    const bitcoinRpcBaseUrl = options.bitcoinRpcBaseUrl ?? baseUrl;
+    const rpcRes = await fetch(`${bitcoinRpcBaseUrl.replace(/\/+$/, '')}/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: '1', jsonrpc: '1.0', method: 'getblockchaininfo', params: [] }),
@@ -141,7 +147,7 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   }
 
   try {
-    const quorum = await fetchConsensusQuorum({ baseUrl });
+    const quorum = await fetchConsensusQuorum({ baseUrl, ...(options.allowInsecureHttp ? { allowInsecureHttp: true } : {}) });
     quorumOk = true;
     quorumThreshold = quorum.threshold;
     quorumSize = quorum.nodePubkeys.length;
@@ -150,7 +156,7 @@ export async function preflight(baseUrl: string): Promise<PreflightResult> {
   }
 
   try {
-    const feeEstimate = await getFeeEstimate({ baseUrl });
+    const feeEstimate = await getFeeEstimate({ baseUrl, ...(options.allowInsecureHttp ? { allowInsecureHttp: true } : {}) });
     feeEstimateOk = true;
     feeRecommendedSats = BigInt(feeEstimate.recommendedFeeSats);
     feeMinSats = BigInt(feeEstimate.minFeeSats);

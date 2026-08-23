@@ -1,0 +1,14 @@
+{
+  "name": "Ripcord Regtest Wallet",
+  "short_name": "Ripcord",
+  "description": "A verification-first self-custodial wallet for Tachi regtest.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/ripcord-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
