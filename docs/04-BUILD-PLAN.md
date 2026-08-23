@@ -712,6 +712,8 @@ Gates 2 and 3 require two L1 confirmations. Regtest has no scheduled miner; a 18
 
 ## Phase 10: PWA Shell, Design System & Core State
 
+**Status:** complete and browser-verified 2026-08-23. Implemented in `apps/wallet`; root rules, typecheck, production build, PWA generation, responsive layout, and live preflight passed.
+
 ### Task 10.1: Vite + React + Tailwind + PWA Manifest Setup
 **Objective:** Scaffold mobile-first web app with Radix dark color tokens and offline manifest.
 **Files:**
@@ -735,10 +737,14 @@ Gates 2 and 3 require two L1 confirmations. Regtest has no scheduled miner; a 18
 - Create: `/home/ubuntu/ripcord/apps/wallet/src/hooks/useActivity.ts`
 
 ### Phase 10 Verification Checklist & Expected Results
-Before proceeding to Phase 11, run and verify:
+Verified before proceeding to Phase 11:
 1. `npm run dev --workspace=apps/wallet` starts local dev server cleanly.
 2. Browser renders dark instrument-panel UI with persistent `REGTEST` badge.
-3. Lighthouse / DevTools audit confirms valid PWA manifest and mobile viewport configuration.
+3. Live preflight reports `tachi-regtest-1`, 5-of-7 quorum, and Bitcoin L1 height through a same-origin development proxy.
+4. The PWA manifest, viewport metadata, service worker generation, and offline shell build are valid.
+5. `npm run check:rules`, root typecheck, and root production build pass. The gate excludes generated `node_modules` caches and was proved with a planted source violation.
+
+**Browser boundary:** the public daemon does not emit CORS headers. Development proxies `/health` and `/tachi*` at the app origin, and `/rpc` separately for Bitcoin JSON-RPC. `preflight` accepts a separate Bitcoin RPC base and permits plaintext only when explicitly enabled for a loopback proxy. Production deployment requires an equivalent HTTPS reverse proxy.
 
 ---
 

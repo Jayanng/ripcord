@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 8 are complete. Phase 9 (`exit.ts`) is implemented: `assessExit` dry-run is live-verified; mature `executeExit` broadcast is env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. The PWA and later UI phases are still in progress. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 10 are implemented. Phase 9's `assessExit` dry-run is live-verified; mature `executeExit` broadcast remains env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. Phase 10 provides the responsive React/Vite PWA shell, live preflight truth rail, IndexedDB public-data store, and wallet hooks. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -36,7 +36,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 
 - The current implementation is **regtest-only**.
 - There is no signet or mainnet support.
-- The browser PWA has not yet arrived in the repository's implemented phases.
+- The browser PWA shell is implemented, but onboarding, transaction flows, proof surfaces, and recovery UI remain later phases.
 - `@ripcord/core` currently exports the implemented phases, including `proofs.ts` and `exit.ts`.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
@@ -115,7 +115,8 @@ ripcord/
 | 7 | Complete and audited | WSS indexer, reconnect lifecycle, bounded event queue, stores |
 | 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
 | 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
-| 10-14 | Planned | PWA, UI flows, browser-wipe recovery, final verification |
+| 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
+| 11-14 | Planned | High-assurance components, transaction flows, browser-wipe recovery, final verification |
 
 ## Getting started
 
@@ -356,6 +357,7 @@ cd packages/core && npm test
 - [`docs/04-BUILD-PLAN.md`](docs/04-BUILD-PLAN.md): implementation phases and audit outcomes
 - [`docs/05-HANDOFF-PHASE7.md`](docs/05-HANDOFF-PHASE7.md): Phase 7 handoff and lessons
 - [`docs/06-HANDOFF-PHASE8.md`](docs/06-HANDOFF-PHASE8.md): Phase 8 proof handoff and verified traps
+- [`docs/07-HANDOFF-PHASE10.md`](docs/07-HANDOFF-PHASE10.md): Phase 10 PWA shell handoff and browser boundary notes
 - [`AGENTS.md`](AGENTS.md): mandatory engineering and verification rules
 
 ## License and project maturity
@@ -374,4 +376,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README was written against the implemented Phases 1 through 9. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. The README distinguishes implemented code from verified gates.
+This README was written against the implemented Phases 1 through 10. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. Phase 10's browser shell and live preflight were verified through the local same-origin proxy. The README distinguishes implemented code from verified gates.
