@@ -750,6 +750,8 @@ Verified before proceeding to Phase 11:
 
 ## Phase 11: High-Assurance UI Components
 
+**Status:** component implementation complete and first-run browser-audited 2026-08-23. Funded-vault, receipt-backed proof, and LIVE broadcast-control states remain pending browser exercise through the real Phase 12 onboarding/transaction flows; no fixtures were invented to simulate them.
+
 ### Task 11.1: Navigation, NetworkBadge & App Layout
 **Objective:** Build persistent header with non-dismissible `REGTEST` badge and responsive navigation.
 **Files:**
@@ -788,11 +790,15 @@ Verified before proceeding to Phase 11:
 - Create: `/home/ubuntu/ripcord/apps/wallet/src/components/ProofSheet.tsx`
 
 ### Phase 11 Verification Checklist & Expected Results
-Before proceeding to Phase 12, run and verify:
-1. `BalanceHero` clearly displays On-Chain vs Off-Chain sats as two distinct numbers (never summed).
-2. Clicking "Test-Pull Ripcord" reveals built exit PSBT, vsize, and CSV status without broadcasting.
-3. `ProofSheet` renders the 4-tier cryptographic ladder: Tx -> HAT -> Verkle StateDiff -> RIP FinalRoot.
-4. UI passes WCAG AA contrast on all elements.
+Verified before proceeding to Phase 12 implementation:
+1. `BalanceHero` displays on-chain and off-chain sats as separate numbers and never sums them.
+2. First-run Ripcord renders `UNFUNDED`, disables test-pull/broadcast honestly, and fabricates no vault state.
+3. `ProofSheet` implements Tx -> HAT -> Verkle StateDiff -> RIP -> FinalRoot disclosure with explicit regtest limitations.
+4. Audit fixes cover modal focus containment/Escape/restore, visible focus, 44px targets, hold-to-confirm keyboard semantics, reduced motion, and responsive navigation.
+5. Browser-safe core subpath exports plus dynamic imports reduce the initial entry to 273 KB (84.8 KB gzip); the pinned protocol graph is deferred and no longer preloaded.
+6. Root rules, typecheck, production build, and PWA generation pass.
+
+Phase 12 must live-verify the remaining stateful UI gates: real funded `MATURING`/`LIVE` test-pull details, tapscript contents, pending/committed activity, and a receipt-backed proof sheet.
 
 ---
 

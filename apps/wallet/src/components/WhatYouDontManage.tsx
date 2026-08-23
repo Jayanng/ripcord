@@ -1,0 +1,2 @@
+const rows = [['Payment channels','none to open'],['Inbound liquidity','not a concept'],['Force closes','cannot happen'],['Watchtower fees','node-side'],['Unilateral exit','always yours']];
+export function WhatYouDontManage() { return <section className="instrument absence-panel"><div className="section-heading"><div><p className="eyebrow">Custody without ceremony</p><h2>Not your problem</h2></div></div><dl>{rows.map(([name,value], index) => <div key={name}><dt><span>{index === rows.length - 1 ? '✓' : '×'}</span>{name}</dt><dd>{value}</dd></div>)}</dl></section>; }

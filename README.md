@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 10 are implemented. Phase 9's `assessExit` dry-run is live-verified; mature `executeExit` broadcast remains env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. Phase 10 provides the responsive React/Vite PWA shell, live preflight truth rail, IndexedDB public-data store, and wallet hooks. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 11 are implemented. Phase 9's `assessExit` dry-run is live-verified; mature `executeExit` broadcast remains env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. Phases 10-11 provide the responsive PWA shell, live preflight, high-assurance balance/Ripcord/activity surfaces, proof disclosure, and accessible interaction states. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -116,7 +116,8 @@ ripcord/
 | 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
 | 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
 | 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
-| 11-14 | Planned | High-assurance components, transaction flows, browser-wipe recovery, final verification |
+| 11 | Complete; funded UI states await Phase 12 flow | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
+| 12-14 | Planned | Transaction flows, browser-wipe recovery, final verification |
 
 ## Getting started
 
@@ -358,6 +359,7 @@ cd packages/core && npm test
 - [`docs/05-HANDOFF-PHASE7.md`](docs/05-HANDOFF-PHASE7.md): Phase 7 handoff and lessons
 - [`docs/06-HANDOFF-PHASE8.md`](docs/06-HANDOFF-PHASE8.md): Phase 8 proof handoff and verified traps
 - [`docs/07-HANDOFF-PHASE10.md`](docs/07-HANDOFF-PHASE10.md): Phase 10 PWA shell handoff and browser boundary notes
+- [`docs/08-HANDOFF-PHASE11.md`](docs/08-HANDOFF-PHASE11.md): Phase 11 component, accessibility, and bundle-boundary handoff
 - [`AGENTS.md`](AGENTS.md): mandatory engineering and verification rules
 
 ## License and project maturity
@@ -376,4 +378,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README was written against the implemented Phases 1 through 10. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. Phase 10's browser shell and live preflight were verified through the local same-origin proxy. The README distinguishes implemented code from verified gates.
+This README was written against the implemented Phases 1 through 11. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. Phase 11's honest first-run state and responsive surface were browser-reviewed; funded test-pull, receipt, and LIVE hold-confirm states require the identity/onboarding flows delivered in Phase 12. The README distinguishes implemented code from verified gates.

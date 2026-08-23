@@ -8,6 +8,30 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./store": {
+      "import": "./dist/store.js",
+      "types": "./dist/store.d.ts"
+    },
+    "./health": {
+      "import": "./dist/health.js",
+      "types": "./dist/health.d.ts"
+    },
+    "./exit": {
+      "import": "./dist/exit.js",
+      "types": "./dist/exit.d.ts"
+    },
+    "./vault": {
+      "import": "./dist/vault.js",
+      "types": "./dist/vault.d.ts"
+    },
+    "./indexer": {
+      "import": "./dist/indexer.js",
+      "types": "./dist/indexer.d.ts"
     }
   },
   "scripts": {

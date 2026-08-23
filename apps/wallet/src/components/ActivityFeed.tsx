@@ -1,0 +1,6 @@
+import { useState } from 'react';
+import type { PaymentReceipt } from '@ripcord/core/types';
+import { useActivity } from '../hooks/useActivity';
+import { ActivityRow } from './ActivityRow';
+import { ProofSheet } from './ProofSheet';
+export function ActivityFeed() { const { activity, receipts, indexerStatus } = useActivity(); const [selected, setSelected] = useState<PaymentReceipt | null>(null); const items = [...activity, ...receipts]; return <section id="activity" className="instrument activity-card"><div className="section-heading"><div><p className="eyebrow">Live evidence stream</p><h2>Activity</h2></div><span className={`connection ${indexerStatus.state}`}>Indexer {indexerStatus.state}</span></div>{items.length ? <div className="activity-list">{items.map((item, index) => <ActivityRow key={'txHash' in item ? item.txHash : `${item.kind}-${item.receivedAt}-${index}`} item={item} onProof={setSelected} />)}</div> : <div className="empty-state"><span className="empty-glyph">⌁</span><strong>No activity restored</strong><p>Pending events, committed transactions, and proof receipts will appear here.</p></div>}<ProofSheet receipt={selected} onClose={() => setSelected(null)} /></section>; }

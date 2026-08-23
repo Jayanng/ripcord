@@ -1,0 +1,2 @@
+import { NetworkBadge } from './NetworkBadge';
+export function Header() { return <header className="topbar"><a className="brand" href="#main" aria-label="Ripcord home"><span className="brand-mark" aria-hidden="true" /><span>RIPCORD</span></a><nav className="desktop-nav" aria-label="Page sections"><a href="#balance">Balance</a><a href="#activity">Activity</a><a href="#ripcord">Ripcord</a></nav><NetworkBadge /></header>; }

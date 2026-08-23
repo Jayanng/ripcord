@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  IndexedDbStore, preflight, type ExitReadiness, type Identity, type IndexerEvent,
-  type IndexerStatus, type PaymentReceipt, type PreflightResult, type RipcordStore, type VaultRecord,
-} from '@ripcord/core';
+import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
+import type { ExitReadiness, Identity, PaymentReceipt, VaultRecord } from '@ripcord/core/types';
+import type { PreflightResult } from '@ripcord/core/health';
+import type { IndexerEvent, IndexerStatus } from '@ripcord/core/indexer';
 
 // Browser calls use the same-origin dev proxy because the public daemon does
 // not opt into CORS. Production should provide an equivalent backend proxy.
@@ -50,10 +50,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setBootState('checking');
     try {
       const [nextHealth, nextVaults, nextReceipts] = await Promise.all([
-        preflight(DEFAULT_DAEMON, {
+        import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
           allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL,
           bitcoinRpcBaseUrl: BITCOIN_RPC_BASE,
-        }),
+        })),
         store?.getVaults() ?? Promise.resolve([]),
         store?.getReceipts() ?? Promise.resolve([]),
       ]);
@@ -82,7 +82,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<WalletContextValue>(() => ({
-    baseUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, receipts, activity,
+    baseUrl: BITCOIN_RPC_BASE, bootState, health, identity, vaults, receipts, activity,
     indexerStatus, exitReadiness, store, refresh, setIdentity, setExitReadiness,
     recordActivity, setIndexerStatus,
   }), [activity, bootState, exitReadiness, health, identity, indexerStatus, receipts, refresh, store, vaults]);
