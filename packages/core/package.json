@@ -32,6 +32,22 @@
     "./indexer": {
       "import": "./dist/indexer.js",
       "types": "./dist/indexer.d.ts"
+    },
+    "./keys": {
+      "import": "./dist/keys.js",
+      "types": "./dist/keys.d.ts"
+    },
+    "./quorum": {
+      "import": "./dist/quorum.js",
+      "types": "./dist/quorum.d.ts"
+    },
+    "./payment": {
+      "import": "./dist/payment.js",
+      "types": "./dist/payment.d.ts"
+    },
+    "./lifecycle": {
+      "import": "./dist/lifecycle.js",
+      "types": "./dist/lifecycle.d.ts"
     }
   },
   "scripts": {

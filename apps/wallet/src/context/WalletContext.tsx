@@ -15,18 +15,24 @@ type BootState = 'checking' | 'ready' | 'degraded' | 'unreachable';
 
 interface WalletContextValue {
   baseUrl: string;
+  daemonUrl: string;
   bootState: BootState;
   health: PreflightResult | null;
   identity: Identity | null;
   vaults: VaultRecord[];
+  activeVault: VaultRecord | null;
   receipts: PaymentReceipt[];
+  liveVtxos: { id: string; amountSats: bigint; spent: boolean; locked: boolean }[];
   activity: IndexerEvent[];
   indexerStatus: IndexerStatus;
   exitReadiness: ExitReadiness | null;
   store: RipcordStore | null;
   refresh: () => Promise<void>;
   setIdentity: (identity: Identity | null) => void;
-  setExitReadiness: (readiness: ExitReadiness | null) => void;
+  addVault: (vault: VaultRecord) => Promise<void>;
+  updateVault: (vault: VaultRecord) => Promise<void>;
+  saveReceipt: (receipt: PaymentReceipt) => Promise<void>;
+  setExitReadiness: (vaultAddress: string, readiness: ExitReadiness | null) => void;
   recordActivity: (event: IndexerEvent) => void;
   setIndexerStatus: (status: IndexerStatus) => void;
 }
@@ -40,14 +46,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [vaults, setVaults] = useState<VaultRecord[]>([]);
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
+  const [liveVtxos, setLiveVtxos] = useState<{ id: string; amountSats: bigint; spent: boolean; locked: boolean }[]>([]);
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
-  const [exitReadiness, setExitReadiness] = useState<ExitReadiness | null>(null);
+  const [readinessRecord, setReadinessRecord] = useState<{ vaultAddress: string; readiness: ExitReadiness } | null>(null);
 
   useEffect(() => { setStore(new IndexedDbStore({ dbName: 'ripcord-public-v1' })); }, []);
 
-  const refresh = useCallback(async () => {
-    setBootState('checking');
+  const runPreflight = useCallback(async (quiet = false) => {
+    if (!quiet) setBootState('checking');
     try {
       const [nextHealth, nextVaults, nextReceipts] = await Promise.all([
         import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
@@ -71,21 +78,82 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         probeFailures: [{ probe: 'health', message }],
         unreachable: true,
       });
-      setBootState('unreachable');
+      if (!quiet) setBootState('unreachable');
     }
   }, [store]);
 
+  const refresh = useCallback(() => runPreflight(false), [runPreflight]);
+
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void runPreflight(true), 30_000);
+    return () => window.clearInterval(timer);
+  }, [runPreflight]);
 
   const recordActivity = useCallback((event: IndexerEvent) => {
     setActivity(current => [event, ...current].slice(0, 200));
   }, []);
+  const addVault = useCallback(async (vault: VaultRecord) => {
+    if (!store) throw new Error('Public store is not ready');
+    const existing = vaults.find(item => item.address === vault.address);
+    const merged: VaultRecord = existing ? {
+      ...existing,
+      ...vault,
+      funding: vault.funding ?? existing.funding,
+      registered: vault.registered || existing.registered,
+      registrationTxHash: vault.registrationTxHash ?? existing.registrationTxHash,
+      createdAt: existing.createdAt,
+    } : vault;
+    await store.saveVault(merged);
+    setVaults(current => [merged, ...current.filter(item => item.address !== merged.address)]);
+  }, [store, vaults]);
+  const updateVault = addVault;
+  const saveReceipt = useCallback(async (receipt: PaymentReceipt) => { if (!store) throw new Error('Public store is not ready'); await store.saveReceipt(receipt); setReceipts(current => [receipt, ...current.filter(item => item.txHash.toLowerCase() !== receipt.txHash.toLowerCase())]); }, [store]);
+
+  const activeVault = useMemo(() => {
+    if (!identity) return null;
+    const matches = vaults.filter(vault =>
+      vault.userKeyIndex === identity.userKeyDescriptor.index
+      && vault.userKeyDescriptor.publicKey === identity.userKeyDescriptor.publicKey,
+    );
+    return matches.sort((a, b) => {
+      const aScore = (a.funding ? 4 : 0) + (a.registered ? 2 : 0) + (a.p2tr ? 1 : 0);
+      const bScore = (b.funding ? 4 : 0) + (b.registered ? 2 : 0) + (b.p2tr ? 1 : 0);
+      return bScore - aScore || b.createdAt - a.createdAt;
+    })[0] ?? null;
+  }, [identity, vaults]);
+  const exitReadiness = readinessRecord && readinessRecord.vaultAddress === activeVault?.address ? readinessRecord.readiness : null;
+  const setExitReadiness = useCallback((vaultAddress: string, readiness: ExitReadiness | null) => {
+    setReadinessRecord(readiness ? { vaultAddress, readiness } : null);
+  }, []);
+
+  useEffect(() => {
+    if (!identity) { setLiveVtxos([]); setIndexerStatus({ state: 'closed', reason: 'No wallet address loaded' }); return; }
+    let indexer: import('@ripcord/core/indexer').VaultIndexer | undefined;
+    let cancelled = false;
+    void import('@ripcord/core/indexer').then(({ VaultIndexer }) => {
+      if (cancelled) return;
+      const configured = import.meta.env.VITE_INDEXER_URL as string | undefined;
+      const url = configured ?? 'wss://rpc-regtest.tachibtc.com/tachi_ws';
+      indexer = new VaultIndexer({ url, address: identity.xOnly, blocks: true, onEvent: event => { if (event.kind === 'block:new' && event.txCount === 0) return; setActivity(current => { const key = 'txHash' in event ? `tx:${event.txHash.toLowerCase()}:${event.kind}` : `block:${event.height}`; const seen = current.some(item => { const other = 'txHash' in item ? `tx:${item.txHash.toLowerCase()}:${item.kind}` : `block:${item.height}`; return other === key; }); return seen ? current : [event, ...current].slice(0, 200); }); }, onStatus: setIndexerStatus, onError: error => setIndexerStatus({ state: 'closed', reason: error.message }) });
+      indexer.start();
+    }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: error instanceof Error ? error.message : String(error) }); });
+    return () => { cancelled = true; indexer?.close(); };
+  }, [identity]);
+
+  useEffect(() => {
+    if (!identity) return;
+    let cancelled = false;
+    const load = async () => { try { const { getLiveVtxos } = await import('@ripcord/core/lifecycle'); const result = await getLiveVtxos(identity.xOnly, DEFAULT_DAEMON); if (!cancelled) setLiveVtxos(result); } catch { if (!cancelled) setLiveVtxos([]); } };
+    void load(); const timer = setInterval(() => void load(), 5000); return () => { cancelled = true; clearInterval(timer); };
+  }, [identity]);
 
   const value = useMemo<WalletContextValue>(() => ({
-    baseUrl: BITCOIN_RPC_BASE, bootState, health, identity, vaults, receipts, activity,
+    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts, liveVtxos, activity,
     indexerStatus, exitReadiness, store, refresh, setIdentity, setExitReadiness,
-    recordActivity, setIndexerStatus,
-  }), [activity, bootState, exitReadiness, health, identity, indexerStatus, receipts, refresh, store, vaults]);
+    addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
+  }), [activeVault, activity, addVault, bootState, exitReadiness, health, identity, indexerStatus, liveVtxos, receipts, refresh, saveReceipt, setExitReadiness, store, vaults]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

@@ -55,6 +55,14 @@ export interface TransferResult {
 }
 
 export async function sendTransfer(params: TransferParams): Promise<TransferResult> {
+  const daemonUrl = new URL(params.baseUrl);
+  const allowInsecureHttp = daemonUrl.protocol === 'http:'
+    && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
+  const sdkOptions = {
+    baseUrl: params.baseUrl,
+    allowInsecureHttp,
+    fetchImpl: globalThis.fetch.bind(globalThis),
+  };
   if (params.network !== 'regtest') {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
@@ -104,7 +112,7 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
 
   let vtxoResult;
   try {
-    vtxoResult = await getAddressVtxos(params.senderXOnly, { baseUrl: params.baseUrl });
+    vtxoResult = await getAddressVtxos(params.senderXOnly, sdkOptions);
   } catch (err) {
     throw mapDaemonError(err);
   }
@@ -152,7 +160,7 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
 
   const nonce = await getAccountNonce(
     Buffer.from(params.senderXOnly, 'hex'),
-    { baseUrl: params.baseUrl },
+    sdkOptions,
   );
 
   const tachiTx = buildTachiTxTransfer({
@@ -170,6 +178,8 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
   try {
     broadcastResult = await broadcastTachiTx(signedTx, {
       url: params.baseUrl + '/tachi_txBroadcastSync',
+      allowInsecureHttp,
+      fetchImpl: globalThis.fetch.bind(globalThis),
     });
   } catch (err) {
     throw mapDaemonError(err);
@@ -179,6 +189,8 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     const status = await waitForTachiTxCommit(broadcastResult.tendermintTxHash, {
       baseUrl: params.baseUrl,
       overallTimeoutMs: 120_000,
+      allowInsecureHttp,
+      fetchImpl: globalThis.fetch.bind(globalThis),
     });
 
     if (status.code !== 0) {

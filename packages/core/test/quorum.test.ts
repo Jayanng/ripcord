@@ -11,7 +11,7 @@ import { RipcordError, RipcordCode } from '../src/errors.js';
 
 const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
 
-describe('quorum.ts', () => {
+describe('quorum.ts', { timeout: 30000 }, () => {
   beforeAll(() => {
     clearQuorumCache();
   });

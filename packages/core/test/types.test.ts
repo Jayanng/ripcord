@@ -395,6 +395,7 @@ describe('Domain interfaces', () => {
       confirmationsRemaining: 0,
       dryRun: {
         txid: VALID_DISPLAY_TXID,
+        destination: asUserAddress(VALID_USER_ADDRESS),
         vsize: 250,
         sequence: 2,
         rawHex: 'a'.repeat(500),

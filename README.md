@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 11 are implemented. Phase 9's `assessExit` dry-run is live-verified; mature `executeExit` broadcast remains env-gated (`RIPCORD_LIVE_EXIT=1`) because L1 confirmations are activity-driven. Phases 10-11 provide the responsive PWA shell, live preflight, high-assurance balance/Ripcord/activity surfaces, proof disclosure, and accessible interaction states. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 11 are implemented and Phase 12 is in final verification. The live browser journey has exercised funded onboarding, `LIVE` Ripcord maturity and dry-run, real user-key VTXO transfers, pending-to-committed activity, HAT/RIP receipts, vault-address rejection, and mnemonic reload recovery without new broadcasts. Test-pull destination display and an uninterrupted final live-suite run remain before Phase 12 is marked complete. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -36,7 +36,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 
 - The current implementation is **regtest-only**.
 - There is no signet or mainnet support.
-- The browser PWA shell is implemented, but onboarding, transaction flows, proof surfaces, and recovery UI remain later phases.
+- The browser PWA shell and Phase 12 onboarding/transaction surfaces are implemented and live-exercised on regtest. Full browser-storage wipe recovery remains Phase 13; Phase 12 currently recovers the deterministic funded vault after mnemonic re-entry while preserving IndexedDB public records.
 - `@ripcord/core` currently exports the implemented phases, including `proofs.ts` and `exit.ts`.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
@@ -116,8 +116,9 @@ ripcord/
 | 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
 | 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
 | 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
-| 11 | Complete; funded UI states await Phase 12 flow | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
-| 12-14 | Planned | Transaction flows, browser-wipe recovery, final verification |
+| 11 | Complete | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
+| 12 | Final verification | Browser-funded lifecycle, live send/proof/activity, vault rejection, Ripcord dry-run, and mnemonic reload recovery verified; destination display and uninterrupted final suite remain |
+| 13-14 | Planned | Browser-wipe recovery, final verification and submission dossier |
 
 ## Getting started
 
@@ -360,6 +361,7 @@ cd packages/core && npm test
 - [`docs/06-HANDOFF-PHASE8.md`](docs/06-HANDOFF-PHASE8.md): Phase 8 proof handoff and verified traps
 - [`docs/07-HANDOFF-PHASE10.md`](docs/07-HANDOFF-PHASE10.md): Phase 10 PWA shell handoff and browser boundary notes
 - [`docs/08-HANDOFF-PHASE11.md`](docs/08-HANDOFF-PHASE11.md): Phase 11 component, accessibility, and bundle-boundary handoff
+- [`docs/09-HANDOFF-PHASE12.md`](docs/09-HANDOFF-PHASE12.md): Phase 12 onboarding and transaction-flow handoff
 - [`AGENTS.md`](AGENTS.md): mandatory engineering and verification rules
 
 ## License and project maturity
@@ -378,4 +380,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README was written against the implemented Phases 1 through 11. Phase 9's mature L1 broadcast is env-gated because regtest block production is activity-driven. Phase 11's honest first-run state and responsive surface were browser-reviewed; funded test-pull, receipt, and LIVE hold-confirm states require the identity/onboarding flows delivered in Phase 12. The README distinguishes implemented code from verified gates.
+This README covers implemented Phases 1 through 11 and the current Phase 12 lifecycle. Phase 9's mature L1 broadcast remains env-gated because regtest block production is activity-driven. Phase 12's funded browser journey, live send/proof flow, activity transitions, vault rejection, and mnemonic reload recovery have been exercised end to end. Destination display in test-pull evidence and one uninterrupted final live-suite run remain before Phase 12 is marked complete.

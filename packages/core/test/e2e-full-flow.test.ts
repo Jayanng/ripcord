@@ -15,13 +15,36 @@ import * as agg from '@tachibtc/taurus-wallet-aggregator';
 const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
 const FAUCET_URL = 'https://faucet.tachibtc.com';
 
+function isPreConnectionFailure(error: unknown): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    const code = (current as Error & { code?: string }).code;
+    if (code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ENOTFOUND') {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 async function requestFaucet(address: string): Promise<string> {
-  const resp = await fetch(`${FAUCET_URL}/api/faucet`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address, amountBtc: 0.5 }),
-    signal: AbortSignal.timeout(10000),
-  });
+  let resp: Response;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      resp = await fetch(`${FAUCET_URL}/api/faucet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, amountBtc: 0.5 }),
+        signal: AbortSignal.timeout(30000),
+      });
+      break;
+    } catch (error) {
+      if (attempt >= 3 || !isPreConnectionFailure(error)) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+    }
+  }
   const data = await resp.json();
   if (data.error) {
     throw new Error(`Faucet error: ${data.error}`);

@@ -25,6 +25,7 @@ import {
 } from '@tachibtc/taurus-vault-core';
 import {
   asDisplayTxid,
+  asUserAddress,
   isDisplayTxid,
   isUserAddress,
   toSdkVault,
@@ -296,6 +297,50 @@ async function inspectFunding(
   return { status: 'unfunded', confirmations: 0 };
 }
 
+/** Read live exit maturity without constructing or signing a transaction. */
+export async function inspectExitMaturity(
+  vault: VaultRecord,
+  baseUrl: string,
+): Promise<ExitReadiness> {
+  const required = vault.csvBlocks;
+  if (!Number.isInteger(required) || required < 1) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      `csvBlocks must be a positive integer, got ${required}`,
+    );
+  }
+
+  const fundingState = await inspectFunding(vault, baseUrl);
+  if (fundingState.status === 'unfunded') {
+    return {
+      status: 'unfunded',
+      confirmations: 0,
+      requiredConfirmations: required,
+      confirmationsRemaining: required,
+      reason: 'Vault has no funding outpoint on L1',
+    };
+  }
+  if (fundingState.status === 'spent') {
+    return {
+      status: 'spent',
+      confirmations: 0,
+      requiredConfirmations: required,
+      confirmationsRemaining: 0,
+      reason: 'Funding outpoint is spent',
+    };
+  }
+
+  const confirmations = fundingState.confirmations;
+  const confirmationsRemaining = Math.max(0, required - confirmations);
+  return {
+    status: confirmationsRemaining === 0 ? 'live' : 'maturing',
+    confirmations,
+    requiredConfirmations: required,
+    confirmationsRemaining,
+    ...(confirmationsRemaining > 0 ? { reason: 'non-BIP68-final' } : {}),
+  };
+}
+
 /**
  * Test-pull: build, verify, sign, finalize, decode. Never broadcasts.
  * Status comes from live `gettxout` confirmations vs `vault.csvBlocks`.
@@ -356,6 +401,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   const live = confirmations >= required;
   const dryRun = {
     txid: asDisplayTxid(finalized.decoded.txid),
+    destination: asUserAddress(destAddress),
     vsize: finalized.decoded.vsize,
     sequence: finalized.decoded.vin?.[0]?.sequence ?? finalized.sequence,
     rawHex: finalized.hex,

@@ -151,6 +151,7 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     expect(readiness.dryRun).toBeDefined();
     expect(readiness.dryRun!.vsize).toBe(125);
     expect(readiness.dryRun!.sequence).toBe(2);
+    expect(readiness.dryRun!.destination).toBe(identity.l1Address);
     expect(readiness.dryRun!.rawHex).toMatch(/^[0-9a-f]+$/);
     expect(readiness.dryRun!.txid).toMatch(/^[0-9a-f]{64}$/i);
 

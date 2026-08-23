@@ -19,6 +19,7 @@ export interface RegisterVaultParams {
   amountSats?: bigint;
   /** SDK account/query base URL, without a path suffix. */
   baseUrl: string;
+  allowInsecureHttp?: boolean;
 }
 
 export async function registerVault(params: RegisterVaultParams): Promise<{ vaultId: string }> {
@@ -102,7 +103,7 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
     if (amount <= 0n) {
       throw new Error(`amount must be positive, got ${amount}`);
     }
-    const { vault, userSigner, baseUrl } = params;
+    const { vault, userSigner, baseUrl, allowInsecureHttp } = params;
 
     const sdkVault = (vault as SdkVaultShape | VaultRecord) && ('userKey' in vault && vault.userKey !== undefined)
       ? (vault as SdkVaultShape)
@@ -118,9 +119,9 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
       inputs: [{ vtxoId: vtxoIdBuf }],
       outputs: [{ owner: xOnlyBuf, amount }],
       feeSats: 1n,
-      account: { baseUrl },
-      broadcast: { url: baseUrl + '/tachi_txBroadcastSync' },
-      confirm: { baseUrl },
+      account: { baseUrl, allowInsecureHttp },
+      broadcast: { url: baseUrl + '/tachi_txBroadcastSync', allowInsecureHttp },
+      confirm: { baseUrl, allowInsecureHttp },
     });
 
     return { vaultId: reg.vaultIdHex };

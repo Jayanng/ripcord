@@ -57,7 +57,10 @@ export async function depositToVault(
     );
   }
 
-  const bitcoinRpcClient = new agg.BitcoinCoreRpcClient({ url: rpc.baseUrl });
+  const bitcoinRpcClient = new agg.BitcoinCoreRpcClient({
+    url: rpc.baseUrl,
+    fetchImpl: globalThis.fetch.bind(globalThis),
+  });
 
   const dep = await vc.depositToVault({
     vault: {
@@ -150,4 +153,34 @@ export async function verifyDepositProofOfReserves(
   }
 
   return true;
+}
+
+export interface DepositFromMnemonicParams {
+  vault: VaultRecord;
+  mnemonic: string;
+  rpc: { baseUrl: string };
+  amountSats: bigint;
+  feeRateSatVb?: number;
+}
+
+/** Build the SDK wallet inside core, sync it against live Bitcoin RPC, then deposit. */
+export async function depositFromMnemonic(params: DepositFromMnemonicParams): Promise<DepositResult> {
+  // The aggregator stores the supplied fetch function and invokes it later as
+  // a plain callback. Chromium requires Window.fetch to retain its receiver,
+  // otherwise it throws "Illegal invocation" before any RPC request is sent.
+  const boundFetch = globalThis.fetch.bind(globalThis);
+  const rpcClient = new agg.BitcoinCoreRpcClient({ url: params.rpc.baseUrl, fetchImpl: boundFetch });
+  const aggregator = await agg.WalletAggregator.fromMnemonic(params.mnemonic, {
+    network: 'regtest',
+    rpc: rpcClient,
+  });
+  const userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
+  await userWallet.sync();
+  return depositToVault({
+    vault: params.vault,
+    userWallet,
+    rpc: params.rpc,
+    amountSats: params.amountSats,
+    feeRateSatVb: params.feeRateSatVb,
+  });
 }

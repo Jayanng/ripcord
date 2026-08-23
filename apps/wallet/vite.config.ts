@@ -22,11 +22,24 @@ export default defineConfig({
       workbox: {
         navigateFallback: 'index.html',
         runtimeCaching: [],
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
   build: {
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // bitcoinjs-lib has internal circular imports. Keep the package in one
+          // chunk so lazy wallet flows cannot create a cross-chunk cycle.
+          if (id.includes('/node_modules/bitcoinjs-lib/') || id.includes('\\node_modules\\bitcoinjs-lib\\')) {
+            return 'bitcoinjs';
+          }
+        },
+      },
+    },
   },
   server: {
     host: '127.0.0.1',
@@ -38,6 +51,11 @@ export default defineConfig({
         target: 'https://rpc-regtest.tachibtc.com',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/rpc/, ''),
+      },
+      '/faucet': {
+        target: 'https://faucet.tachibtc.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/faucet/, ''),
       },
     },
   },

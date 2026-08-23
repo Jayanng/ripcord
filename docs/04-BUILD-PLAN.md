@@ -750,7 +750,7 @@ Verified before proceeding to Phase 11:
 
 ## Phase 11: High-Assurance UI Components
 
-**Status:** component implementation complete and first-run browser-audited 2026-08-23. Funded-vault, receipt-backed proof, and LIVE broadcast-control states remain pending browser exercise through the real Phase 12 onboarding/transaction flows; no fixtures were invented to simulate them.
+**Status:** component implementation complete and first-run browser-audited 2026-08-23. The funded-vault, receipt-backed proof, and `LIVE` control states were subsequently exercised through the real Phase 12 browser lifecycle; no fixtures were invented to simulate them.
 
 ### Task 11.1: Navigation, NetworkBadge & App Layout
 **Objective:** Build persistent header with non-dismissible `REGTEST` badge and responsive navigation.
@@ -798,11 +798,13 @@ Verified before proceeding to Phase 12 implementation:
 5. Browser-safe core subpath exports plus dynamic imports reduce the initial entry to 273 KB (84.8 KB gzip); the pinned protocol graph is deferred and no longer preloaded.
 6. Root rules, typecheck, production build, and PWA generation pass.
 
-Phase 12 must live-verify the remaining stateful UI gates: real funded `MATURING`/`LIVE` test-pull details, tapscript contents, pending/committed activity, and a receipt-backed proof sheet.
+Phase 12 subsequently live-verified the funded `LIVE` test-pull details, tapscript contents, pending/committed activity, and receipt-backed proof sheet. The evidence panel still needs to expose the dry-run destination explicitly.
 
 ---
 
 ## Phase 12: Interactive Transaction Flows
+
+**Status:** final verification 2026-08-23. The funded browser lifecycle, `LIVE` Ripcord dry-run, real user-key sends, pending/committed activity, HAT/RIP proof sheet, vault-address rejection, and deterministic mnemonic reload recovery have been exercised against regtest. The test-pull evidence panel still needs to display its destination, and the final live `npm test` invocation must complete uninterrupted before Phase 12 is marked complete.
 
 ### Task 12.1: Vault Creation & Faucet Onboarding Screen
 **Objective:** Guide user through vault derivation, tapscript verification, faucet funding, and ledger onboarding.
@@ -827,6 +829,8 @@ Before proceeding to Phase 13, run and verify:
 1. User can create vault, copy address, request faucet funds, and onboard to ledger in under 60 seconds.
 2. Sending sats to another address shows immediate amber "pending" row that turns jade "confirmed" on block commit.
 3. Entering a vault address in SendSheet triggers an immediate error explaining R1 (user keys only).
+
+Live results: three real 1,000-sat sends plus 1-sat fees reduced the sender from 79,997 to 76,994 sats; sender and receiver each observed one pending and one committed row per transfer; sender receipts showed HAT-in-state-diff and RIP self-proof evidence; mnemonic re-entry restored 40,000 sats of L1 funding, `SPK BOUND`, `LIVE`, balances, and three receipts without broadcasts. Full typecheck and builds passed. Architecture rules passed through an LF-normalized stream because the Windows checkout's CRLF shell file prevents direct Bash execution. The last full live test invocation passed the major suites but was interrupted before final completion and must be rerun.
 
 ---
 

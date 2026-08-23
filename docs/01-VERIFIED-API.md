@@ -57,6 +57,26 @@ SDK versions before 0.2.0 used unprefixed paths and 404 against the current daem
 
 Signet is **not** usable: the faucet and the permitted wallet RPCs are regtest-only.
 
+### Faucet confirmation evidence (23 Aug 2026)
+
+`a73a3cc0bf642b4f31efb34649c079ec31ea4e3fad3681a0d4eb30d4d39c9bc8` was fetched through both the public Bitcoin RPC and the wallet's same-origin `/rpc` proxy. It returned one confirmation and output 0 paid exactly `0.50000000 BTC` to `bcrt1qyeha2nqlqlwaf6vm9dltwsnv75n2rpmx22klhs`. A UI still showing "waiting" after that response is stale client state, not an unconfirmed faucet transaction.
+
+### Public cosigning limitation (Tachi team clarification, 23 Aug 2026)
+
+- `POST /tachi_signTransaction` / `cosignRefund` is refund-to-self only. Validators rebuild the canonical `to_local` output and refuse an arbitrary third-party output.
+- `VaultCosignAnnouncement` on `tachi/vault/v1` is internal validator-to-validator gossip and is not exposed as a client RPC.
+- There is currently no public endpoint for a client to collect 5-of-7 partial signatures for an arbitrary third-party vault-cosigned VTXO transfer.
+
+Do not present refund cosigning as a general payment cosigner. User-key-owned VTXO transfers are a separate path and must continue to be live-probed independently.
+
+### Browser transfer and recovery evidence (23 Aug 2026)
+
+- User receive addresses and vault addresses are both regtest P2TR `bcrt1p...` values and are structurally indistinguishable by Bech32 decoding. A client may reject a vault address only by comparing it with vault addresses it actually knows; treating every P2TR address as a vault rejects valid recipients.
+- A real 1,000-sat browser transfer committed with hash `A314DA548E9BCAD970EB14A45089FE5D96685D0E7036D7E181FE93490F8EE306`, epoch `449843`, code `0`. The sender persisted a receipt and the receiver observed a 1,000-sat VTXO.
+- Pending and committed WSS events expose all transaction outputs. Their summed `vout` value is not the payment amount. Sender UI uses the matching persisted receipt amount; receiver UI uses the output owned by its subscribed key.
+- Browser loopback proxies require `allowInsecureHttp: true` plus a bound `fetch` for SDK queries, nonce lookup, broadcast, and commit polling. This exception is valid only for `127.0.0.1`, `localhost`, or `::1`; public daemon URLs remain HTTPS-only.
+- Re-entering the same mnemonic/index recovered the deterministic vault's 40,000-sat funding through `scantxoutset`, matched registration by internal-order funding txid/vout, and restored `SPK BOUND`, `LIVE`, VTXO balances, and receipts without deposit, mint, registration, faucet, or exit broadcasts.
+
 ## 2. Quorum
 
 ```ts

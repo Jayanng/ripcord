@@ -134,8 +134,30 @@ async function fetchAndValidateQuorum(baseUrl: string): Promise<QuorumInfo> {
   });
 }
 
-export async function getQuorum(baseUrl: string): Promise<QuorumInfo> {
-  return fetchAndValidateQuorum(baseUrl);
+export interface GetQuorumOptions {
+  /** Local loopback proxy only; never enable this for public endpoints. */
+  allowInsecureHttp?: boolean;
+}
+
+async function fetchAndValidateQuorumWithOptions(baseUrl: string, options: GetQuorumOptions = {}): Promise<QuorumInfo> {
+  const q = await vc.fetchConsensusQuorum({
+    baseUrl,
+    ...(options.allowInsecureHttp ? { allowInsecureHttp: true } : {}),
+  });
+  if (q.threshold !== 5) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected threshold 5, got ${q.threshold}`, { hint: 'Quorum threshold must be exactly 5 for regtest' });
+  if (!Array.isArray(q.nodePubkeys) || q.nodePubkeys.length !== 7) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected 7 node pubkeys, got ${q.nodePubkeys?.length ?? 'undefined'}`, { hint: 'Quorum must have exactly 7 node pubkeys for regtest' });
+  const validatedPubkeys: CompressedHex[] = [];
+  for (const pk of q.nodePubkeys) {
+    if (!isCompressedHex(pk)) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Invalid compressed pubkey: ${pk}`, { hint: 'Node pubkeys must be 66-char hex starting with 02 or 03' });
+    validatedPubkeys.push(asCompressedHex(pk));
+  }
+  assertDistinctPubkeys(validatedPubkeys);
+  return freezeQuorum({ nodePubkeys: validatedPubkeys, threshold: q.threshold, fingerprint: computeFingerprint(validatedPubkeys, q.threshold), source: q.source });
+}
+
+export async function getQuorum(baseUrl: string, options: GetQuorumOptions = {}): Promise<QuorumInfo> {
+  if (!options.allowInsecureHttp) return fetchAndValidateQuorum(baseUrl);
+  return fetchAndValidateQuorumWithOptions(baseUrl, options);
 }
 
 export async function getQuorumWithCache(baseUrl: string): Promise<QuorumInfo> {

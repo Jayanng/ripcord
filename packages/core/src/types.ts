@@ -231,6 +231,7 @@ export interface ExitReadiness {
   confirmationsRemaining: number;
   dryRun?: {
     txid: DisplayTxid;
+    destination: UserAddress;
     vsize: number;
     sequence: number;
     rawHex: string;
