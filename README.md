@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 11 are implemented and Phase 12 is in final verification. The live browser journey has exercised funded onboarding, `LIVE` Ripcord maturity and dry-run, real user-key VTXO transfers, pending-to-committed activity, HAT/RIP receipts, vault-address rejection, and mnemonic reload recovery without new broadcasts. Test-pull destination display and an uninterrupted final live-suite run remain before Phase 12 is marked complete. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 12 are implemented and live-verified. The browser journey and uninterrupted live suite cover funded onboarding, `LIVE` Ripcord maturity and dry-run, test-pull destination evidence, real user-key VTXO transfers, pending-to-committed activity, HAT/RIP receipts, vault-address rejection, mnemonic reload recovery, and full vault registration/recovery. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -41,7 +41,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
 - The IPA proof is carried as daemon-attested evidence. RIPCORD does not currently verify the Verkle/IPA commitment locally.
-- The full registration lifecycle has a known environmental failure: the L1 confirmation step can time out because regtest block production is activity-driven rather than scheduled. This is not represented as a passing end-to-end gate.
+- The public regtest Bitcoin chain mines automatically on an approximately 10-minute cadence. The full lifecycle test allows 15 minutes per L1 confirmation and retains a real `confirmations >= 1` assertion; this is an environmental wait, not a simulated confirmation.
 - `IndexedDbStore` is intended for browsers and is not exercised in Node; it reports a clear error when IndexedDB is absent.
 
 ## Architecture
@@ -117,7 +117,7 @@ ripcord/
 | 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
 | 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
 | 11 | Complete | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
-| 12 | Final verification | Browser-funded lifecycle, live send/proof/activity, vault rejection, Ripcord dry-run, and mnemonic reload recovery verified; destination display and uninterrupted final suite remain |
+| 12 | Complete | Browser-funded lifecycle, test-pull destination, live send/proof/activity, vault rejection, mnemonic reload recovery, full registration/recovery, and uninterrupted live suite |
 | 13-14 | Planned | Browser-wipe recovery, final verification and submission dossier |
 
 ## Getting started
@@ -183,7 +183,7 @@ npx vitest run test/indexer.test.ts
 npx vitest run test/store.test.ts
 ```
 
-The full suite can take several minutes because it performs real network operations. It may include one known failure in `e2e-full-flow.test.ts` when the activity-driven regtest chain does not produce the L1 confirmation within the test timeout. Report that failure honestly; do not convert it into a passing result by weakening the assertion.
+The full suite performs real network operations and can take about 15 minutes because the public regtest Bitcoin chain mines automatically on an approximately 10-minute cadence. `e2e-full-flow.test.ts` waits up to 15 minutes per L1 confirmation and keeps the real confirmation assertion. The latest uninterrupted run passed.
 
 ## Core usage examples
 
@@ -380,4 +380,4 @@ No license has been declared in the repository yet. Do not assume the project is
 
 ## Compatibility note for the current README
 
-This README covers implemented Phases 1 through 11 and the current Phase 12 lifecycle. Phase 9's mature L1 broadcast remains env-gated because regtest block production is activity-driven. Phase 12's funded browser journey, live send/proof flow, activity transitions, vault rejection, and mnemonic reload recovery have been exercised end to end. Destination display in test-pull evidence and one uninterrupted final live-suite run remain before Phase 12 is marked complete.
+This README covers implemented Phases 1 through 12. Phase 9's mature L1 broadcast remains env-gated because it intentionally spends the vault. Phase 12's funded browser journey, test-pull evidence, live send/proof flow, activity transitions, vault rejection, mnemonic reload recovery, full registration/recovery lifecycle, and uninterrupted live suite have been exercised end to end.

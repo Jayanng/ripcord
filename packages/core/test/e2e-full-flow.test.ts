@@ -55,7 +55,18 @@ async function requestFaucet(address: string): Promise<string> {
   return data.txid;
 }
 
-async function waitForTxConfirmation(txid: string, maxAttempts = 60, delayMs = 5000): Promise<void> {
+// Tachi's public regtest mines automatically on an approximately 10-minute
+// cadence. Keep the real confirmation assertion, but allow one full cycle plus
+// headroom for each L1 transaction in this lifecycle.
+const L1_CONFIRMATION_POLL_MS = 5_000;
+const L1_CONFIRMATION_MAX_ATTEMPTS = 180; // 15 minutes
+const FULL_LIFECYCLE_TIMEOUT_MS = 2_100_000; // 35 minutes for two L1 waits
+
+async function waitForTxConfirmation(
+  txid: string,
+  maxAttempts = L1_CONFIRMATION_MAX_ATTEMPTS,
+  delayMs = L1_CONFIRMATION_POLL_MS,
+): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await fetch(`${DAEMON_URL}/`, {
       method: 'POST',
@@ -78,7 +89,7 @@ async function waitForTxConfirmation(txid: string, maxAttempts = 60, delayMs = 5
   throw new Error(`Transaction ${txid} did not confirm within timeout`);
 }
 
-describe('end-to-end full flow: deposit → onboard → register → recover', { timeout: 600000 }, () => {
+describe('end-to-end full flow: deposit → onboard → register → recover', { timeout: FULL_LIFECYCLE_TIMEOUT_MS }, () => {
   let mnemonic: string;
   let identity: Awaited<ReturnType<typeof deriveIdentity>>;
   let quorum: Awaited<ReturnType<typeof getQuorum>>;
@@ -164,7 +175,9 @@ describe('end-to-end full flow: deposit → onboard → register → recover', {
       userSigner,
       vtxoId,
       owner: xOnlyBuf,
-      amount: 40000n - 1n,
+      // The minted VTXO is 39,999 sats after the 1-sat mint fee.
+      // Registration charges its own 1-sat fee, so the output must be 39,998.
+      amount: 40000n - 2n,
       baseUrl: DAEMON_URL,
     });
     expect(registerResult.vaultId).toBeDefined();

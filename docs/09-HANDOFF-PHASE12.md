@@ -1,7 +1,7 @@
 # Phase 12 Handoff: Interactive Transaction Flows
 
-**Status:** browser lifecycle verified; final destination evidence and uninterrupted full-suite completion remain
-**Updated:** 2026-08-23
+**Status:** complete; browser lifecycle and uninterrupted live suite verified
+**Updated:** 2026-08-24
 
 ## Resume Point
 
@@ -56,7 +56,7 @@ The two VTXOs are real daemon state. Earlier non-idempotent retries minted an ex
 ## Browser Verification Results
 
 1. **Passed:** Ripcord advanced to `LIVE` from live `gettxout.confirmations`.
-2. **Partial:** test-pull produced a real txid, `125 vB`, `nSequence=2`, CSV exit leaf, user `CHECKSIG`, and 5-of-7 cooperative leaf. The destination is used by core but is not yet displayed in the evidence panel.
+2. **Passed:** test-pull produced a real txid, `125 vB`, `nSequence=2`, CSV exit leaf, user `CHECKSIG`, 5-of-7 cooperative leaf, and the destination was displayed in the evidence panel.
 3. **Passed:** `PULL RIPCORD` remained unused; no unilateral exit was broadcast.
 4. **Passed:** a second mnemonic/browser profile produced a distinct `bcrt1p...` user receive address.
 5. **Passed:** real 1,000-sat user-key transfers committed. One recorded full hash is `A314DA548E9BCAD970EB14A45089FE5D96685D0E7036D7E181FE93490F8EE306` at epoch `449843`, code `0`.
@@ -72,14 +72,15 @@ Tachi clarified that `cosignRefund` is refund-to-self only, `VaultCosignAnnounce
 
 ## Gate Status
 
-- Full workspace typecheck passed on 2026-08-23.
-- Full workspace production/PWA build passed on 2026-08-23.
-- Architecture and zero-mock rules passed when the CRLF shell file was executed through an LF-normalized stream. Direct `npm run check:rules` on this Windows checkout still fails before the checks at `set -o pipefail` because the script has CRLF endings.
-- The final live `npm test` run passed types, errors, bytes, indexer, payment, proofs, vault, store, quorum, exit dry-run, Verkle, and recovery suites before the long-running process was interrupted. Do not claim the final invocation completed successfully; rerun it uninterrupted before commit.
+- Full workspace typecheck passed after the Phase 12 closeout changes.
+- Full workspace production/PWA build passed after the Phase 12 closeout changes.
+- `npm run check:rules` passed.
+- The uninterrupted live `npm test` run passed: 19 test files, 277 tests; 1 env-gated test file and 2 env-gated tests skipped.
+- The full lifecycle test passed live in approximately 13.9 minutes after allowing for Tachi's automated L1 block cadence.
 - `exit-run.test.ts` remained correctly env-gated/skipped because mature L1 exit broadcast intentionally spends the vault.
 
-Before commit, rerun all repository gates because the worktree is uncommitted and contains the complete Phase 12 implementation.
+The Phase 12 closeout changes are ready for commit after the final repository status check.
 
 ## Honest Completion Boundary
 
-Funding, L1 deposit, VTXO minting, vault registration, reserve binding, live balance, Ripcord maturity/dry-run, browser send, pending-to-committed transition, proof sheet, mnemonic reload recovery, receipt persistence, and vault-address rejection were exercised against regtest. Phase 12 should remain open only until the test-pull panel displays its destination and the final live suite completes uninterrupted.
+Funding, L1 deposit, VTXO minting, vault registration, reserve binding, live balance, Ripcord maturity/dry-run, browser send, pending-to-committed transition, proof sheet, mnemonic reload recovery, receipt persistence, vault-address rejection, test-pull destination evidence, and the complete registration/recovery lifecycle were exercised against regtest. Phase 12 is complete. The public chain's automated approximately 10-minute L1 cadence is reflected in the lifecycle test's confirmation window; no confirmation was simulated.
