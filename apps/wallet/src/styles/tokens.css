@@ -111,6 +111,12 @@ h2 { margin: 0; color: var(--text-hi); font-size: 19px; letter-spacing: -.02em; 
 .flow-screen textarea { resize: vertical; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .flow-success { display: grid; gap: 15px; }
+.form-help { color: var(--text-lo); font-size: 11px; line-height: 1.5; }
+.flow-actions { display: grid; gap: 10px; }
+.secondary-action { min-height: 44px; padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--bg-inset); color: var(--text-hi); font: 600 11px var(--font-mono); cursor: pointer; }
+.secondary-action:disabled { cursor: not-allowed; opacity: .55; }
+.explorer-link { color: var(--info); font: 600 11px var(--font-mono); text-decoration: none; }
+.explorer-link:hover { text-decoration: underline; }
 .flow-success > strong { color: var(--confirmed); }
 .flow-success dl { display: grid; gap: 9px; margin: 0; }
 .flow-success dl div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
