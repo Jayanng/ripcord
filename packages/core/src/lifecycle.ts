@@ -15,6 +15,7 @@ export interface FundVaultLifecycleParams {
   confirmationPollMs?: number;
   onProgress?: (stage: 'depositing' | 'confirming-deposit' | 'minting' | 'registering') => void;
   onDepositBroadcast?: (deposit: DepositResult) => void;
+  onConfirmationPoll?: (confirmations: number) => void;
 }
 
 export interface FundVaultLifecycleResult {
@@ -79,7 +80,7 @@ async function findExistingVaultFunding(baseUrl: string, vault: VaultRecord) {
   return { txid: found.txid as import('./types.js').DisplayTxid, vout: found.vout, amountSats: BigInt(Math.round(found.amount * 1e8)), source: 'recovered' as const };
 }
 
-async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs: number): Promise<void> {
+async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs: number, onPoll?: (confirmations: number) => void): Promise<void> {
   for (;;) {
     const response = await fetch(baseUrl, {
       method: 'POST',
@@ -88,7 +89,9 @@ async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs:
     });
     if (!response.ok) throw new Error(`Bitcoin RPC HTTP ${response.status}`);
     const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } };
-    if ((payload.result?.confirmations ?? 0) > 0) return;
+    const confirmations = payload.result?.confirmations ?? 0;
+    onPoll?.(confirmations);
+    if (confirmations > 0) return;
     if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
     await new Promise(resolve => setTimeout(resolve, pollMs));
   }
@@ -104,9 +107,14 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       params.onProgress?.('depositing');
       const broadcast = await depositFromMnemonic({ vault: params.vault, mnemonic: params.mnemonic, rpc: { baseUrl: params.bitcoinRpcBaseUrl }, amountSats: params.amountSats, feeRateSatVb: params.feeRateSatVb });
       params.onDepositBroadcast?.(broadcast);
-      deposit = { txid: broadcast.txid, vout: 0, amountSats: broadcast.amountSats, source: 'broadcast' as const };
+      const expectedScript = params.vault.p2tr ? Buffer.from(params.vault.p2tr.output).toString('hex').toLowerCase() : '';
+      const bitcoin = await import('bitcoinjs-lib');
+      const decoded = bitcoin.Transaction.fromHex(broadcast.rawTxHex);
+      const fundingVout = decoded.outs.findIndex(output => Buffer.from(output.script).toString('hex').toLowerCase() === expectedScript);
+      if (fundingVout < 0) throw new Error('Broadcast deposit transaction does not contain the expected vault output');
+      deposit = { txid: broadcast.txid, vout: fundingVout, amountSats: broadcast.amountSats, source: 'broadcast' as const };
       params.onProgress?.('confirming-deposit');
-      await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000);
+      await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
     }
 
     const listed = await vc.listVaults(params.vault.userKeyDescriptor.publicKey, { baseUrl: params.daemonBaseUrl, pageSize: 100, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });

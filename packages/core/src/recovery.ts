@@ -28,6 +28,8 @@ export interface RecoverVaultsParams {
    */
   knownCsvBlocks?: number[];
   baseUrl: string;
+  /** Bitcoin JSON-RPC endpoint when it differs from the Tachi daemon URL (browser proxy). */
+  bitcoinRpcBaseUrl?: string;
   /** First receive-key index to scan (SDK default 0). */
   startIndex?: number;
   /** Stop after this many consecutive empty indices (SDK default 3). */
@@ -175,6 +177,7 @@ async function fetchFundingBinding(
  */
 export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultRecord[]> {
   const { identity, quorum, baseUrl, startIndex, gapLimit, maxIndex } = params;
+  const bitcoinRpcBaseUrl = params.bitcoinRpcBaseUrl ?? baseUrl;
 
   if (identity.network !== 'regtest') {
     throw new RipcordError(
@@ -231,12 +234,15 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   // mnemonic, so a wiped client rebuilds the exact keys the vaults were
   // registered under. No wallet sync, discovery only derives keys and reads
   // daemon state; it never touches wallet UTXOs.
-  const rpcClient = new agg.BitcoinCoreRpcClient({ url: baseUrl });
+  const rpcClient = new agg.BitcoinCoreRpcClient({ url: bitcoinRpcBaseUrl });
   const aggregator = await agg.WalletAggregator.fromMnemonic(identity.mnemonic, {
     network: 'regtest',
     rpc: rpcClient,
   });
   const wallet = aggregator.addAccount({ addressType: 'p2wpkh' });
+  const daemon = new URL(baseUrl);
+  const allowInsecureHttp = daemon.protocol === 'http:'
+    && (daemon.hostname === '127.0.0.1' || daemon.hostname === 'localhost' || daemon.hostname === '::1');
 
   const byVaultId = new Map<string, VaultRecord>();
 
@@ -247,7 +253,7 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
       nodePubkeys: quorum.nodePubkeys,
       threshold: quorum.threshold,
       csvBlocks,
-      query: { baseUrl },
+      query: { baseUrl, allowInsecureHttp },
       startIndex: resolvedStartIndex,
       gapLimit: resolvedGapLimit,
       maxIndex: resolvedMaxIndex,
@@ -284,7 +290,7 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
       // Money binding: the funding output's on-chain scriptPubKey must equal
       // the rebuilt P2TR output. Throws on any disagreement.
       const funding = await fetchFundingBinding(
-        baseUrl,
+        bitcoinRpcBaseUrl,
         d.summary.fundingTxid,
         d.summary.fundingVout,
         Buffer.from(d.vault.p2tr.output).toString('hex')

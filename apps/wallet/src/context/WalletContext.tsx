@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
-import type { ExitReadiness, Identity, PaymentReceipt, VaultRecord } from '@ripcord/core/types';
+import { vaultsForIdentity, type ExitReadiness, type Identity, type PaymentReceipt, type VaultRecord } from '@ripcord/core/types';
 import type { PreflightResult } from '@ripcord/core/health';
 import type { IndexerEvent, IndexerStatus } from '@ripcord/core/indexer';
 
@@ -35,6 +35,7 @@ interface WalletContextValue {
   setExitReadiness: (vaultAddress: string, readiness: ExitReadiness | null) => void;
   recordActivity: (event: IndexerEvent) => void;
   setIndexerStatus: (status: IndexerStatus) => void;
+  waitForIndexerReady: (timeoutMs?: number) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -44,12 +45,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<PreflightResult | null>(null);
   const [bootState, setBootState] = useState<BootState>('checking');
   const [identity, setIdentity] = useState<Identity | null>(null);
-  const [vaults, setVaults] = useState<VaultRecord[]>([]);
+  const [storedVaults, setStoredVaults] = useState<VaultRecord[]>([]);
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [liveVtxos, setLiveVtxos] = useState<{ id: string; amountSats: bigint; spent: boolean; locked: boolean }[]>([]);
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
   const [readinessRecord, setReadinessRecord] = useState<{ vaultAddress: string; readiness: ExitReadiness } | null>(null);
+  const indexerStatusRef = useRef(indexerStatus);
+  const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
+  useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
 
   useEffect(() => { setStore(new IndexedDbStore({ dbName: 'ripcord-public-v1' })); }, []);
 
@@ -65,7 +69,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         store?.getReceipts() ?? Promise.resolve([]),
       ]);
       setHealth(nextHealth);
-      setVaults(nextVaults);
+      setStoredVaults(nextVaults);
       setReceipts(nextReceipts);
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
     } catch (error) {
@@ -94,9 +98,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const recordActivity = useCallback((event: IndexerEvent) => {
     setActivity(current => [event, ...current].slice(0, 200));
   }, []);
+  const waitForIndexerReady = useCallback((timeoutMs = 15_000) => {
+    if (indexerStatusRef.current.state === 'connected') return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(() => { indexerWaiters.current = indexerWaiters.current.filter(item => item.timer !== timer); reject(new Error('WSS indexer did not reach open state during recovery')); }, timeoutMs);
+      indexerWaiters.current.push({ resolve, reject, timer });
+    });
+  }, []);
   const addVault = useCallback(async (vault: VaultRecord) => {
     if (!store) throw new Error('Public store is not ready');
-    const existing = vaults.find(item => item.address === vault.address);
+    const existing = storedVaults.find(item => item.address === vault.address);
     const merged: VaultRecord = existing ? {
       ...existing,
       ...vault,
@@ -106,23 +117,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       createdAt: existing.createdAt,
     } : vault;
     await store.saveVault(merged);
-    setVaults(current => [merged, ...current.filter(item => item.address !== merged.address)]);
-  }, [store, vaults]);
+    setStoredVaults(current => [merged, ...current.filter(item => item.address !== merged.address)]);
+  }, [store, storedVaults]);
   const updateVault = addVault;
   const saveReceipt = useCallback(async (receipt: PaymentReceipt) => { if (!store) throw new Error('Public store is not ready'); await store.saveReceipt(receipt); setReceipts(current => [receipt, ...current.filter(item => item.txHash.toLowerCase() !== receipt.txHash.toLowerCase())]); }, [store]);
 
+  const vaults = useMemo(() => vaultsForIdentity(storedVaults, identity), [identity, storedVaults]);
   const activeVault = useMemo(() => {
-    if (!identity) return null;
-    const matches = vaults.filter(vault =>
-      vault.userKeyIndex === identity.userKeyDescriptor.index
-      && vault.userKeyDescriptor.publicKey === identity.userKeyDescriptor.publicKey,
-    );
-    return matches.sort((a, b) => {
+    return [...vaults].sort((a, b) => {
       const aScore = (a.funding ? 4 : 0) + (a.registered ? 2 : 0) + (a.p2tr ? 1 : 0);
       const bScore = (b.funding ? 4 : 0) + (b.registered ? 2 : 0) + (b.p2tr ? 1 : 0);
       return bScore - aScore || b.createdAt - a.createdAt;
     })[0] ?? null;
-  }, [identity, vaults]);
+  }, [vaults]);
   const exitReadiness = readinessRecord && readinessRecord.vaultAddress === activeVault?.address ? readinessRecord.readiness : null;
   const setExitReadiness = useCallback((vaultAddress: string, readiness: ExitReadiness | null) => {
     setReadinessRecord(readiness ? { vaultAddress, readiness } : null);
@@ -151,9 +158,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts, liveVtxos, activity,
-    indexerStatus, exitReadiness, store, refresh, setIdentity, setExitReadiness,
+    indexerStatus, exitReadiness, store, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, bootState, exitReadiness, health, identity, indexerStatus, liveVtxos, receipts, refresh, saveReceipt, setExitReadiness, store, vaults]);
+  }), [activeVault, activity, addVault, bootState, exitReadiness, health, identity, indexerStatus, liveVtxos, receipts, refresh, saveReceipt, setExitReadiness, store, vaults, waitForIndexerReady]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

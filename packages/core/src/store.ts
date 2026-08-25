@@ -120,6 +120,7 @@ interface IdbDatabaseLike {
   createObjectStore(name: string, options?: { keyPath?: string }): IdbObjectStoreLike;
   transaction(storeNames: string | string[], mode: string): IdbTransactionLike;
   close(): void;
+  onversionchange: (() => void) | null;
 }
 
 interface IdbOpenDbRequestLike {
@@ -175,38 +176,57 @@ export class IndexedDbStore implements RipcordStore {
           db.createObjectStore(RECEIPT_STORE, { keyPath: 'txHash' });
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => {
+          db.close();
+          this.dbPromise = undefined;
+        };
+        resolve(db);
+      };
       req.onerror = () => reject(toError(req, 'open'));
     });
     return this.dbPromise;
   }
 
   async getVaults(): Promise<VaultRecord[]> {
-    const db = await this.openDb();
-    return this.readAll<VaultRecord>(db, VAULT_STORE);
+    return this.withReconnect(db => this.readAll<VaultRecord>(db, VAULT_STORE));
   }
 
   async saveVault(vault: VaultRecord): Promise<void> {
-    const db = await this.openDb();
-    await this.write(db, VAULT_STORE, vault);
+    await this.withReconnect(db => this.write(db, VAULT_STORE, vault));
   }
 
   async getReceipts(): Promise<PaymentReceipt[]> {
-    const db = await this.openDb();
-    return this.readAll<PaymentReceipt>(db, RECEIPT_STORE);
+    return this.withReconnect(db => this.readAll<PaymentReceipt>(db, RECEIPT_STORE));
   }
 
   async saveReceipt(receipt: PaymentReceipt): Promise<void> {
-    const db = await this.openDb();
     // Normalize the key to lowercase so case drift across the daemon's two
     // delivery paths (WSS vs REST) cannot produce a duplicate row.
-    await this.write(db, RECEIPT_STORE, { ...receipt, txHash: receipt.txHash.toLowerCase() });
+    await this.withReconnect(db => this.write(db, RECEIPT_STORE, { ...receipt, txHash: receipt.txHash.toLowerCase() }));
   }
 
   async clear(): Promise<void> {
-    const db = await this.openDb();
-    await this.clearStore(db, VAULT_STORE);
-    await this.clearStore(db, RECEIPT_STORE);
+    await this.withReconnect(async db => {
+      await this.clearStore(db, VAULT_STORE);
+      await this.clearStore(db, RECEIPT_STORE);
+    });
+  }
+
+  private async withReconnect<T>(operation: (db: IdbDatabaseLike) => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await operation(await this.openDb());
+      } catch (error) {
+        lastError = error;
+        this.dbPromise = undefined;
+        if (attempt === 0 && /closing|closed|invalid state/i.test(error instanceof Error ? error.message : String(error))) continue;
+        throw error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   private readAll<T>(db: IdbDatabaseLike, storeName: string): Promise<T[]> {

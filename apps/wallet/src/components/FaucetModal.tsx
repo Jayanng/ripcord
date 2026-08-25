@@ -6,7 +6,33 @@ const keyFor = (address: string) => `ripcord:faucet:${address}`;
 export function FaucetModal({ address, onClose, onConfirmed }: Props) {
   const [state, setState] = useState<State>('idle'); const [message, setMessage] = useState(''); const panel = useRef<HTMLElement>(null); const close = useRef<HTMLButtonElement>(null); const abortRef = useRef<AbortController | null>(null);
   useEffect(() => { const previous = document.activeElement as HTMLElement | null; close.current?.focus(); const key = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); onClose(); return; } if (event.key !== 'Tab' || !panel.current) return; const nodes = [...panel.current.querySelectorAll<HTMLElement>('button,[href],input,textarea,[tabindex]:not([tabindex="-1"])')]; if (!nodes.length) return; const first = nodes[0], last = nodes[nodes.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } }; document.addEventListener('keydown', key); return () => { document.removeEventListener('keydown', key); abortRef.current?.abort(); previous?.focus(); }; }, [onClose]);
-  const waitForConfirmation = async (txid: string) => { const started = Date.now(); const controller = new AbortController(); abortRef.current = controller; setState('waiting'); while (!controller.signal.aborted) { try { const response = await fetch('/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [txid, true] }) }); const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } }; if ((payload.result?.confirmations ?? 0) > 0) { setState('confirmed'); setMessage(`Funding confirmed: ${txid} · ${payload.result!.confirmations} confirmation(s)`); onConfirmed?.(txid); return; } if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed'); setMessage(`Funding broadcast: ${txid} · waiting for an L1 confirmation (${Math.floor((Date.now() - started) / 1000)}s elapsed)`); } catch (error) { if (controller.signal.aborted) return; setState('error'); setMessage(error instanceof Error ? error.message : String(error)); return; } await new Promise(resolve => setTimeout(resolve, 5000)); } };
+  const waitForConfirmation = async (txid: string) => {
+    const started = Date.now();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setState('waiting');
+    while (!controller.signal.aborted) {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      setMessage(`Funding broadcast: ${txid} · checking live confirmation (${elapsed}s elapsed)`);
+      try {
+        const response = await fetch('/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]), body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [txid, true] }) });
+        const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } };
+        if ((payload.result?.confirmations ?? 0) > 0) {
+          setState('confirmed');
+          setMessage(`Funding confirmed: ${payload.result!.confirmations} confirmation(s). Starting vault setup…`);
+          window.setTimeout(() => onConfirmed?.(txid), 900);
+          return;
+        }
+        if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
+        setMessage(`Funding is in the mempool: ${txid} · 0 confirmations · regtest blocks arrive on the live chain, not on a UI timer`);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const message = error instanceof Error && /timeout/i.test(error.message) ? 'Bitcoin RPC check timed out; retrying live confirmation.' : error instanceof Error ? error.message : String(error);
+        setMessage(`${message} (${Math.floor((Date.now() - started) / 1000)}s elapsed)`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  };
   useEffect(() => { const saved = localStorage.getItem(keyFor(address)); if (saved && /^[0-9a-f]{64}$/i.test(saved)) { setMessage(`Resuming funding broadcast: ${saved} · checking live confirmation`); void waitForConfirmation(saved); } }, [address]);
   const request = async () => { setState('requesting'); setMessage(''); try { const response = await fetch('/faucet/api/faucet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address, amountBtc: 0.5 }) }); const text = await response.text(); let data: unknown; try { data = JSON.parse(text); } catch { data = null; } if (!response.ok) throw new Error(typeof data === 'object' && data && 'error' in data ? String((data as { error: unknown }).error) : text || `Faucet HTTP ${response.status}`); const txid = typeof data === 'object' && data && 'txid' in data ? String((data as { txid: unknown }).txid) : ''; if (!/^[0-9a-f]{64}$/i.test(txid)) throw new Error('Faucet response did not include a valid funding txid'); localStorage.setItem(keyFor(address), txid); setMessage(`Funding broadcast: ${txid} · waiting for an L1 confirmation`); await waitForConfirmation(txid); } catch (error) { setState('error'); setMessage(error instanceof Error ? error.message : String(error)); } };
   const buttonLabel = state === 'requesting' ? 'Requesting…' : state === 'waiting' ? 'Waiting for confirmation…' : state === 'confirmed' ? 'Confirmed' : 'Request 0.5 regtest BTC';

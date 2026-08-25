@@ -9,7 +9,12 @@ import type {
   CompressedHex,
   DisplayTxid,
   XOnlyHex,
+  Identity,
 } from '../src/types.js';
+import { vaultsForIdentity } from '../src/types.js';
+import { deriveIdentity } from '../src/keys.js';
+import { getQuorum } from '../src/quorum.js';
+import { createVault } from '../src/vault.js';
 
 /**
  * Fixtures below are synthetic TEST DATA for the persistence round-trip. They
@@ -17,13 +22,14 @@ import type {
  * lifecycle correctness. The store persists only public data; nothing here is
  * claimed to be a live daemon record.
  */
-function makeVault(address: string, valueSats: bigint): VaultRecord {
+function makeVault(address: string, valueSats: bigint, identity?: Identity): VaultRecord {
+  const descriptor = identity?.userKeyDescriptor;
   return {
     vaultIdHex: 'ab'.repeat(32),
     address: address as VaultAddress,
     csvBlocks: 2,
-    userKeyIndex: 0,
-    userKeyDescriptor: {
+    userKeyIndex: descriptor?.index ?? 0,
+    userKeyDescriptor: descriptor ?? {
       version: 1,
       scheme: 'bip84-p2wpkh',
       purpose: 84,
@@ -63,6 +69,21 @@ const VAULT_A = 'bcrt1p' + 'a'.repeat(58) + 'xyz';
 const VAULT_B = 'bcrt1p' + 'b'.repeat(58) + 'xyz';
 
 describe('MemoryStore', () => {
+  it('does not expose another identity’s persisted vaults to a fresh identity', { timeout: 60_000 }, async () => {
+    const alice = deriveIdentity('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', 'regtest');
+    const fresh = deriveIdentity('legal winner thank year wave sausage worth useful legal winner thank yellow', 'regtest');
+    const quorum = await getQuorum('https://rpc-regtest.tachibtc.com');
+    const store = new MemoryStore();
+    await store.saveVault(await createVault({ network: 'regtest', nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 2, userKeyDescriptor: alice.userKeyDescriptor }));
+    await store.saveVault(await createVault({ network: 'regtest', nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 144, userKeyDescriptor: alice.userKeyDescriptor }));
+
+    const persisted = await store.getVaults();
+    const visible = vaultsForIdentity(persisted, fresh);
+
+    expect(visible).toEqual([]);
+    expect(await store.getVaults()).toHaveLength(2);
+  });
+
   it('round-trips vaults and receipts through save and get', async () => {
     const store = new MemoryStore();
     const vault = makeVault(VAULT_A, 40000n);

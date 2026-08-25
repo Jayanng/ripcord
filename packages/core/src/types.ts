@@ -272,6 +272,19 @@ export interface Identity {
   l1Address: UserAddress;
 }
 
+/**
+ * Public vault records share one browser store, so every UI read must bind a
+ * record back to the in-memory identity before treating it as owned.
+ */
+export function vaultBelongsToIdentity(vault: VaultRecord, identity: Identity): boolean {
+  return vault.userKeyIndex === identity.userKeyDescriptor.index
+    && vault.userKeyDescriptor.publicKey.toLowerCase() === identity.userKeyDescriptor.publicKey.toLowerCase();
+}
+
+export function vaultsForIdentity(vaults: readonly VaultRecord[], identity: Identity | null): VaultRecord[] {
+  return identity ? vaults.filter(vault => vaultBelongsToIdentity(vault, identity)) : [];
+}
+
 export interface Quorum {
   nodePubkeys: CompressedHex[];
   threshold: number;

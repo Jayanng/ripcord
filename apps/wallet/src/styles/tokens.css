@@ -106,6 +106,24 @@ h2 { margin: 0; color: var(--text-hi); font-size: 19px; letter-spacing: -.02em; 
 .flow-heading h2 { margin-bottom: 10px; }
 .flow-heading p:not(.eyebrow), .flow-success p { color: var(--text); font-size: 13px; line-height: 1.6; }
 .flow-screen form, .send-form { display: grid; gap: 14px; }
+.recovery-screen { display: grid; gap: 20px; }
+.recovery-progress { display: grid; gap: 0; margin: 0; padding: 4px 0 0; list-style: none; }
+.recovery-step { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; min-height: 58px; padding: 0 0 18px; }
+.recovery-step:not(:last-child)::after { position: absolute; top: 28px; bottom: 0; left: 14px; width: 1px; background: var(--line); content: ""; }
+.recovery-marker { position: relative; z-index: 1; display: grid; width: 29px; height: 29px; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--bg-raised); color: var(--text-lo); font: 600 11px var(--font-mono); }
+.recovery-step > div { display: grid; gap: 4px; padding-top: 5px; }
+.recovery-step strong { color: var(--text); font-size: 12px; font-weight: 600; }
+.recovery-step small { color: var(--text-lo); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.recovery-step.active .recovery-marker { border-color: var(--pending); color: var(--pending); box-shadow: 0 0 0 3px var(--amber-3); }
+.recovery-step.active strong { color: var(--text-hi); }
+.recovery-step.passed .recovery-marker { border-color: var(--confirmed); background: var(--jade-3); color: var(--confirmed); }
+.recovery-step.failed .recovery-marker { border-color: var(--danger); background: var(--red-3); color: var(--danger); }
+.recovery-step.failed strong { color: var(--danger); }
+.recovery-evidence { display: grid; gap: 0; margin: 0; border: 1px solid var(--line-subtle); border-radius: var(--r-sm); background: var(--bg-inset); }
+.recovery-evidence div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 11px 13px; border-bottom: 1px solid var(--line-subtle); }
+.recovery-evidence div:last-child { border-bottom: 0; }
+.recovery-evidence dt { color: var(--text-lo); font-size: 11px; }
+.recovery-evidence dd { min-width: 0; margin: 0; color: var(--text-hi); font: 11px var(--font-mono); overflow-wrap: anywhere; }
 .flow-screen label { display: grid; gap: 7px; color: var(--text-lo); font: 600 11px var(--font-mono); }
 .flow-screen input, .flow-screen textarea { width: 100%; min-height: 44px; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg-inset); color: var(--text-hi); font: 16px var(--font-mono); }
 .flow-screen textarea { resize: vertical; }
@@ -122,6 +140,14 @@ h2 { margin: 0; color: var(--text-hi); font-size: 19px; letter-spacing: -.02em; 
 .flow-success dl div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
 .flow-success dt { color: var(--text-lo); font-size: 11px; }
 .flow-success dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text-hi); font: 11px var(--font-mono); }
+.funding-progress { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--line-subtle); background: var(--bg-inset); list-style: none; }
+.funding-progress li { display: flex; align-items: center; gap: 9px; color: var(--text-lo); font-size: 12px; }
+.funding-progress li span { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid var(--line); border-radius: 50%; font: 10px var(--font-mono); }
+.funding-progress li.active { color: var(--pending); }
+.funding-progress li.active span { border-color: var(--pending); }
+.funding-progress li.passed { color: var(--confirmed); }
+.funding-progress li.passed span { border-color: var(--confirmed); background: var(--jade-3); }
+.funding-progress li.pending { opacity: .48; }
 .flow-note { padding: 11px 12px; border-left: 3px solid var(--confirmed); background: var(--jade-3); color: var(--jade-11) !important; font-size: 12px !important; }
 .flow-body { display: grid; gap: 16px; padding: 20px; }
 .flow-body code, .receive-screen > code { padding: 12px; overflow-wrap: anywhere; background: var(--bg-inset); color: var(--text-hi); font: 11px/1.5 var(--font-mono); }

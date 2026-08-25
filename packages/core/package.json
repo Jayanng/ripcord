@@ -41,6 +41,10 @@
       "import": "./dist/quorum.js",
       "types": "./dist/quorum.d.ts"
     },
+    "./recovery": {
+      "import": "./dist/recovery.js",
+      "types": "./dist/recovery.d.ts"
+    },
     "./payment": {
       "import": "./dist/payment.js",
       "types": "./dist/payment.d.ts"
