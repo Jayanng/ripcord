@@ -226,24 +226,37 @@ npm test
 
 The tests use live regtest behavior rather than mocks. The full suite can take several minutes because the public Bitcoin regtest chain mines automatically and confirmation assertions remain real.
 
-## Implemented phases
+## Bounty #1 requirements
 
-| Phase | Status | Scope |
-|---:|---|---|
-| 1 | Complete | Workspace and TypeScript foundation |
-| 2 | Complete and audited | Core types, serialization, errors, and health preflight |
-| 3 | Complete and audited | Key derivation and quorum engine |
-| 4 | Complete | Vault lifecycle, deposits, reserves binding, and registration |
-| 5 | Complete | Cold-start recovery engine |
-| 6 | Complete | VTXO transfers, coin selection, and queueing |
-| 7 | Complete and audited | WebSocket indexer and public-data stores |
-| 8 | Complete | HAT/RIP proof retrieval and inclusion linking |
-| 9 | Implemented | Exit dry run live-verified; mature broadcast remains deliberately controlled |
-| 10 | Complete | Responsive PWA shell and live preflight |
-| 11 | Complete | High-assurance wallet UI components |
-| 12 | Complete | Onboarding, funding, sending, activity, and proof flows |
-| 13 | Complete, manually live-verified | Browser-wipe recovery from mnemonic and live chain data |
-| 14 | Complete | Playwright coverage, submission dossier, demo script, and release preparation |
+RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Custody**. The bounty asks builders to create a mobile and desktop wallet experience that enables sovereign Bitcoin custody and spending through TAURUS vaults and VTXOs, with clear balances and a unilateral exit path.
+
+| Requirement | Satisfied | Scope and evidence |
+|---|:---:|---|
+| TAURUS-based non-custodial wallet | ✅ | TAURUS/Tachi mechanics are exposed through the `@ripcord/core` package boundary. |
+| Create TAURUS/Tachi vaults | ✅ | Deterministic vault construction with the live 5-of-7 regtest quorum. |
+| Onboard BTC into a vault | ✅ | Live regtest L1 deposit flow with exact funding-script proof-of-reserves binding and registration. |
+| Manage VTXOs | ✅ | Live regtest VTXO discovery, balance reporting, coin selection, ownership checks, and spend tracking. |
+| Spend sats off-chain | ✅ | Real regtest VTXO transfers with live pending-to-committed activity. |
+| Smooth, Lightning-like experience | ✅ | Responsive send flow, live status, confirmation feedback, fee visibility, and recovery messaging. |
+| Clear balance displays | ✅ | On-chain vault reserves and spendable off-chain VTXO balances are shown separately. |
+| Unilateral exit flow | ✅ | Exit construction, signing, BIP68 maturity inspection, destination validation, and controlled broadcast path are implemented and live-verified as a dry run. |
+| Timelock status | ✅ | Live `unfunded`, `maturing`, `live`, and `spent` exit states with confirmation progress. |
+| Mobile and desktop wallet experience | ✅ | Delivered as a responsive PWA that works across mobile and desktop browsers. It is not a separate native iOS, Android, Windows, or macOS application. |
+
+### Mainnet requirement
+
+The bounty description does **not** require Bitcoin mainnet, signet, real BTC, or production deployment. RIPCORD therefore uses the official Tachi regtest environment for safe, live verification without risking real funds.
+
+The accurate scope is:
+
+```text
+Live-verified Tachi regtest wallet prototype
+Responsive mobile and desktop browser PWA
+No mainnet or signet support
+No production custody claim
+```
+
+Regtest is a deliberate safety and verification boundary, not a substitute claim for mainnet readiness. RIPCORD should not be used with funds that matter.
 
 ## Known limitations
 
