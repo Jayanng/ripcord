@@ -6,7 +6,7 @@ RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet arou
 
 The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
 
-> **Current status:** Phases 1 through 12 are implemented and live-verified. The browser journey and uninterrupted live suite cover funded onboarding, `LIVE` Ripcord maturity and dry-run, test-pull destination evidence, real user-key VTXO transfers, pending-to-committed activity, HAT/RIP receipts, vault-address rejection, mnemonic reload recovery, and full vault registration/recovery. This repository currently targets **Tachi regtest only**.
+> **Current status:** Phases 1 through 13 are implemented. Phase 13 browser-wipe recovery has been manually exercised against live regtest. Phase 14 adds Playwright coverage and submission artifacts; its mnemonic-dependent recovery spec remains explicitly environment-gated. This repository currently targets **Tachi regtest only**.
 
 ## What RIPCORD is designed to provide
 
@@ -36,7 +36,7 @@ RIPCORD is not production-ready and should not be used with funds that matter.
 
 - The current implementation is **regtest-only**.
 - There is no signet or mainnet support.
-- The browser PWA shell and Phase 12 onboarding/transaction surfaces are implemented and live-exercised on regtest. Full browser-storage wipe recovery remains Phase 13; Phase 12 currently recovers the deterministic funded vault after mnemonic re-entry while preserving IndexedDB public records.
+- The browser PWA shell, transaction surfaces, and complete browser-storage wipe recovery are implemented and manually exercised on regtest.
 - `@ripcord/core` currently exports the implemented phases, including `proofs.ts` and `exit.ts`.
 - HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
 - There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
@@ -118,7 +118,8 @@ ripcord/
 | 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
 | 11 | Complete | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
 | 12 | Complete | Browser-funded lifecycle, test-pull destination, live send/proof/activity, vault rejection, mnemonic reload recovery, full registration/recovery, and uninterrupted live suite |
-| 13-14 | Planned | Browser-wipe recovery, final verification and submission dossier |
+| 13 | Complete, manually live-verified | Full localStorage and IndexedDB wipe followed by mnemonic recovery from live chain data |
+| 14 | Complete | Live Playwright recovery, submission dossier, demo script, and final verification gates |
 
 ## Getting started
 

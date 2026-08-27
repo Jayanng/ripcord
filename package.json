@@ -11,9 +11,11 @@
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "check:rules": "bash scripts/check-architecture-rules.sh"
+    "check:rules": "bash scripts/check-architecture-rules.sh",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "typescript": "^5.5.0"
   },
   "engines": {

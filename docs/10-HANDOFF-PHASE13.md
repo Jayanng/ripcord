@@ -1,6 +1,6 @@
 # Phase 13 Handoff: Browser-Wipe Cold-Start Recovery
 
-**Status:** ready to start
+**Status:** complete; manual browser-wipe recovery verified by the operator
 **Previous phase:** Phase 12 complete and pushed in commit `c4c7192`
 **Branch:** `main`
 **Repository:** `https://github.com/Jayanng/ripcord`
@@ -146,6 +146,10 @@ After Phase 13 passes, update this document with:
 Then prepare Phase 14: Playwright live E2E coverage, submission dossier, README final review, and demo script.
 
 No Phase 14 implementation should begin until this Phase 13 acceptance checklist is complete.
+
+## Completion update
+
+The operator completed a full browser recovery flow and confirmed that the funded wallet state restored after the browser wipe. No mnemonic or other secret was recorded. Phase 14 started by adding an environment-gated Playwright recovery journey; automated execution remains intentionally skipped unless `RIPCORD_E2E_MNEMONIC` is supplied privately at runtime.
 
 ## Commands
 

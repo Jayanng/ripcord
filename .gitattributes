@@ -2,3 +2,4 @@
 # Treat documentation files, build configs, and scripts appropriately
 scripts/* linguist-vendored
 docs/* linguist-documentation
+*.sh text eol=lf
