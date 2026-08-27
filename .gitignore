@@ -6,3 +6,27 @@ dist
 .DS_Store
 test-results/
 playwright-report/
+
+# Private internal planning, instructions, research, and evidence
+RIPCORD-INTERNAL.md
+AGENTS.md
+DESIGN.md
+docs/01-VERIFIED-API.md
+docs/02-ARCHITECTURE.md
+docs/03-DESIGN-SYSTEM.md
+docs/04-BUILD-PLAN.md
+docs/05-HANDOFF-PHASE7.md
+docs/06-HANDOFF-PHASE8.md
+docs/07-HANDOFF-PHASE10.md
+docs/08-HANDOFF-PHASE11.md
+docs/09-HANDOFF-PHASE12.md
+docs/10-HANDOFF-PHASE13.md
+docs/SUBMISSION.md
+docs/DEMO-SCRIPT.md
+research/
+scratch/
+evidence/
+*.memory.db
+.env
+.env.*
+!.env.example

@@ -1,136 +1,197 @@
 # RIPCORD
 
-**A self-custodial Bitcoin vault wallet for the Tachi / TAURUS network.**
+[![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
+[![GitHub release](https://img.shields.io/github/v/release/Jayanng/ripcord?display_name=tag&sort=semver)](https://github.com/Jayanng/ripcord/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
+[![Status](https://img.shields.io/badge/status-experimental-yellow)](https://github.com/Jayanng/ripcord)
 
-RIPCORD is an open-source TypeScript monorepo for building a Bitcoin wallet around Tachi's vault and VTXO protocols. It is designed to make custody visible and recoverable rather than hiding protocol behavior behind a conventional wallet balance.
+> **Proof before promise.**
 
-The project targets **OP_FREEDOM Bounty #1: TAURUS non-custodial wallet / custody**.
+RIPCORD is a self-custodial Bitcoin vault wallet for the Tachi and TAURUS ecosystem. It gives users a transparent way to onboard BTC into a 5-of-7 vault, manage spendable VTXOs, make off-chain transfers, inspect proof evidence, and understand the conditions for a unilateral exit.
 
-> **Current status:** Phases 1 through 13 are implemented. Phase 13 browser-wipe recovery has been manually exercised against live regtest. Phase 14 adds Playwright coverage and submission artifacts; its mnemonic-dependent recovery spec remains explicitly environment-gated. This repository currently targets **Tachi regtest only**.
+RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Custody**.
 
-## What RIPCORD is designed to provide
+## Current status
 
-- Self-custodial key derivation from a BIP-39 mnemonic
-- Per-vault BIP-84 user-key indexes so each atomic vault can use a distinct key
+RIPCORD is experimental software targeting **Tachi regtest only**. It is not production custody software and must not be used with funds that matter.
+
+- `@ripcord/core@0.1.0` is published on npm.
+- GitHub release `v0.1.0` is available.
+- Core wallet mechanics and the responsive wallet application have been exercised against the live Tachi regtest environment.
+- Browser-wipe recovery has been manually exercised from a mnemonic against live regtest data.
+- The project has no signet or mainnet support.
+
+## Highlights
+
+- Self-custodial BIP-39 mnemonic-based key derivation
+- Per-vault BIP-84 receive-key indexes for atomic vaults
 - Deterministic 5-of-7 Tachi vault construction
-- Taproot vault outputs with a provably unusable NUMS internal key
-- Bitcoin L1 deposits with proof-of-reserves binding through an exact `scriptPubKey` comparison
-- Cold-start recovery from mnemonic plus persisted public vault metadata
-- Multi-candidate CSV recovery with exact on-chain funding-script binding
-- Scan-bound validation and vault-ID deduplication during recovery
-- Phase 5 recovery audit coverage for invalid bounds, placeholder lifecycle fields, and persisted quorum metadata
-- VTXO coin selection with duplicate-ID and invalid-amount rejection
-- Single-writer transaction serialization with fail-closed overlapping reservations
-- Tachi transfers with sender-ownership validation and change returned to the sender's own user P2TR address
-- SDK query-error mapping at the initial VTXO lookup boundary
-- Phase 6 audit coverage for queue contention and fail-closed payment validation
-- Live pending-to-committed activity through the Tachi WebSocket stream with stale-socket protection
-- Public-data persistence through memory and IndexedDB store adapters with defensive reads
-- Phase 7 audit coverage for stale socket callbacks, duplicate reconnect timers, terminal overflow, and mutable store objects
-- HAT and RIP proof fetching and normalized HAT-in-Verkle-diff linking (`proofs.ts`)
-- Unilateral-exit dry-run (`assessExit`) and L1 broadcast (`executeExit`) with BIP68 maturity from live `gettxout` confirmations
+- Taproot vaults using a provably unusable NUMS internal key
+- L1 deposits with exact funding-script proof-of-reserves binding
+- VTXO coin selection and off-chain transfers
+- Single-writer transaction serialization and local spend reservations
+- Live WebSocket activity with pending-to-committed transitions
+- HAT and RIP receipt retrieval with normalized inclusion linking
+- Unilateral-exit dry runs with live BIP68 maturity status
+- Mnemonic-based cold-start recovery after browser storage deletion
+- Public-data persistence through memory and IndexedDB adapters
+- A responsive React/Vite PWA for desktop and mobile browsers
 
-## Important limitations
+## Why RIPCORD exists
 
-RIPCORD is not production-ready and should not be used with funds that matter.
+Conventional wallet interfaces often collapse custody, settlement, and availability into one balance. RIPCORD exposes those boundaries instead:
 
-- The current implementation is **regtest-only**.
-- There is no signet or mainnet support.
-- The browser PWA shell, transaction surfaces, and complete browser-storage wipe recovery are implemented and manually exercised on regtest.
-- `@ripcord/core` currently exports the implemented phases, including `proofs.ts` and `exit.ts`.
-- HAT/RIP proofs on regtest are daemon-attested inclusion evidence. The current regtest response does not provide a usable PSBT payload for local HAT commitment recomputation.
-- There is no L1 anchoring in the sampled regtest proof responses. Bitcoin height and timestamp fields are zero or unavailable in those proof responses.
-- The IPA proof is carried as daemon-attested evidence. RIPCORD does not currently verify the Verkle/IPA commitment locally.
-- The public regtest Bitcoin chain mines automatically on an approximately 10-minute cadence. The full lifecycle test allows 15 minutes per L1 confirmation and retains a real `confirmations >= 1` assertion; this is an environmental wait, not a simulated confirmation.
-- `IndexedDbStore` is intended for browsers and is not exercised in Node; it reports a clear error when IndexedDB is absent.
+- **On-chain reserves** show BTC held in the vault.
+- **Off-chain VTXOs** show spendable ledger balance.
+- **Proof panels** show the evidence behind custody and payment claims.
+- **Exit status** shows whether a unilateral recovery transaction is mature.
+- **Live activity** distinguishes pending events from committed events.
+
+The goal is a Lightning-like spending experience without hiding the custody model or recovery conditions.
 
 ## Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ apps/wallet                                                │
-│ Future React/Vite PWA. No direct @tachibtc/* imports.       │
+│ apps/wallet                                                  │
+│ React + Vite responsive PWA                                  │
+│ Balance, onboarding, sending, recovery, proofs, and exit UI │
 └──────────────────────────────┬──────────────────────────────┘
                                │ @ripcord/core
 ┌──────────────────────────────▼──────────────────────────────┐
-│ packages/core                                               │
+│ packages/core                                                │
 │ Keys, quorum, vaults, deposits, recovery, payments,         │
-│ queue, live indexer, public-data stores, health and bytes.   │
+│ queue, indexer, public stores, proofs, health, and exits     │
 └──────────────────────────────┬──────────────────────────────┘
                                │ verified SDK boundary
 ┌──────────────────────────────▼──────────────────────────────┐
-│ Tachi / Taurus / Bitcoin                                    │
-│ REST: https://rpc-regtest.tachibtc.com                     │
-│ WSS:  wss://rpc-regtest.tachibtc.com/tachi_ws              │
+│ Tachi / TAURUS / Bitcoin                                     │
+│ REST: https://rpc-regtest.tachibtc.com                       │
+│ WSS:  wss://rpc-regtest.tachibtc.com/tachi_ws                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The UI boundary is intentional: application code must consume `@ripcord/core`, while Tachi and Taurus SDK imports remain inside the core package. The architecture gate checks this layering and also blocks unsafe API calls on the send path.
+The wallet application consumes `@ripcord/core`. Tachi and TAURUS SDK imports remain inside the core package so protocol-specific behavior stays behind one audited boundary.
 
-## Repository layout
+## `@ripcord/core`
 
-```text
-ripcord/
-├── packages/core/
-│   ├── src/
-│   │   ├── bytes.ts       # txid byte order and lossless bigint/byte JSON
-│   │   ├── errors.ts      # RipcordError and daemon error mapping
-│   │   ├── health.ts      # daemon, quorum, fee and L1 preflight
-│   │   ├── keys.ts        # BIP-84 derivation and Taproot signers
-│   │   ├── quorum.ts      # live quorum validation and fingerprint cache
-│   │   ├── vault.ts       # deterministic vault creation and inspection
-│   │   ├── deposit.ts     # L1 deposit and reserve binding
-│   │   ├── register.ts    # vault registration
-│   │   ├── recovery.ts    # cold-start vault discovery and reconstruction
-│   │   ├── coinselect.ts  # VTXO selection
-│   │   ├── queue.ts       # single-writer mutation queue
-│   │   ├── payment.ts     # VTXO transfers
-│   │   ├── indexer.ts     # WSS events with reconnect and bounded queue
-│   │   ├── store.ts       # MemoryStore and IndexedDbStore
-│   │   ├── proofs.ts      # HAT/RIP fetch and normalized Verkle inclusion
-│   │   ├── exit.ts        # unilateral exit dry-run and L1 broadcast
-│   │   └── index.ts       # public package barrel
-│   └── test/              # live-regtest test suite (proofs.test.ts, verkle.test.ts, …)
-├── docs/
-│   ├── 01-VERIFIED-API.md # live-probed API contract
-│   ├── 02-ARCHITECTURE.md # module contracts and boundaries
-│   ├── 03-DESIGN-SYSTEM.md # UI and verification language
-│   ├── 04-BUILD-PLAN.md   # phase-by-phase implementation plan
-│   ├── 05-HANDOFF-PHASE7.md
-│   └── 06-HANDOFF-PHASE8.md
-└── scripts/
-    └── check-architecture-rules.sh
+The reusable TypeScript library is published as:
+
+```bash
+npm install @ripcord/core
 ```
 
-## Implemented phases
+Package links:
 
-| Phase | Status | Result |
-|---|---|---|
-| 1 | Complete | Monorepo and TypeScript foundation |
-| 2 | Complete and audited | Core types, byte serialization, error taxonomy, health preflight |
-| 3 | Complete and audited | Key derivation, per-index signers, quorum validation and cache |
-| 4 | Complete | Vault creation, deposits, proof-of-reserves binding, registration |
-| 5 | Complete | Cold-start recovery and public metadata reconstruction |
-| 6 | Complete | VTXO coin selection, queue and transfers |
-| 7 | Complete and audited | WSS indexer, reconnect lifecycle, bounded event queue, stores |
-| 8 | Complete | HAT/RIP fetch, normalized Verkle inclusion, live `proofs` + `verkle` tests |
-| 9 | Implemented; mature broadcast env-gated | `assessExit` dry-run live-verified; `executeExit` needs 2 L1 confs (`RIPCORD_LIVE_EXIT=1`) |
-| 10 | Complete | Responsive PWA shell, live preflight, public IndexedDB state, hooks, manifest and offline shell |
-| 11 | Complete | Balance, Ripcord, hold-confirm, tapscript/PoR, activity and proof components; first-run browser state audited |
-| 12 | Complete | Browser-funded lifecycle, test-pull destination, live send/proof/activity, vault rejection, mnemonic reload recovery, full registration/recovery, and uninterrupted live suite |
-| 13 | Complete, manually live-verified | Full localStorage and IndexedDB wipe followed by mnemonic recovery from live chain data |
-| 14 | Complete | Live Playwright recovery, submission dossier, demo script, and final verification gates |
+- [npm package](https://www.npmjs.com/package/@ripcord/core)
+- [npm v0.1.0](https://www.npmjs.com/package/@ripcord/core/v/0.1.0)
+- [GitHub release v0.1.0](https://github.com/Jayanng/ripcord/releases/tag/v0.1.0)
 
-## Getting started
+The package exposes the root API and focused subpaths for:
+
+```text
+/types       /store       /health       /exit
+/vault       /indexer     /keys        /quorum
+/recovery    /payment     /lifecycle
+```
+
+### Minimal example
+
+```ts
+import { deriveIdentity, getQuorumWithCache } from '@ripcord/core';
+
+const mnemonic = process.env.RIPCORD_MNEMONIC;
+if (!mnemonic) throw new Error('Set RIPCORD_MNEMONIC privately for a local test');
+
+const identity = deriveIdentity(mnemonic, 'regtest', 0);
+const quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');
+
+console.log(identity.userAddress);
+console.log(`${quorum.threshold} of ${quorum.nodePubkeys.length}`);
+```
+
+Never log or persist a mnemonic, seed, or signing key.
+
+## Verified capabilities
+
+### Vault and custody
+
+- BIP-39 mnemonic-derived identity keys
+- BIP-84 L1 settlement addresses and BIP-340 signing support
+- Deterministic TAURUS vault derivation
+- 5-of-7 quorum validation with duplicate-key rejection
+- Threshold-aware quorum fingerprints
+- NUMS internal-key verification
+- Exact on-chain `scriptPubKey` binding for vault funding
+- Vault registration and VTXO onboarding
+
+### VTXO payments
+
+- Largest-first spendable-VTXO selection
+- Duplicate-ID and invalid-amount rejection
+- Single-writer transaction queue
+- Overlapping-input reservation protection
+- Sender ownership validation
+- Change returned to the sender's user P2TR address
+- Live broadcast and commit handling
+- Pending and committed WebSocket activity
+
+### Recovery and evidence
+
+- Multi-candidate CSV discovery
+- Vault address reconstruction checks
+- Funding outpoint verification against Bitcoin RPC
+- BigInt and byte-safe public-state persistence
+- HAT and RIP retrieval
+- HAT-in-RIP StateDiff inclusion linking
+- BIP68 unilateral-exit maturity assessment
+- Browser localStorage and IndexedDB wipe recovery
+
+## Custody and security model
+
+RIPCORD is self-custodial in the sense that user signing material is derived and used locally. This does not mean every protocol operation is unilateral. Cooperative actions depend on the Tachi validator quorum, while unilateral exit provides the user-controlled recovery path after the configured timelock.
+
+The project follows these boundaries:
+
+1. Mnemonics and signing keys remain in memory and must never enter persistent stores.
+2. Public vault records, funding outpoints, VTXO metadata, transaction hashes, and proof commitments may be persisted.
+3. Every send validates the sender key, recipient format, amount, fee, and selected inputs.
+4. Change is sent to the sender's user key, never to the vault address.
+5. Recovery binds reconstructed vaults to live daemon data and exact Bitcoin funding scripts.
+6. The wallet refuses to describe unverified data as confirmed custody.
+
+## Network and dependencies
+
+The verified environment is:
+
+```text
+Network:      tachi-regtest-1
+Daemon:       https://rpc-regtest.tachibtc.com
+WebSocket:    wss://rpc-regtest.tachibtc.com/tachi_ws
+Faucet:       https://faucet.tachibtc.com
+Explorer:     https://explorer-regtest.tachibtc.com
+Quorum:       5 of 7 validators
+```
+
+Pinned protocol dependencies:
+
+```text
+@tachibtc/taurus-vault-core        0.3.3
+@tachibtc/taurus-wallet-aggregator 0.4.3
+@tachibtc/tachi-sdk-ts             0.2.1
+```
+
+Do not upgrade protocol dependencies without re-probing the live daemon and reviewing the verified API contract.
+
+## Development setup
 
 ### Requirements
 
-- Node.js **22 or newer** is recommended. The SDK's WebSocket support uses the global `WebSocket` implementation.
-- npm with workspace support
+- Node.js 22 or newer recommended
+- npm workspaces
 - Network access to the Tachi regtest daemon
-- No credentials are required for the public regtest SDK endpoints documented here.
-
-The root package declares Node `>=20`, but the verified SDK environment uses Node 22. Use Node 22 for the closest match to the live-tested setup.
+- No credentials for the public regtest endpoints documented above
 
 ### Install
 
@@ -140,245 +201,84 @@ cd ripcord
 npm install
 ```
 
-The pinned protocol dependencies are:
+### Run the wallet locally
 
-```text
-@tachibtc/taurus-vault-core       0.3.3
-@tachibtc/taurus-wallet-aggregator 0.4.3
-@tachibtc/tachi-sdk-ts            0.2.1
-bitcoinjs-lib                     ^7.0.1
+```bash
+npm run dev --workspace=apps/wallet
 ```
 
-Do not upgrade these protocol packages without re-probing the live daemon and reviewing the verified API contract.
+Open the localhost URL printed by Vite, usually:
 
-### Build and typecheck
+```text
+http://localhost:5173
+```
 
-Run workspace commands from the repository root:
+### Verification commands
+
+Run these from the repository root:
 
 ```bash
 npm run check:rules
 npm run typecheck
 npm run build
-```
-
-`check:rules` is not optional. It enforces the no-mocks policy, layering rules, and prohibited send-path API calls.
-
-### Run the tests
-
-The tests are live-regtest tests, not mock-based unit tests:
-
-```bash
-cd packages/core
 npm test
 ```
 
-Useful targeted runs:
+The tests use live regtest behavior rather than mocks. The full suite can take several minutes because the public Bitcoin regtest chain mines automatically and confirmation assertions remain real.
 
-```bash
-npx vitest run test/keys.test.ts
-npx vitest run test/quorum.test.ts
-npx vitest run test/vault.test.ts
-npx vitest run test/recovery.test.ts
-npx vitest run test/payment.test.ts
-npx vitest run test/indexer.test.ts
-npx vitest run test/store.test.ts
-```
+## Implemented phases
 
-The full suite performs real network operations and can take about 15 minutes because the public regtest Bitcoin chain mines automatically on an approximately 10-minute cadence. `e2e-full-flow.test.ts` waits up to 15 minutes per L1 confirmation and keeps the real confirmation assertion. The latest uninterrupted run passed.
+| Phase | Status | Scope |
+|---:|---|---|
+| 1 | Complete | Workspace and TypeScript foundation |
+| 2 | Complete and audited | Core types, serialization, errors, and health preflight |
+| 3 | Complete and audited | Key derivation and quorum engine |
+| 4 | Complete | Vault lifecycle, deposits, reserves binding, and registration |
+| 5 | Complete | Cold-start recovery engine |
+| 6 | Complete | VTXO transfers, coin selection, and queueing |
+| 7 | Complete and audited | WebSocket indexer and public-data stores |
+| 8 | Complete | HAT/RIP proof retrieval and inclusion linking |
+| 9 | Implemented | Exit dry run live-verified; mature broadcast remains deliberately controlled |
+| 10 | Complete | Responsive PWA shell and live preflight |
+| 11 | Complete | High-assurance wallet UI components |
+| 12 | Complete | Onboarding, funding, sending, activity, and proof flows |
+| 13 | Complete, manually live-verified | Browser-wipe recovery from mnemonic and live chain data |
+| 14 | Complete | Playwright coverage, submission dossier, demo script, and release preparation |
 
-## Core usage examples
+## Known limitations
 
-The examples below use the implemented `@ripcord/core` surface and the verified regtest daemon. They are intentionally small: production callers must handle the returned errors, persistence, queueing, and lifecycle states.
+RIPCORD is not production-ready.
 
-### Derive an identity and signer
+- Regtest only. There is no signet or mainnet support.
+- The public daemon and its availability are external dependencies.
+- HAT/RIP data is daemon-attested where local commitment recomputation is unavailable.
+- The sampled regtest proof responses do not provide a usable PSBT payload for local HAT commitment recomputation.
+- RIPCORD does not currently verify the Verkle/IPA commitment locally.
+- Sampled proof responses do not provide reliable L1 anchoring fields.
+- Unilateral exit maturity depends on live Bitcoin confirmation state.
+- Native iOS and Android applications are not included. The wallet is a responsive browser PWA.
+- Protocol dependencies are tied to the verified versions above.
 
-```ts
-import { deriveIdentity, makeSigner } from '@ripcord/core';
+## Evidence and documentation
 
-const mnemonic = process.env.RIPCORD_MNEMONIC;
-if (!mnemonic) throw new Error('Set RIPCORD_MNEMONIC for a local test only');
+The public repository contains the source code, package documentation, and executable test suite. Internal build plans, handoffs, operational instructions, detailed verification records, and submission planning are intentionally kept outside the public repository.
 
-const identity = deriveIdentity(mnemonic, 'regtest', 0);
-const signer = makeSigner(mnemonic, 'regtest', identity.userKeyDescriptor.index);
+Start with:
 
-console.log(identity.userKeyDescriptor.path); // m/84'/1'/0'/0/0
-console.log(identity.userAddress);             // user P2TR payment address
-console.log(identity.l1Address);               // BIP-84 P2WPKH settlement address
-```
+- [npm package documentation](packages/core/README.md)
+- [Published package](https://www.npmjs.com/package/@ripcord/core)
+- [GitHub release v0.1.0](https://github.com/Jayanng/ripcord/releases/tag/v0.1.0)
 
-Never log or persist the mnemonic. It is shown only to explain the API shape. Stores contain public records only.
+## Project tags
 
-### Fetch and validate the live quorum
-
-```ts
-import { getQuorumWithCache } from '@ripcord/core';
-
-const quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');
-
-console.log(quorum.threshold);    // 5 on the verified regtest daemon
-console.log(quorum.nodePubkeys);  // 7 distinct compressed keys
-console.log(quorum.fingerprint);  // threshold-aware canonical fingerprint
-```
-
-The cached quorum is frozen. Treat the fingerprint as the identity of the exact node set plus threshold used to construct a vault.
-
-### Create a deterministic vault
-
-```ts
-import { createVault } from '@ripcord/core';
-
-const vault = await createVault({
-  network: 'regtest',
-  nodePubkeys: quorum.nodePubkeys,
-  csvBlocks: 2,
-  userKeyDescriptor: identity.userKeyDescriptor,
-  threshold: quorum.threshold,
-});
-
-console.log(vault.address);
-console.log(vault.userKeyIndex);
-console.log(vault.quorumThreshold);
-console.log(vault.quorumFingerprint);
-```
-
-Vaults are atomic: one deposit per vault. Use a new receive index for a new funded vault. Change must go to the sender's user P2TR, never the vault address.
-
-### Run preflight
-
-```ts
-import { preflight } from '@ripcord/core';
-
-const health = await preflight('https://rpc-regtest.tachibtc.com');
-if (!health.daemonOk) {
-  for (const failure of health.probeFailures) {
-    console.error(failure.probe, failure.message);
-  }
-}
-```
-
-`unreachable` means every daemon-facing probe failed. A degraded daemon may have some successful fields and some `probeFailures`. Never interpret zero values as verified state.
-
-### Subscribe to live activity
-
-```ts
-import { VaultIndexer } from '@ripcord/core';
-
-const indexer = new VaultIndexer({
-  url: 'wss://rpc-regtest.tachibtc.com/tachi_ws?address=<user-address>&blocks=true',
-  onEvent(event) {
-    if (event.kind === 'tx:pending') console.log('pending', event.txHash);
-    if (event.kind === 'tx:committed') console.log('committed', event.txHash, event.height);
-    if (event.kind === 'block:new') console.log('block', event.height);
-  },
-  onStatus(status) {
-    console.log(status.kind);
-  },
-  onError(error) {
-    console.error(error.code, error.message);
-  },
-});
-
-indexer.start();
-// Later: indexer.close();
-```
-
-The indexer adds reconnect behavior around the SDK's push-only subscription. It emits `connecting`, `connected`, `reconnecting`, and `closed`. It uses a bounded queue and raises `QUEUE_OVERFLOW` rather than silently dropping events.
-
-Normalize transaction hashes before joining WSS events to REST receipts: WSS hashes are lowercase while REST responses can be uppercase. Treat `vout[].owner` as opaque hex because both 64-character x-only and 66-character compressed keys have been observed.
-
-### Persist public records
-
-```ts
-import { MemoryStore } from '@ripcord/core';
-
-const store = new MemoryStore();
-await store.saveVault(vault);
-const snapshot = store.exportSnapshot();
-
-// After a process/browser restart:
-const restored = MemoryStore.fromSnapshot(snapshot);
-const vaults = await restored.getVaults();
-```
-
-Use `serializeJson` and `deserializeJson` through the store boundary. They preserve bigint, Buffer, and Uint8Array values. Do not hand-roll `JSON.stringify` for vault records because `Buffer.toJSON()` runs before a replacer and can silently corrupt P2TR data.
-
-## Security and custody model
-
-RIPCORD's security boundary is deliberately explicit:
-
-1. The mnemonic is used to derive user keys and sign locally.
-2. Public descriptors, node pubkeys, vault outputs, receipts, and VTXO metadata may be persisted.
-3. Private keys and mnemonics must never enter `MemoryStore`, `IndexedDbStore`, JSON snapshots, logs, or UI state intended for persistence.
-4. The vault's NUMS internal key makes the Taproot key path provably unusable; spending paths are the unilateral exit leaf and cooperative quorum leaf.
-5. The cooperative path depends on the configured threshold and exact node key set. Both are represented by the vault's quorum metadata and fingerprint.
-6. Recovery rebuilds vaults from the mnemonic, persisted/public parameters, and live daemon state. `csvBlocks` must be persisted per vault; otherwise discovery can silently search the wrong parameter and find nothing.
-
-This project is self-custodial in the sense that the user key and signing material remain under the user's control. That does not mean every protocol operation is unilateral: cooperative actions depend on the Tachi validator quorum, while unilateral exit is intended to provide the user-controlled recovery path.
-
-## Verified protocol facts
-
-The authoritative live-probed contract is [`docs/01-VERIFIED-API.md`](docs/01-VERIFIED-API.md). Some high-impact facts are repeated here for convenience:
-
-- Network: `tachi-regtest-1`, daemon v0.39.0 at the verified probe date
-- Quorum: 5-of-7 on the verified regtest daemon
-- Regtest daemon REST: `https://rpc-regtest.tachibtc.com`
-- Regtest WebSocket: `wss://rpc-regtest.tachibtc.com/tachi_ws`
-- Faucet: `https://faucet.tachibtc.com`, 0.5 BTC per address per rolling 24 hours
-- L1 funding txids from the daemon are internal byte order and must be reversed at display boundaries
-- Deposit receipts preserve actual amount, fee, change, vault address, and consumed input accounting from the SDK
-- Reserve verification is an exact on-chain output-script comparison, not an address-only check
-- Registration inputs are locally validated before SDK submission, including txid, VTXO id, owner, amount, and outpoint index
-- The full funded deposit, onboarding, and registration loop remains env-gated and is not claimed as complete
-- CometBFT failures can arrive inside HTTP 200 responses; inspect the embedded result code
-- Proof endpoints use real HTTP status codes such as 404, 400, and 502, unlike the CometBFT envelope paths
-- Every new API claim must be probed against the live daemon before being added to documentation or code
-
-## Development rules
-
-This repository intentionally has stricter rules than a typical application:
-
-- Live daemon is the source of truth.
-- No mocks or network simulations in `packages/` or `apps/`.
-- No fabricated txids, witness data, or truncated values presented as real fixtures.
-- New features require an end-to-end regtest path where possible.
-- Run all repository gates before committing:
-
-```bash
-npm run check:rules
-npm run typecheck
-npm run build
-cd packages/core && npm test
-```
-
-- If a path cannot be verified live, mark it as untested or blocked. Do not paper over it.
-
-## Documentation map
-
-- [`docs/01-VERIFIED-API.md`](docs/01-VERIFIED-API.md): live API behavior and corrections
-- [`docs/02-ARCHITECTURE.md`](docs/02-ARCHITECTURE.md): module contracts, layering, and data flow
-- [`docs/03-DESIGN-SYSTEM.md`](docs/03-DESIGN-SYSTEM.md): UI language, components, and proof presentation
-- [`docs/04-BUILD-PLAN.md`](docs/04-BUILD-PLAN.md): implementation phases and audit outcomes
-- [`docs/05-HANDOFF-PHASE7.md`](docs/05-HANDOFF-PHASE7.md): Phase 7 handoff and lessons
-- [`docs/06-HANDOFF-PHASE8.md`](docs/06-HANDOFF-PHASE8.md): Phase 8 proof handoff and verified traps
-- [`docs/07-HANDOFF-PHASE10.md`](docs/07-HANDOFF-PHASE10.md): Phase 10 PWA shell handoff and browser boundary notes
-- [`docs/08-HANDOFF-PHASE11.md`](docs/08-HANDOFF-PHASE11.md): Phase 11 component, accessibility, and bundle-boundary handoff
-- [`docs/09-HANDOFF-PHASE12.md`](docs/09-HANDOFF-PHASE12.md): Phase 12 onboarding and transaction-flow handoff
-- [`AGENTS.md`](AGENTS.md): mandatory engineering and verification rules
-
-## License and project maturity
-
-The repository is currently private and the root package is private. `@ripcord/core` is version `0.1.0` and is structured as a publishable package, but this project should be treated as experimental until the remaining phases and end-to-end verification are complete.
-
-Before relying on any behavior, check the live-probed API contract and the current test results. Protocol packages and daemon behavior can change; pinned dependencies are not a substitute for re-verification.
+`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custody` `non-custodial` `typescript` `react` `vite` `pwa` `regtest` `wallet` `bitcoin-wallet` `proof-of-reserves`
 
 ## License
 
-No license has been declared in the repository yet. Do not assume the project is licensed for redistribution until a license file and package metadata are added.
+MIT. See [LICENSE](LICENSE).
+
+RIPCORD is experimental software. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
 
 ---
 
-**RIPCORD is a verification-first wallet project: if the chain has not confirmed it, the README should not claim it.**
-
-## Compatibility note for the current README
-
-This README covers implemented Phases 1 through 12. Phase 9's mature L1 broadcast remains env-gated because it intentionally spends the vault. Phase 12's funded browser journey, test-pull evidence, live send/proof flow, activity transitions, vault rejection, mnemonic reload recovery, full registration/recovery lifecycle, and uninterrupted live suite have been exercised end to end.
+**RIPCORD is a verification-first wallet: if the chain has not confirmed it, the README should not claim it.**
