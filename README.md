@@ -1,7 +1,7 @@
 # RIPCORD
 
 [![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
-[![GitHub release](https://img.shields.io/github/v/release/Jayanng/ripcord?display_name=tag&sort=semver)](https://github.com/Jayanng/ripcord/releases)
+[![Release](https://img.shields.io/badge/release-v0.1.0-blue)](https://github.com/Jayanng/ripcord/releases/tag/v0.1.0)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
 [![Status](https://img.shields.io/badge/status-experimental-yellow)](https://github.com/Jayanng/ripcord)
