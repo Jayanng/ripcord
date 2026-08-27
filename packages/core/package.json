@@ -1,9 +1,25 @@
 {
   "name": "@ripcord/core",
   "version": "0.1.0",
+  "description": "Verified TypeScript core library for Tachi/Taurus regtest wallet mechanics.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jayanng/ripcord.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Jayanng/ripcord/issues"
+  },
+  "homepage": "https://github.com/Jayanng/ripcord/tree/main/packages/core#readme",
+  "keywords": ["bitcoin", "tachi", "taurus", "vtxo", "taproot", "self-custody"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
