@@ -47,18 +47,20 @@ The package exports the root API and focused subpaths for `types`, `store`, `hea
 - Unilateral-exit maturity depends on live Bitcoin confirmation state.
 - Protocol dependencies are pinned and should not be upgraded without re-probing the live daemon.
 
-## Development
+## Development & verification
 
 From the repository root:
 
 ```bash
+npm run check:rules
 npm run typecheck
 npm run build
-npm run check:rules
 npm test
 ```
 
-The repository tests use live regtest behavior and may take several minutes.
+### Test execution duration
+
+Unit tests, linting, typechecking, and architecture checks complete within seconds. The full end-to-end integration test (`test/e2e-full-flow.test.ts`) runs against the live public Tachi regtest network without mocks and takes **15 to 20 minutes**. This is expected behavior: the public Bitcoin regtest chain produces blocks on an approximate 10-minute cadence, and the test asserts real on-chain confirmations across the deposit and registration lifecycle.
 
 ## License
 

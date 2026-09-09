@@ -1,8 +1,17 @@
 {
   "name": "@ripcord/wallet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jayanng/ripcord.git",
+    "directory": "apps/wallet"
+  },
+  "homepage": "https://github.com/Jayanng/ripcord/tree/main/apps/wallet#readme",
+  "bugs": {
+    "url": "https://github.com/Jayanng/ripcord/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +20,7 @@
   },
   "dependencies": {
     "@radix-ui/colors": "^3.0.0",
-    "@ripcord/core": "0.1.0",
+    "@ripcord/core": "0.1.1",
     "@types/qrcode": "^1.5.6",
     "bip39": "^3.1.0",
     "qrcode": "^1.5.4",

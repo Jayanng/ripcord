@@ -70,29 +70,57 @@ export async function getLiveVtxos(ownerXOnly: string, daemonBaseUrl: string) {
 }
 
 async function findExistingVaultFunding(baseUrl: string, vault: VaultRecord) {
-  const response = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) });
-  if (!response.ok) throw new Error(`Bitcoin RPC HTTP ${response.status}`);
-  const payload = await response.json() as { result?: { unspents?: Array<{ txid: string; vout: number; scriptPubKey: string; amount: number }> }; error?: { message?: string } };
-  if (payload.error) throw new Error(payload.error.message ?? 'Vault UTXO scan failed');
-  const expectedScript = vault.p2tr ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase() : '';
-  const found = payload.result?.unspents?.find(item => item.scriptPubKey.toLowerCase() === expectedScript);
-  if (!found || !/^[0-9a-f]{64}$/i.test(found.txid)) return null;
-  return { txid: found.txid as import('./types.js').DisplayTxid, vout: found.vout, amountSats: BigInt(Math.round(found.amount * 1e8)), source: 'recovered' as const };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) });
+      if (!response.ok) {
+        if ([502, 503, 504, 429].includes(response.status) && attempt < 3) {
+          await new Promise(r => setTimeout(r, attempt * 1000));
+          continue;
+        }
+        throw new Error(`Bitcoin RPC HTTP ${response.status}`);
+      }
+      const payload = await response.json() as { result?: { unspents?: Array<{ txid: string; vout: number; scriptPubKey: string; amount: number }> }; error?: { message?: string } };
+      if (payload.error) throw new Error(payload.error.message ?? 'Vault UTXO scan failed');
+      const expectedScript = vault.p2tr ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase() : '';
+      const found = payload.result?.unspents?.find(item => item.scriptPubKey.toLowerCase() === expectedScript);
+      if (!found || !/^[0-9a-f]{64}$/i.test(found.txid)) return null;
+      return { txid: found.txid as import('./types.js').DisplayTxid, vout: found.vout, amountSats: BigInt(Math.round(found.amount * 1e8)), source: 'recovered' as const };
+    } catch (err) {
+      if (attempt < 3 && err instanceof Error && /502|503|504|fetch failed|UND_ERR/i.test(err.message)) {
+        await new Promise(r => setTimeout(r, attempt * 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return null;
 }
 
 async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs: number, onPoll?: (confirmations: number) => void): Promise<void> {
   for (;;) {
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [txid, true] }),
-    });
-    if (!response.ok) throw new Error(`Bitcoin RPC HTTP ${response.status}`);
-    const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } };
-    const confirmations = payload.result?.confirmations ?? 0;
-    onPoll?.(confirmations);
-    if (confirmations > 0) return;
-    if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
+    try {
+      const response = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [txid, true] }),
+      });
+      if (response.ok) {
+        const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } };
+        const confirmations = payload.result?.confirmations ?? 0;
+        onPoll?.(confirmations);
+        if (confirmations > 0) return;
+        if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
+      } else if (![502, 503, 504, 429].includes(response.status)) {
+        throw new Error(`Bitcoin RPC HTTP ${response.status}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && /Bitcoin RPC HTTP (502|503|504|429)|fetch failed|network|timeout|UND_ERR/i.test(error.message)) {
+        // Transient network or reverse-proxy hiccup; wait and retry on the next cycle
+      } else {
+        throw error;
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, pollMs));
   }
 }

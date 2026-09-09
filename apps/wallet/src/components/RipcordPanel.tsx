@@ -21,10 +21,35 @@ export function RipcordPanel() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [vault?.address, vault?.funding?.txid, vault?.funding?.vout]);
   const run = async () => { if (!vault || !identity) return; setBusy(true); setError(''); try { await assess(vault); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
+  const confirmations = readiness?.confirmations ?? 0;
+  const csvBlocks = vault?.csvBlocks ?? 1;
+  const progressPercent = vault ? Math.min(100, Math.round((confirmations / csvBlocks) * 100)) : 0;
+  const statusBadge = status === 'live' ? 'LIVE · READY TO PULL' : status === 'maturing' ? 'MATURING · LOCKED' : status.toUpperCase();
+
   return <section id="ripcord" className="ripcord-panel" aria-labelledby="ripcord-title">
-    <div className="ripcord-kicker"><span className="cord" /><div><p className="eyebrow">User-signature exit path</p><h2 id="ripcord-title">Ripcord</h2></div><span className={`exit-status ${status}`}>{status.toUpperCase()}</span></div>
+    <div className="ripcord-kicker"><span className="cord" /><div><p className="eyebrow">User-signature exit path</p><h2 id="ripcord-title">Ripcord</h2></div><span className={`exit-status ${status}`}>{statusBadge}</span></div>
     <p className="ripcord-copy">{status === 'live' ? 'The funding output is mature. Your signature can move it to Bitcoin L1.' : status === 'maturing' ? `The exit needs ${readiness?.confirmationsRemaining ?? vault?.csvBlocks ?? 0} more confirmations. Regtest advances with network activity, not time.` : status === 'spent' ? 'The recorded funding output has already been spent.' : 'Create and fund a vault before testing the unilateral exit path.'}</p>
-    <dl className="ripcord-facts"><div><dt>Vault</dt><dd>{vault ? truncate(vault.address, 12, 8) : 'No vault loaded'}</dd></div><div><dt>Timelock</dt><dd>{vault ? `${readiness?.confirmations ?? 0} of ${vault.csvBlocks} confirmations` : 'Unavailable'}</dd></div><div><dt>Route</dt><dd>exit leaf · user CHECKSIG</dd></div><div><dt>Reserve</dt><dd>{vault ? <ProofOfReservesBadge vault={vault} /> : 'Unavailable'}</dd></div></dl>
+    <dl className="ripcord-facts">
+      <div><dt>Vault</dt><dd>{vault ? truncate(vault.address, 12, 8) : 'No vault loaded'}</dd></div>
+      <div>
+        <dt>Timelock</dt>
+        <dd>
+          {vault ? (
+            <div className="timelock-progress-wrap">
+              <div className="timelock-label">
+                <span>{confirmations} of {csvBlocks} confirmations</span>
+                <span className={`timelock-pct ${status === 'live' ? 'live' : ''}`}>{progressPercent}%</span>
+              </div>
+              <div className="timelock-bar" role="progressbar" aria-valuenow={confirmations} aria-valuemin={0} aria-valuemax={csvBlocks}>
+                <div className={`timelock-fill ${status === 'live' ? 'live' : ''}`} style={{ width: `${progressPercent}%` }} />
+              </div>
+            </div>
+          ) : 'Unavailable'}
+        </dd>
+      </div>
+      <div><dt>Route</dt><dd>exit leaf · user CHECKSIG</dd></div>
+      <div><dt>Reserve</dt><dd>{vault ? <ProofOfReservesBadge vault={vault} /> : 'Unavailable'}</dd></div>
+    </dl>
     {readiness?.dryRun && <div className="dry-run"><strong>Test-pull verified</strong><dl><div><dt>txid</dt><dd>{truncate(readiness.dryRun.txid, 12, 10)}</dd></div><div><dt>Destination</dt><dd title={readiness.dryRun.destination}>{truncate(readiness.dryRun.destination, 14, 10)}</dd></div><div><dt>vsize</dt><dd>{readiness.dryRun.vsize} vB</dd></div><div><dt>nSequence</dt><dd>{readiness.dryRun.sequence}</dd></div></dl><p>Nothing was broadcast. No sats moved.</p></div>}
     {error && <p className="inline-error" role="alert">{error}</p>}
     {broadcastTxid && <p className="flow-note" role="status">Exit broadcast: <code>{broadcastTxid}</code>. Confirm it on the regtest explorer before treating funds as settled.</p>}

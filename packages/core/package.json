@@ -1,6 +1,6 @@
 {
   "name": "@ripcord/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Verified TypeScript core library for Tachi/Taurus regtest wallet mechanics.",
   "license": "MIT",
   "repository": {

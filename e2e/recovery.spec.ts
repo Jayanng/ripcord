@@ -13,10 +13,20 @@ test.describe('live browser wipe recovery', () => {
     await context.clearCookies();
     await page.evaluate(async () => { localStorage.clear(); for (const name of await indexedDB.databases()) if (name.name) indexedDB.deleteDatabase(name.name); });
     await page.reload();
+    const recoverTab = page.getByRole('tab', { name: 'Recover wallet' });
+    if (await recoverTab.isVisible()) {
+      await recoverTab.click();
+    }
     const recovery = page.locator('.recovery-screen');
     await recovery.getByLabel('12-word BIP-39 mnemonic').fill(mnemonic!);
-    await recovery.getByLabel('Vault key index').fill(keyIndex);
-    await recovery.getByLabel('CSV confirmations').fill(csv);
+    const indexField = recovery.getByLabel('Vault key index');
+    if (await indexField.isVisible().catch(() => false)) {
+      await indexField.fill(keyIndex);
+    }
+    const csvField = recovery.getByLabel('CSV confirmations');
+    if (await csvField.isVisible().catch(() => false)) {
+      await csvField.fill(csv);
+    }
     await recovery.getByRole('button', { name: 'Start live recovery' }).click();
     await expect(page.getByText('Vault ready')).toBeVisible({ timeout: 180_000 });
     await expect(page.getByText(/Indexer connected/)).toBeVisible({ timeout: 30_000 });

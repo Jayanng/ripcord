@@ -26,7 +26,7 @@ import {
 import { selectCoins, type SpendableVtxo } from './coinselect.js';
 import { RipcordError, RipcordCode, mapDaemonError } from './errors.js';
 import { userAddressForXOnly } from './keys.js';
-import { isUserAddress } from './types.js';
+import { isUserAddress, toSdkVault, type VaultRecord } from './types.js';
 import type { TxQueue } from './queue.js';
 
 export interface TransferParams {
@@ -211,4 +211,35 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     if (err instanceof RipcordError) throw err;
     throw mapDaemonError(err);
   }
+}
+
+export interface CreateVtxoPaymentParams {
+  readonly vault: Vault | VaultRecord;
+  readonly senderXOnly: string;
+  readonly recipientAddress: string;
+  readonly amountSats: bigint;
+  readonly feeSats?: bigint;
+  readonly baseUrl: string;
+  readonly signer: TaprootSigner;
+  readonly network?: 'regtest';
+}
+
+/**
+ * Convenient wrapper around sendTransfer accepting either an SDK Vault or a core VaultRecord.
+ */
+export async function createVtxoPayment(params: CreateVtxoPaymentParams): Promise<TransferResult> {
+  const sdkVault: Vault = 'userKeyDescriptor' in params.vault && typeof (params.vault as VaultRecord).userKeyDescriptor === 'object'
+    ? toSdkVault(params.vault as VaultRecord)
+    : (params.vault as Vault);
+
+  return sendTransfer({
+    vault: sdkVault,
+    senderXOnly: params.senderXOnly,
+    recipientAddress: params.recipientAddress,
+    network: params.network ?? 'regtest',
+    amountSats: params.amountSats,
+    feeSats: params.feeSats ?? 1n,
+    baseUrl: params.baseUrl,
+    userSigner: params.signer,
+  });
 }

@@ -1,25 +1,52 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet } from './context/WalletContext';
 import { Layout } from './components/Layout';
 import type { AppTab } from './components/TabBar';
-import { BalanceHero } from './components/BalanceHero';
-import { RipcordPanel } from './components/RipcordPanel';
-import { WhatYouDontManage } from './components/WhatYouDontManage';
-import { ActivityFeed } from './components/ActivityFeed';
-import { OnboardingScreen } from './screens/OnboardingScreen';
-import { SendScreen } from './screens/SendScreen';
-import { ReceiveScreen } from './screens/ReceiveScreen';
-import { RecoveryScreen } from './screens/RecoveryScreen';
+import { SetupGate } from './screens/SetupGate';
+import { WalletScreen } from './screens/WalletScreen';
+import { ExitScreen } from './screens/ExitScreen';
+import { ProofsScreen } from './screens/ProofsScreen';
+import { ActivityScreen } from './screens/ActivityScreen';
+import { DocsScreen } from './screens/DocsScreen';
 
 export function App() {
   const wallet = useWallet();
-  const { bootState, health, refresh, indexerStatus } = wallet;
-  const [tab, setTab] = useState<AppTab>('balance');
-  const statusLabel = bootState === 'ready' ? 'All probes answered' : bootState === 'checking' ? 'Checking live daemon' : bootState === 'unreachable' ? 'Daemon unreachable' : 'Daemon degraded';
-  return <Layout tab={tab} onTabChange={setTab}>
-    <section className="hero" aria-labelledby="wallet-title"><div><p className="eyebrow">Sovereign wallet · live regtest</p><h1 id="wallet-title">Proof before promise.</h1><p className="lede">Every custody claim names its source. Every missing proof stays visibly missing.</p></div><button className="refresh" onClick={() => void refresh()} disabled={bootState === 'checking'}>{bootState === 'checking' ? 'Checking…' : 'Run preflight'}</button></section>
-    <section className={`truth-rail ${bootState}`} aria-live="polite"><div className="truth-heading"><span className="status-dot" /><div><span>CHAIN TRUTH</span><strong>{statusLabel}</strong></div></div><dl><div><dt>Chain</dt><dd>{health?.chainId || 'Not verified'}</dd></div><div><dt>Quorum</dt><dd>{health?.quorumSize ? `${health.quorumThreshold} of ${health.quorumSize}` : 'Not verified'}</dd></div><div><dt>L1 height</dt><dd>{health?.l1Height ?? 'Unavailable'}</dd></div><div><dt>Indexer</dt><dd>{indexerStatus.state}</dd></div></dl></section>
-    {health && health.probeFailures.length > 0 && <section className="failures" aria-labelledby="probe-title"><div><p className="eyebrow">Preflight detail</p><h2 id="probe-title">Some claims could not be verified</h2></div><ul>{health.probeFailures.map(failure => <li key={failure.probe}><strong>{failure.probe}</strong><span>{failure.message}</span></li>)}</ul></section>}
-    {tab === 'send' ? <SendScreen /> : tab === 'receive' ? <ReceiveScreen /> : tab === 'activity' ? <ActivityFeed /> : tab === 'ripcord' ? <RipcordPanel /> : <div className="phase11-grid"><div className="primary-stack"><BalanceHero />{!wallet.identity && <RecoveryScreen />}<OnboardingScreen /><RipcordPanel /></div><div className="secondary-stack"><ActivityFeed /><WhatYouDontManage /></div></div>}
+  const [tab, setTab] = useState<AppTab>('wallet');
+
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase().replace('#/', '').replace('#', '');
+      if (hash === 'docs') setTab('docs');
+      else if (hash === 'activity') setTab('activity');
+      else if (hash === 'proofs') setTab('proofs');
+      else if (hash === 'exit') setTab('exit');
+      else if (hash === 'wallet' || hash === 'create' || hash === 'recover') setTab('wallet');
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const handleTabChange = (nextTab: AppTab) => {
+    setTab(nextTab);
+    window.location.hash = `#/${nextTab}`;
+  };
+
+  const showSetup = !wallet.identity;
+
+  return <Layout tab={tab} onTabChange={handleTabChange}>
+    {tab === 'docs' ? (
+      <DocsScreen />
+    ) : tab === 'activity' ? (
+      <ActivityScreen />
+    ) : tab === 'proofs' ? (
+      <ProofsScreen />
+    ) : tab === 'exit' ? (
+      <ExitScreen />
+    ) : showSetup ? (
+      <SetupGate />
+    ) : (
+      <WalletScreen onExit={() => handleTabChange('exit')} />
+    )}
   </Layout>;
 }

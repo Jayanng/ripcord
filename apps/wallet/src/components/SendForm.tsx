@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
+import { useBalance } from '../hooks/useBalance';
+import { formatSats } from './ui';
 
 type Field = 'recipient' | 'amount' | 'form';
 
 export function SendForm() {
   const wallet = useWallet();
+  const balance = useBalance();
   const recipientRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const [recipient, setRecipient] = useState('');
@@ -36,10 +39,24 @@ export function SendForm() {
     } catch (cause) { fail('form', cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
+  const setMaxAmount = () => {
+    const maxSpendable = balance.offChainSats > 1n ? balance.offChainSats - 1n : balance.offChainSats;
+    if (maxSpendable > 0n) setAmount(maxSpendable.toString());
+  };
+
   return <form className="send-form" aria-busy={busy} onSubmit={event => { event.preventDefault(); void submit(); }}>
-    <label htmlFor="send-recipient">Recipient address</label><input ref={recipientRef} id="send-recipient" name="recipient" autoComplete="off" value={recipient} onChange={event => setRecipient(event.target.value.trim())} placeholder="bcrt1p…" required aria-invalid={error?.field === 'recipient'} aria-describedby={error?.field === 'recipient' ? 'send-recipient-error' : undefined} />
+    <label htmlFor="send-recipient">Recipient address</label>
+    <input ref={recipientRef} id="send-recipient" name="recipient" autoComplete="off" value={recipient} onChange={event => setRecipient(event.target.value.trim())} placeholder="bcrt1p…" required aria-invalid={error?.field === 'recipient'} aria-describedby={error?.field === 'recipient' ? 'send-recipient-error' : undefined} />
+    <small className="form-help">Enter a regtest SegWit or Taproot user receive address.</small>
     {error?.field === 'recipient' && <p id="send-recipient-error" className="inline-error" role="alert">{error.message}</p>}
-    <label htmlFor="send-amount">Amount in sats</label><input ref={amountRef} id="send-amount" name="amount" type="number" min="1" step="1" inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value)} required aria-invalid={error?.field === 'amount'} aria-describedby={error?.field === 'amount' ? 'send-amount-error' : undefined} />
+    <div className="amount-label-row">
+      <label htmlFor="send-amount">Amount in sats</label>
+      <div className="amount-spendable-hint">
+        <span>Available: <strong>{formatSats(balance.offChainSats)}</strong></span>
+        {balance.offChainSats > 1n && <button type="button" className="max-btn" onClick={setMaxAmount}>MAX</button>}
+      </div>
+    </div>
+    <input ref={amountRef} id="send-amount" name="amount" type="number" min="1" step="1" inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value)} required aria-invalid={error?.field === 'amount'} aria-describedby={error?.field === 'amount' ? 'send-amount-error' : undefined} />
     {error?.field === 'amount' && <p id="send-amount-error" className="inline-error" role="alert">{error.message}</p>}
     <div className="send-summary"><span>Network fee</span><strong>1 sat</strong><span>Change</span><strong>own user key</strong></div><button className="test-pull" disabled={busy}>{busy ? 'Sending…' : 'Review and send'}</button>
     {error?.field === 'form' && <p className="inline-error" role="alert">{error.message}</p>}{result && <p className="flow-note" role="status">{result}</p>}

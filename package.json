@@ -2,11 +2,20 @@
   "name": "ripcord",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jayanng/ripcord.git"
+  },
+  "homepage": "https://github.com/Jayanng/ripcord#readme",
+  "bugs": {
+    "url": "https://github.com/Jayanng/ripcord/issues"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev --workspace=apps/wallet",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

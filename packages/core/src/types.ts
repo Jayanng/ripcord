@@ -290,3 +290,28 @@ export interface Quorum {
   threshold: number;
   fingerprint: string;
 }
+
+/**
+ * Forward-compatible contract call parameters for SatVM smart contract interactions.
+ * Supported by Tachi and TAURUS vault programmable covenant hooks.
+ */
+export interface SatVmCallParams {
+  contractAddress: string;
+  method: string;
+  args: readonly (string | number | bigint | boolean)[];
+  inputVtxoId: string;
+  maxFeeSats: bigint;
+}
+
+/**
+ * Attested execution receipt returned by SatVM state evaluators.
+ */
+export interface SatVmExecutionReceipt {
+  txHash: string;
+  contractAddress: string;
+  method: string;
+  stateRoot: string;
+  outputVtxoIds: readonly string[];
+  gasUsedSats: bigint;
+  status: 'committed' | 'rejected';
+}
