@@ -12,18 +12,7 @@ import {
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
 
-/**
- * Live-committed transfers from the 2026-08-23 Phase 8 probe, re-fetched live.
- * Proof bytes are read from the daemon, not invented here.
- */
-const HIST_A = {
-  hash: 'FB650479B490DA680776E4F1EBA4B5700FCAD1F1DE68D180634FF35DF1E31095',
-  epoch: 437326,
-};
-const HIST_B = {
-  hash: 'F5BD7D7FB0F4BDA75C6C2D46117F0EAB8D5B07403B53392520A121C9E1D4E749',
-  epoch: 437193,
-};
+import { getLiveProofFixtures, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -33,6 +22,8 @@ const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
 const UNKNOWN_HASH = 'ff'.repeat(32);
 
 describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeout: 300000 }, () => {
+  let HIST_A: ProofFixture;
+  let HIST_B: ProofFixture;
   let hatA: HatProof;
   let ripA0: RipProof;
   let currentEpoch: number;
@@ -41,6 +32,10 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     const statsRes = await fetch(`${DAEMON}/tachi_stats`);
     const stats = (await statsRes.json()) as { current_epoch: number };
     currentEpoch = stats.current_epoch;
+
+    const fixtures = await getLiveProofFixtures(2, 50, DAEMON);
+    HIST_A = fixtures[0];
+    HIST_B = fixtures[1];
 
     hatA = await fetchHat(HIST_A.hash, { baseUrl: DAEMON });
     ripA0 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });

@@ -89,7 +89,10 @@ async function waitForTxConfirmation(
   throw new Error(`Transaction ${txid} did not confirm within timeout`);
 }
 
-describe('end-to-end full flow: deposit → onboard → register → recover', { timeout: FULL_LIFECYCLE_TIMEOUT_MS }, () => {
+describe.skipIf(!process.env.RIPCORD_LIVE)(
+  'end-to-end full flow: deposit → onboard → register → recover',
+  { timeout: FULL_LIFECYCLE_TIMEOUT_MS },
+  () => {
   let mnemonic: string;
   let identity: Awaited<ReturnType<typeof deriveIdentity>>;
   let quorum: Awaited<ReturnType<typeof getQuorum>>;
