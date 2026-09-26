@@ -92,6 +92,9 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       expect(result!.feeSats).toBeGreaterThan(0n);
       expect(result!.changeSats).toBeGreaterThanOrEqual(0n);
       expect(result!.vaultAddress).toBe(vault.address);
+      expect(typeof result!.vout).toBe('number');
+      expect(result!.vout).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(result!.vout)).toBe(true);
       expect(result!.inputs.length).toBeGreaterThan(0);
       expect(result!.inputs.every(input => input.txid.length === 64 && input.vout >= 0)).toBe(true);
 
@@ -99,6 +102,12 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       // P2TR output script, the only check that binds the rebuild to money.
       const p2tr = vault.p2tr!;
       const expectedOutputScriptHex = Buffer.from(p2tr.output).toString('hex');
+      const bitcoin = await import('bitcoinjs-lib');
+      const decodedDepositTx = bitcoin.Transaction.fromHex(result!.rawTxHex);
+      expect(Buffer.from(decodedDepositTx.outs[result!.vout].script).toString('hex').toLowerCase()).toBe(expectedOutputScriptHex.toLowerCase());
+      if (result!.changeSats > 0n) {
+        expect(decodedDepositTx.outs.length).toBeGreaterThan(1);
+      }
 
       // The transaction may not be immediately available via getrawtransaction.
       // Retry with a short backoff.

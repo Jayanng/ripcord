@@ -171,3 +171,16 @@ export function userAddressForXOnly(xOnly: string, network: 'regtest'): UserAddr
   }
   return asUserAddress(address);
 }
+
+/**
+ * Extract and validate the 32-byte x-only public key from a SegWit v1 / P2TR address.
+ * Re-exports the SDK's validated helper, accepting a network name or bitcoinjs Network.
+ */
+export function xOnlyFromAddress(
+  address: string,
+  network: btc.Network | string = 'regtest',
+  label?: string
+): Buffer {
+  const net = typeof network === 'string' ? vc.resolveBitcoinNetwork(network as any) : network;
+  return vc.xOnlyFromAddress(address, net, label);
+}

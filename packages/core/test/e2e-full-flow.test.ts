@@ -174,7 +174,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
     const registerResult = await registerVault({
       vault,
       fundingTxid: depositResult.txid,
-      fundingVout: 0,
+      fundingVout: depositResult.vout,
       userSigner,
       vtxoId,
       owner: xOnlyBuf,

@@ -30,9 +30,8 @@ export function SendForm() {
       if (wallet.vaults.some(item => String(item.address) === String(recipient))) return fail('recipient', 'This is a known vault address. Use the recipient wallet’s user receive address.');
       const committed = await sendTransfer({ vault: toSdkVault(vault), senderXOnly: wallet.identity.xOnly, recipientAddress: recipient, network: 'regtest', amountSats: BigInt(sats), feeSats: 1n, baseUrl: wallet.daemonUrl, userSigner: makeSigner(wallet.identity.mnemonic, 'regtest', vault.userKeyIndex) });
       setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Fetching proof…`);
-      const { buildPaymentReceipt } = await import('@ripcord/core');
-      const { address: decodeAddress } = await import('bitcoinjs-lib');
-      const recipientXOnly = Buffer.from(decodeAddress.fromBech32(recipient).data).toString('hex');
+      const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
+      const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex');
       const receipt = await buildPaymentReceipt({ txHash: committed.txHash, epoch: committed.epoch, code: committed.code, fromXOnly: wallet.identity.xOnly, toXOnly: recipientXOnly, amountSats: BigInt(sats), feeSats: 1n, baseUrl: wallet.daemonUrl, window: 0 });
       await wallet.saveReceipt(receipt);
       setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);

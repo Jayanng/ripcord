@@ -9,6 +9,7 @@ import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 import type { Utxo } from '@tachibtc/taurus-wallet-aggregator';
+import { Transaction } from 'bitcoinjs-lib';
 
 export interface DepositToVaultParams {
   vault: VaultRecord;
@@ -21,6 +22,7 @@ export interface DepositToVaultParams {
 
 export interface DepositResult {
   txid: DisplayTxid;
+  vout: number;
   rawTxHex: string;
   vaultAddress: string;
   amountSats: bigint;
@@ -90,11 +92,25 @@ export async function depositToVault(
     );
   }
 
+  const decodedTx = Transaction.fromHex(dep.rawTxHex);
+  const expectedScriptHex = Buffer.from(vault.p2tr.output).toString('hex').toLowerCase();
+  const vout = decodedTx.outs.findIndex(
+    output => Buffer.from(output.script).toString('hex').toLowerCase() === expectedScriptHex
+  );
+  if (vout < 0) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      'Deposit transaction does not contain the expected vault output',
+      { hint: 'Deposit rawTxHex did not contain the expected vault P2TR output' }
+    );
+  }
+
   // The SDK returns these values explicitly. Dropping amount/change/inputs here
   // made the public Phase 4 result falsely claim that fee accounting was
   // unavailable, and forced later callers to reparse raw transaction bytes.
   return {
     txid: asDisplayTxid(dep.txid),
+    vout,
     rawTxHex: dep.rawTxHex,
     feeSats: dep.feeSats,
     amountSats: dep.amountSats,

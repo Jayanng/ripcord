@@ -135,12 +135,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       params.onProgress?.('depositing');
       const broadcast = await depositFromMnemonic({ vault: params.vault, mnemonic: params.mnemonic, rpc: { baseUrl: params.bitcoinRpcBaseUrl }, amountSats: params.amountSats, feeRateSatVb: params.feeRateSatVb });
       params.onDepositBroadcast?.(broadcast);
-      const expectedScript = params.vault.p2tr ? Buffer.from(params.vault.p2tr.output).toString('hex').toLowerCase() : '';
-      const bitcoin = await import('bitcoinjs-lib');
-      const decoded = bitcoin.Transaction.fromHex(broadcast.rawTxHex);
-      const fundingVout = decoded.outs.findIndex(output => Buffer.from(output.script).toString('hex').toLowerCase() === expectedScript);
-      if (fundingVout < 0) throw new Error('Broadcast deposit transaction does not contain the expected vault output');
-      deposit = { txid: broadcast.txid, vout: fundingVout, amountSats: broadcast.amountSats, source: 'broadcast' as const };
+      deposit = { txid: broadcast.txid, vout: broadcast.vout, amountSats: broadcast.amountSats, source: 'broadcast' as const };
       params.onProgress?.('confirming-deposit');
       await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
     }

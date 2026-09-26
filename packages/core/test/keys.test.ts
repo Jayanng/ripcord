@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveIdentity, makeSigner, userAddressForXOnly } from '../src/keys.js';
+import { deriveIdentity, makeSigner, userAddressForXOnly, xOnlyFromAddress } from '../src/keys.js';
 import { asXOnlyHex } from '../src/types.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 
@@ -240,6 +240,35 @@ describe('keys.ts', () => {
         const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
         expect(userAddressForXOnly(identity.xOnly, 'regtest')).toBe(identity.userAddress);
       });
+    });
+  });
+
+  describe('xOnlyFromAddress', () => {
+    it('extracts validated 32-byte x-only public key from a P2TR address', () => {
+      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      const buf = xOnlyFromAddress(identity.userAddress, 'regtest');
+      expect(buf).toBeInstanceOf(Buffer);
+      expect(buf.length).toBe(32);
+      expect(buf.toString('hex')).toBe(identity.xOnly);
+    });
+
+    it('defaults network to regtest when omitted', () => {
+      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      const buf = xOnlyFromAddress(identity.userAddress);
+      expect(buf.toString('hex')).toBe(identity.xOnly);
+    });
+
+    it('rejects a P2WPKH address with a clear P2TR requirement error', () => {
+      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      expect(() => xOnlyFromAddress(identity.l1Address, 'regtest')).toThrow(
+        /not a P2TR address/
+      );
+    });
+
+    it('rejects an invalid address format', () => {
+      expect(() => xOnlyFromAddress('not-an-address', 'regtest')).toThrow(
+        /does not decode on this network/
+      );
     });
   });
 });
