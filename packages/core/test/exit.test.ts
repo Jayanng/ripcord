@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
+import { syncWalletWithScan } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -55,7 +56,9 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
-    await userWallet.sync();
+    // See deposit.test.ts: change goes to the vault user's L1 address by
+    // design, outside this wallet's scan. Keep the fixture faucet-topped-up.
+    await syncWalletWithScan(userWallet, `${DAEMON}/`);
   }, 60000);
 
   it('returns unfunded when the vault has no L1 funding outpoint', async () => {
@@ -116,7 +119,7 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
       } catch (err) {
         const msg = String((err as Error).message ?? err);
         if (/insufficient fee|rejecting replacement/.test(msg)) {
-          await userWallet.sync();
+          await syncWalletWithScan(userWallet, `${DAEMON}/`);
           continue;
         }
         throw err;

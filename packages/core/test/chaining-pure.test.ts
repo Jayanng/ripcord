@@ -7,6 +7,10 @@ import {
   addressToScriptPubKeyHex,
   computeFundingSteps,
   evaluateFundingStep,
+  composeFlowErrorMessage,
+  isDaemonSlowError,
+  DAEMON_SLOW_NOTE,
+  recoverVaultLifecycleState,
   RipcordError,
   RipcordCode,
   type ExplicitSpendableInput,
@@ -272,15 +276,120 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
       expect(decision.stage).toBe('depositing');
     });
 
-    it('emits complete action and suppresses registration when vault is already registered', () => {
-      const decision = evaluateFundingStep({
-        vault: {
-          vaultIdHex: '0d4e138c9432409e97d3c7f6309bf80cdbeb739e6ee1ba93c47d6044bf477722',
-          registered: true,
-        },
+    it('advances through step machine when registration state is unknown', () => {
+      // Step 1: No deposit yet -> deposit
+      const step1 = evaluateFundingStep({
+        vault,
+        registrationState: 'unknown',
       });
-      expect(decision.action).toBe('complete');
-      expect(decision.shouldRegister).toBe(false);
+      expect(step1.action).toBe('deposit');
+      expect(step1.stage).toBe('depositing');
+
+      // Step 2: Deposit broadcast, unconfirmed -> confirm-deposit
+      const step2 = evaluateFundingStep({
+        vault,
+        deposit: { txid: REAL_CAPTURED_TXID, vout: 0 },
+        hasConfirmedDeposit: false,
+        registrationState: 'unknown',
+      });
+      expect(step2.action).toBe('confirm-deposit');
+      expect(step2.stage).toBe('confirming-deposit');
+
+      // Step 3: Deposit confirmed, no VTXO -> mint
+      const step3 = evaluateFundingStep({
+        vault,
+        deposit: { txid: REAL_CAPTURED_TXID, vout: 0 },
+        hasConfirmedDeposit: true,
+        hasVtxo: false,
+        registrationState: 'unknown',
+      });
+      expect(step3.action).toBe('mint');
+      expect(step3.stage).toBe('minting');
+
+      // Step 4: Deposit confirmed, VTXO minted -> register
+      const step4 = evaluateFundingStep({
+        vault,
+        deposit: { txid: REAL_CAPTURED_TXID, vout: 0 },
+        hasConfirmedDeposit: true,
+        hasVtxo: true,
+        registrationState: 'unknown',
+      });
+      expect(step4.action).toBe('register');
+      expect(step4.shouldRegister).toBe(true);
+      expect(step4.stage).toBe('registering');
+
+      // Step 5: Later registered -> complete
+      const step5 = evaluateFundingStep({
+        vault,
+        deposit: { txid: REAL_CAPTURED_TXID, vout: 0 },
+        hasConfirmedDeposit: true,
+        hasVtxo: true,
+        registrationState: 'registered',
+      });
+      expect(step5.action).toBe('complete');
+      expect(step5.shouldRegister).toBe(false);
+    });
+  });
+
+  describe('recoverVaultLifecycleState soft-fail behavior', () => {
+    it('returns local vault unchanged when daemon listVaults query fails', async () => {
+      // Test double for NETWORK TIMING/FAILURE only: simulates daemon lookup failure
+      // while Bitcoin RPC finds a confirmed deposit.
+      const timingFailFetch: typeof fetch = async (input, init) => {
+        const url = String(input);
+        if (url.includes('tachi_listVaults')) {
+          throw new DOMException('listVaults: query timed out after 50ms', 'AbortError');
+        }
+        // Simulated Bitcoin RPC scantxoutset response
+        return new Response(JSON.stringify({
+          result: {
+            unspents: [{
+              txid: REAL_CAPTURED_TXID,
+              vout: 0,
+              scriptPubKey: vault.p2tr ? Buffer.from(vault.p2tr.output).toString('hex') : '',
+              amount: 0.0004,
+            }],
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      };
+
+      const recovered = await recoverVaultLifecycleState({
+        vault,
+        bitcoinRpcBaseUrl: 'http://127.0.0.1:18443',
+        daemonBaseUrl: 'http://127.0.0.1:26657',
+        fetchImpl: timingFailFetch,
+        timeoutMs: 50,
+      });
+
+      // Does NOT throw; returns local vault unchanged (Rule: soft-fail in status/recovery contexts)
+      expect(recovered).toEqual(vault);
+      expect(recovered.registered).toBe(false);
+    }, 20_000);
+  });
+
+  describe('composeFlowErrorMessage friendly error surfacing', () => {
+    it('composes friendly note for the exact live production timeout failure', () => {
+      const liveProdError = new Error(
+        'Unknown error: listVaults: query to https://ripcord-wallet.vercel.app/tachi_listVaults?user=03f65e00000000000000000000000000000000000000000000000000000000025d&page_size=100 timed out after 10000ms: the daemon did not answer in time; it may be slow or down'
+      );
+      const friendly = composeFlowErrorMessage(liveProdError);
+      expect(friendly).toBe(DAEMON_SLOW_NOTE);
+      expect(friendly).not.toContain('Unknown error');
+      expect(isDaemonSlowError(liveProdError)).toBe(true);
+    });
+
+    it('composes friendly note for timeouts, aborts, deadline exceeded, and 502s', () => {
+      expect(composeFlowErrorMessage(new DOMException('The operation was aborted', 'AbortError'))).toBe(DAEMON_SLOW_NOTE);
+      expect(composeFlowErrorMessage(new Error('context deadline exceeded'))).toBe(DAEMON_SLOW_NOTE);
+      expect(composeFlowErrorMessage(new Error('HTTP 502 Bad Gateway from https://rpc-regtest.tachibtc.com'))).toBe(DAEMON_SLOW_NOTE);
+      expect(composeFlowErrorMessage(new Error('the daemon did not answer in time; it may be slow or down'))).toBe(DAEMON_SLOW_NOTE);
+    });
+
+    it('does not mask non-slow errors and strips any Unknown error: prefix', () => {
+      const nonSlow = new Error('Unknown error: Invalid mnemonic word count');
+      const formatted = composeFlowErrorMessage(nonSlow);
+      expect(formatted).toBe('Invalid mnemonic word count');
+      expect(isDaemonSlowError(nonSlow)).toBe(false);
     });
   });
 });

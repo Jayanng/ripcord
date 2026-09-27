@@ -13,6 +13,7 @@ import {
   toSdkVault,
 } from '../src/index.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
+import { withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -26,7 +27,7 @@ describe('register.ts', { timeout: 60000 }, () => {
 
   beforeAll(async () => {
     aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-    quorum = await getQuorum(DAEMON_URL);
+    quorum = await withTransportRetry(() => getQuorum(DAEMON_URL));
     vault = await createVault({
       network: 'regtest',
       nodePubkeys: quorum.nodePubkeys,
@@ -129,7 +130,7 @@ describe('register.ts', { timeout: 60000 }, () => {
     }
   );
 
-  describe('Live adoption on code=17 (live regtest daemon)', { timeout: 60000 }, () => {
+  describe('Live adoption on code=17 (live regtest daemon)', { timeout: 180000 }, () => {
     // Provenance: this fixture outpoint belongs to Alice (02e7ab25...) and is already
     // registered on the live regtest daemon (GET /tachi_listVaults?user=e7ab2537b5...)
     const INTERNAL_FUNDING_TXID = '8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a';
@@ -139,7 +140,7 @@ describe('register.ts', { timeout: 60000 }, () => {
 
     it('re-registers existing vault: proves code=17 from daemon, adopts vaultId, and verifies H(funding_txid || vout)', async () => {
       // 1. Find an unspent VTXO owned by Alice to construct the live registration transaction
-      const vtxoRes = await vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL });
+      const vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));
       const unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
       expect(unspentVtxo).toBeDefined();
       const vtxo = unspentVtxo!;
@@ -147,20 +148,22 @@ describe('register.ts', { timeout: 60000 }, () => {
       // 2. (i) Prove the daemon really returns code=17 by broadcasting the duplicate directly
       let rawDaemonError: any;
       try {
-        await vc.registerVault({
-          vault: toSdkVault(vault),
-          outpoint: {
-            fundingTxid: Buffer.from(INTERNAL_FUNDING_TXID, 'hex'),
-            fundingVout: FUNDING_VOUT,
-          },
-          userSigner,
-          inputs: [{ vtxoId: Buffer.from(vtxo.id, 'hex') }],
-          outputs: [{ owner: Buffer.from(aliceIdentity.xOnly, 'hex'), amount: vtxo.amountSats - 1n }],
-          feeSats: 1n,
-          account: { baseUrl: DAEMON_URL },
-          broadcast: { url: DAEMON_URL + '/tachi_txBroadcastSync' },
-          confirm: { baseUrl: DAEMON_URL },
-        });
+        await withTransportRetry(() =>
+          vc.registerVault({
+            vault: toSdkVault(vault),
+            outpoint: {
+              fundingTxid: Buffer.from(INTERNAL_FUNDING_TXID, 'hex'),
+              fundingVout: FUNDING_VOUT,
+            },
+            userSigner,
+            inputs: [{ vtxoId: Buffer.from(vtxo.id, 'hex') }],
+            outputs: [{ owner: Buffer.from(aliceIdentity.xOnly, 'hex'), amount: vtxo.amountSats - 1n }],
+            feeSats: 1n,
+            account: { baseUrl: DAEMON_URL },
+            broadcast: { url: DAEMON_URL + '/tachi_txBroadcastSync' },
+            confirm: { baseUrl: DAEMON_URL },
+          }),
+        );
       } catch (err: any) {
         rawDaemonError = err;
       }
@@ -181,16 +184,18 @@ describe('register.ts', { timeout: 60000 }, () => {
       });
 
       // 3. (ii) Prove the library adopt path returns the correct vaultId instead of throwing
-      const adoptResult = await registerVault({
-        vault,
-        fundingTxid: DISPLAY_FUNDING_TXID,
-        fundingVout: FUNDING_VOUT,
-        userSigner,
-        vtxoId: vtxo.id,
-        owner: Buffer.from(aliceIdentity.xOnly, 'hex'),
-        amount: vtxo.amountSats - 1n,
-        baseUrl: DAEMON_URL,
-      });
+      const adoptResult = await withTransportRetry(() =>
+        registerVault({
+          vault,
+          fundingTxid: DISPLAY_FUNDING_TXID,
+          fundingVout: FUNDING_VOUT,
+          userSigner,
+          vtxoId: vtxo.id,
+          owner: Buffer.from(aliceIdentity.xOnly, 'hex'),
+          amount: vtxo.amountSats - 1n,
+          baseUrl: DAEMON_URL,
+        }),
+      );
 
       expect(adoptResult.vaultId).toBe(EXPECTED_VAULT_ID);
 

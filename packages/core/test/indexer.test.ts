@@ -30,6 +30,7 @@ import {
 import { MemoryStore } from '../src/store.js';
 import type { PaymentReceipt, TxLookupResult, CreditClassification } from '../src/types.js';
 import { RipcordCode } from '../src/errors.js';
+import { withTransportRetry } from './live-fixtures.js';
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
 const WSS = 'wss://rpc-regtest.tachibtc.com/tachi_ws';
@@ -497,9 +498,9 @@ describe('Incoming receipt synthesis and deduplication (pure)', () => {
     });
   });
 
-  describe('lookupTachiTx (live probe against daemon v0.39.0)', { timeout: 30000 }, () => {
+  describe('lookupTachiTx (live probe against daemon v0.39.0)', { timeout: 180000 }, () => {
     it('retrieves and parses real committed transaction', async () => {
-      const result = await lookupTachiTx(REAL_TX_HASH, DAEMON);
+      const result = await withTransportRetry(() => lookupTachiTx(REAL_TX_HASH, DAEMON));
       expect(result).not.toBeNull();
       expect(result!.txHash).toBe(REAL_TX_HASH);
       expect(result!.type).toBe('transfer');
@@ -567,7 +568,7 @@ describe('Incoming receipt synthesis and deduplication (pure)', () => {
     });
 
     it('returns null when looking up unknown txHash', async () => {
-      const result = await lookupTachiTx('ff'.repeat(32), DAEMON);
+      const result = await withTransportRetry(() => lookupTachiTx('ff'.repeat(32), DAEMON));
       expect(result).toBeNull();
     });
   });
@@ -705,7 +706,7 @@ describe('VaultIndexer (live daemon)', () => {
   it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async () => {
     const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
     const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
-    const quorum = await getQuorum(DAEMON);
+    const quorum = await withTransportRetry(() => getQuorum(DAEMON));
     const aliceVault = await createVault({
       network: 'regtest',
       nodePubkeys: quorum.nodePubkeys,
@@ -731,7 +732,7 @@ describe('VaultIndexer (live daemon)', () => {
       await connected;
 
       // Manual Alice -> Bob transfer so the broadcast timestamp is exact.
-      const vtxos = await vc.getAddressVtxos(alice.xOnly, { baseUrl: DAEMON });
+      const vtxos = await withTransportRetry(() => vc.getAddressVtxos(alice.xOnly, { baseUrl: DAEMON }));
       const input = vtxos.vtxos
         .filter(v => !v.spent && !v.locked)
         .sort((a, b) => (b.amountSats > a.amountSats ? 1 : -1))[0];
@@ -752,18 +753,20 @@ describe('VaultIndexer (live daemon)', () => {
 
       const built = vc.buildVtxoPsbt({ vault, inputs, outputs, feeSats: fee });
       await vc.signVtxoPsbtAsUser(built.psbt, aliceSigner, vault, { maxFeeSats: fee });
-      const nonce = await vc.getAccountNonce(Buffer.from(alice.xOnly, 'hex'), { baseUrl: DAEMON });
+      const nonce = await withTransportRetry(() => vc.getAccountNonce(Buffer.from(alice.xOnly, 'hex'), { baseUrl: DAEMON }));
       const signed = await vc.signTachiTx(
         vc.buildTachiTxTransfer({ vault, inputs, outputs, feeSats: fee, nonce, psbt: built.psbt }),
         aliceSigner,
       );
 
       const t0 = Date.now();
-      const broadcast = await vc.broadcastTachiTx(signed, { url: `${DAEMON}/tachi_txBroadcastSync` });
-      const commit = await vc.waitForTachiTxCommit(broadcast.tendermintTxHash, {
-        baseUrl: DAEMON,
-        overallTimeoutMs: 120_000,
-      });
+      const broadcast = await withTransportRetry(() => vc.broadcastTachiTx(signed, { url: `${DAEMON}/tachi_txBroadcastSync` }));
+      const commit = await withTransportRetry(() =>
+        vc.waitForTachiTxCommit(broadcast.tendermintTxHash, {
+          baseUrl: DAEMON,
+          overallTimeoutMs: 120_000,
+        }),
+      );
       expect(commit.code).toBe(0);
       const restHashLower = commit.hash.toLowerCase();
 

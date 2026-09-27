@@ -7,6 +7,7 @@ import {
   verifyDepositProofOfReserves,
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
+import { syncWalletWithScan } from './live-fixtures.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 
 const ALICE_MNEMONIC =
@@ -28,7 +29,11 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
-    await userWallet.sync();
+    // NOTE: deposit.ts deliberately sends change to the VAULT USER's L1
+    // address (its own audited design), which lives at a random high index the
+    // account wallet never scans - so each run permanently moves ~41k sats out
+    // of the wallet's view. Keep the fixture topped up via the faucet.
+    await syncWalletWithScan(userWallet, `${DAEMON}/`);
   });
 
   function makeDepositDesc(index: number) {
@@ -73,7 +78,7 @@ describe('deposit.ts', { timeout: 120000 }, () => {
         } catch (err: any) {
           const msg = String(err?.message ?? err);
           if (/insufficient fee|rejecting replacement/.test(msg)) {
-            await userWallet.sync();
+            await syncWalletWithScan(userWallet, `${DAEMON}/`);
             continue;
           }
           throw err;

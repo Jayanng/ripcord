@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as vc from '@tachibtc/taurus-vault-core';
 import { deriveIdentity, getQuorum, createVault, makeSigner, sendTransfer, TxQueue, toSdkVault } from '../src/index.js';
+import { withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
@@ -23,7 +24,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
   beforeAll(async () => {
     const aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
     const bobIdentity = deriveIdentity(BOB_MNEMONIC, 'regtest');
-    quorum = await getQuorum(DAEMON);
+    quorum = await withTransportRetry(() => getQuorum(DAEMON));
 
     // Both vaults at index 0: these are the live-verified deterministic fixtures.
     aliceVault = await createVault({
@@ -42,7 +43,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     aliceUserAddr = aliceIdentity.userAddress;
     aliceSigner = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
     bobSigner = makeSigner(BOB_MNEMONIC, 'regtest', 0);
-  }, 60000);
+  }, 180000);
 
   it('rejects a vault-address recipient (sendTransfer guard)', async () => {
     await expect(sendTransfer({
@@ -100,16 +101,18 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
   });
 
   it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async () => {
-    const result = await sendTransfer({
-      vault: toSdkVault(aliceVault),
-      senderXOnly: ALICE_XONLY,
-      recipientAddress: bobUserAddr,
-      amountSats: 5000n,
-      feeSats: 1n,
-      baseUrl: DAEMON,
-      network: 'regtest',
-      userSigner: aliceSigner,
-    });
+    const result = await withTransportRetry(() =>
+      sendTransfer({
+        vault: toSdkVault(aliceVault),
+        senderXOnly: ALICE_XONLY,
+        recipientAddress: bobUserAddr,
+        amountSats: 5000n,
+        feeSats: 1n,
+        baseUrl: DAEMON,
+        network: 'regtest',
+        userSigner: aliceSigner,
+      }),
+    );
 
     expect(result.code).toBe(0);
     expect(result.epoch).toBeGreaterThan(0);
@@ -118,7 +121,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     await new Promise(r => setTimeout(r, 2000));
 
     // Spec checklist item 2: Bob's ledger shows +5000 with owner === bobXOnly.
-    const bobVtxos = await vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON });
+    const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     const received = bobVtxos.vtxos.find(v => !v.spent && v.amountSats === 5000n);
     expect(received).toBeDefined();
     expect(received!.owner).toBe(BOB_XONLY);
@@ -126,24 +129,26 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     // Change must land on Alice's USER P2TR address, owned by her x-only key.
     // The selected input is the largest VTXO at run time, so the change amount
     // equals that input minus (amount + fee); lock it from the live selection.
-    const bobBefore = await vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON });
+    const bobBefore = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     expect(bobBefore.vtxos.some(v => !v.spent && v.amountSats === 5000n)).toBe(true);
-    const aliceChange = await vc.getAddressVtxos(aliceUserAddr, { baseUrl: DAEMON });
+    const aliceChange = await withTransportRetry(() => vc.getAddressVtxos(aliceUserAddr, { baseUrl: DAEMON }));
     const ownedChange = aliceChange.vtxos.filter(v => !v.spent && v.owner === ALICE_XONLY);
     expect(ownedChange.length).toBeGreaterThan(0);
   });
 
   it('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async () => {
-    const result = await sendTransfer({
-      vault: toSdkVault(bobVault),
-      senderXOnly: BOB_XONLY,
-      recipientAddress: aliceUserAddr,
-      amountSats: 2000n,
-      feeSats: 1n,
-      baseUrl: DAEMON,
-      network: 'regtest',
-      userSigner: bobSigner,
-    });
+    const result = await withTransportRetry(() =>
+      sendTransfer({
+        vault: toSdkVault(bobVault),
+        senderXOnly: BOB_XONLY,
+        recipientAddress: aliceUserAddr,
+        amountSats: 2000n,
+        feeSats: 1n,
+        baseUrl: DAEMON,
+        network: 'regtest',
+        userSigner: bobSigner,
+      }),
+    );
 
     expect(result.code).toBe(0);
 
@@ -152,7 +157,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     // Prove the payment: a new unspent 2000-sat VTXO owned by Alice, minted at
     // an epoch >= this transfer's commit epoch (i.e. produced by THIS tx, not
     // pre-existing funds).
-    const aliceVtxos = await vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON });
+    const aliceVtxos = await withTransportRetry(() => vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }));
     const received = aliceVtxos.vtxos.find(v => !v.spent && v.amountSats === 2000n && v.height >= result.epoch);
     expect(received).toBeDefined();
     expect(received!.owner).toBe(ALICE_XONLY);
@@ -160,7 +165,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
 
   it('two queued transfers serialize without code=5 double-spend', async () => {
     // Use two of Bob's remaining received VTXOs (each 5000) for two sends.
-    const bobVtxos = await vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON });
+    const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     const unspent = bobVtxos.vtxos.filter(v => !v.spent && !v.locked);
     if (unspent.length < 2) {
       console.log('SKIP: Bob has fewer than 2 unspent VTXOs for the concurrency proof');
@@ -174,18 +179,20 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     const selectedIds: string[] = [];
 
     const sendTask = (amount: bigint, tag: string) => async (): Promise<{ code: number; epoch: number }> => {
-      const r = await sendTransfer({
-        vault: toSdkVault(bobVault),
-        senderXOnly: BOB_XONLY,
-        recipientAddress: aliceUserAddr,
-        amountSats: amount,
-        feeSats: 1n,
-        baseUrl: DAEMON,
-        network: 'regtest',
-        userSigner: bobSigner,
-        queue,
-        onInputsSelected: ids => { selectedIds.push(...ids); },
-      });
+      const r = await withTransportRetry(() =>
+        sendTransfer({
+          vault: toSdkVault(bobVault),
+          senderXOnly: BOB_XONLY,
+          recipientAddress: aliceUserAddr,
+          amountSats: amount,
+          feeSats: 1n,
+          baseUrl: DAEMON,
+          network: 'regtest',
+          userSigner: bobSigner,
+          queue,
+          onInputsSelected: ids => { selectedIds.push(...ids); },
+        }),
+      );
       console.log(tag, 'committed epoch', r.epoch);
       return { code: r.code, epoch: r.epoch };
     };

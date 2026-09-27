@@ -12,7 +12,7 @@ import {
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
 
-import { getLiveProofFixtures, type ProofFixture } from './live-fixtures.js';
+import { getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -29,16 +29,19 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   let currentEpoch: number;
 
   beforeAll(async () => {
-    const statsRes = await fetch(`${DAEMON}/tachi_stats`);
-    const stats = (await statsRes.json()) as { current_epoch: number };
+    const stats = await withTransportRetry(async () => {
+      const statsRes = await fetch(`${DAEMON}/tachi_stats`);
+      if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
+      return (await statsRes.json()) as { current_epoch: number };
+    });
     currentEpoch = stats.current_epoch;
 
     const fixtures = await getLiveProofFixtures(2, 50, DAEMON);
     HIST_A = fixtures[0];
     HIST_B = fixtures[1];
 
-    hatA = await fetchHat(HIST_A.hash, { baseUrl: DAEMON });
-    ripA0 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });
+    hatA = await withTransportRetry(() => fetchHat(HIST_A.hash, { baseUrl: DAEMON }));
+    ripA0 = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
   }, 180000);
 
   describe('fetchHat', () => {
@@ -51,7 +54,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     });
 
     it('is case-insensitive on the tx hash', async () => {
-      const lower = await fetchHat(HIST_A.hash.toLowerCase(), { baseUrl: DAEMON });
+      const lower = await withTransportRetry(() => fetchHat(HIST_A.hash.toLowerCase(), { baseUrl: DAEMON }));
       expect(lower.proof).toBe(hatA.proof);
       expect(lower.vtxoId).toBe(hatA.vtxoId);
     });
@@ -59,7 +62,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     it('maps an unknown hash to TX_NOT_FOUND instead of parsing the 404 body', async () => {
       let caught: unknown;
       try {
-        await fetchHat(UNKNOWN_HASH, { baseUrl: DAEMON });
+        await withTransportRetry(() => fetchHat(UNKNOWN_HASH, { baseUrl: DAEMON }));
       } catch (err) {
         caught = err;
       }
@@ -88,9 +91,13 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     });
 
     it('decodes VTXOID as a JSON byte array, not a string', async () => {
-      const raw = await fetch(
-        `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch}`,
-      );
+      const raw = await withTransportRetry(async () => {
+        const res = await fetch(
+          `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch}`,
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      });
       const body = (await raw.json()) as { rip: { VTXOID: unknown } };
       expect(Array.isArray(body.rip.VTXOID)).toBe(true);
       expect(Buffer.from(body.rip.VTXOID as number[]).toString('hex')).toBe(ripA0.vtxoId);
@@ -99,10 +106,17 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
 
   describe('fetchRip windows and errors', () => {
     it('returns Chain.length === window and FinalRoot === Chain[last].Root when the window is closed', async () => {
-      const rip5 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 5 });
-      const raw = await fetch(
-        `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch + 5}`,
+      const rip5 = await withTransportRetry(
+        () => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 5 }),
+        { validate: r => { if (r.chainLength !== 5) throw new Error(`degraded RIP chain: got ${r.chainLength}, want 5 (daemon wobble)`); } },
       );
+      const raw = await withTransportRetry(async () => {
+        const res = await fetch(
+          `${DAEMON}/tachi_tx?hash=${HIST_A.hash}&rip=true&origin_epoch=${HIST_A.epoch}&final_epoch=${HIST_A.epoch + 5}`,
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      });
       const body = (await raw.json()) as {
         rip: { Chain: Array<{ Root: string }>; FinalRoot: string };
       };
@@ -119,11 +133,13 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     it('maps a window into unclosed epochs to CHAIN_GAP, not an unhandled 502', async () => {
       let caught: unknown;
       try {
-        await fetchRip(HIST_A.hash, currentEpoch, {
-          baseUrl: DAEMON,
-          window: 50,
-          clamp: false,
-        });
+        await withTransportRetry(() =>
+          fetchRip(HIST_A.hash, currentEpoch, {
+            baseUrl: DAEMON,
+            window: 50,
+            clamp: false,
+          }),
+        );
       } catch (err) {
         caught = err;
       }
@@ -140,7 +156,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     });
 
     it('clamps a large requested window to the newest closed epoch', async () => {
-      const rip = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 50 });
+      const rip = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 50 }));
       expect(rip.finalEpoch - rip.originEpoch).toBe(rip.chainLength);
       expect(rip.chainLength).toBeLessThanOrEqual(50);
     });
@@ -148,18 +164,21 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     it('rejects a malformed chain length from the parser contract', async () => {
       // The live route always satisfies this; the assertion documents the
       // invariant that prevents a parser from accepting a truncated Chain.
-      const rip = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });
+      const rip = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
       expect(rip.chainLength).toBe(rip.finalEpoch - rip.originEpoch);
     });
 
     it('maps RIP of an unknown hash to TX_NOT_FOUND', async () => {
       await expect(
-        fetchRip(UNKNOWN_HASH, 1, { baseUrl: DAEMON, window: 0 }),
+        withTransportRetry(() => fetchRip(UNKNOWN_HASH, 1, { baseUrl: DAEMON, window: 0 })),
       ).rejects.toMatchObject({ code: RipcordCode.TX_NOT_FOUND });
     });
 
     it('keeps a closed historical window 50 intact when clamping', async () => {
-      const rip50 = await fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 50 });
+      const rip50 = await withTransportRetry(
+        () => fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 50 }),
+        { validate: r => { if (r.chainLength !== 50) throw new Error(`degraded RIP chain: got ${r.chainLength}, want 50 (daemon wobble)`); } },
+      );
       expect(rip50.chainLength).toBe(50);
       expect(rip50.finalEpoch).toBe(HIST_B.epoch + 50);
     });
@@ -169,7 +188,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
     it('fetchHat on a just-committed send returns a 64-char proof for the spent input', async () => {
       const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
       const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
-      const quorum = await getQuorum(DAEMON);
+      const quorum = await withTransportRetry(() => getQuorum(DAEMON));
       const aliceVault = await createVault({
         network: 'regtest',
         nodePubkeys: quorum.nodePubkeys,
@@ -178,29 +197,31 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
       });
 
       let spentIds: string[] = [];
-      const result = await sendTransfer({
-        vault: toSdkVault(aliceVault),
-        senderXOnly: ALICE_XONLY,
-        recipientAddress: bob.userAddress,
-        amountSats: 1000n,
-        feeSats: 1n,
-        baseUrl: DAEMON,
-        network: 'regtest',
-        userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
-        onInputsSelected: ids => {
-          spentIds = [...ids];
-        },
-      });
+      const result = await withTransportRetry(() =>
+        sendTransfer({
+          vault: toSdkVault(aliceVault),
+          senderXOnly: ALICE_XONLY,
+          recipientAddress: bob.userAddress,
+          amountSats: 1000n,
+          feeSats: 1n,
+          baseUrl: DAEMON,
+          network: 'regtest',
+          userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
+          onInputsSelected: ids => {
+            spentIds = [...ids];
+          },
+        }),
+      );
 
       expect(result.code).toBe(0);
       expect(result.epoch).toBeGreaterThan(0);
       expect(spentIds.length).toBeGreaterThan(0);
 
-      const hat = await fetchHat(result.txHash, { baseUrl: DAEMON });
+      const hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl: DAEMON }));
       expect(hat.proof).toMatch(/^[0-9a-f]{64}$/);
       expect(spentIds.map(id => id.toLowerCase())).toContain(hat.vtxoId);
 
-      const rip = await fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 });
+      const rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 }));
       expect(rip.originEpoch).toBe(result.epoch);
       expect(rip.chainLength).toBe(0);
       expect(rip.finalRoot).toBe(rip.originRoot);
