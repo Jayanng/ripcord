@@ -1,0 +1,11 @@
+{
+  "rewrites": [
+    { "source": "/health", "destination": "https://rpc-regtest.tachibtc.com/health" },
+    { "source": "/tachi_validators/:path*", "destination": "https://rpc-regtest.tachibtc.com/tachi_validators/:path*" },
+    { "source": "/:path(tachi_[^/]+)", "destination": "https://rpc-regtest.tachibtc.com/:path" },
+    { "source": "/rpc", "destination": "https://rpc-regtest.tachibtc.com" },
+    { "source": "/rpc/", "destination": "https://rpc-regtest.tachibtc.com/" },
+    { "source": "/rpc/:path*", "destination": "https://rpc-regtest.tachibtc.com/:path*" },
+    { "source": "/faucet/:path*", "destination": "https://faucet.tachibtc.com/:path*" }
+  ]
+}

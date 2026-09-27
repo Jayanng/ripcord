@@ -47,6 +47,22 @@ The package exports the root API and focused subpaths for `types`, `store`, `hea
 - Unilateral-exit maturity depends on live Bitcoin confirmation state.
 - Protocol dependencies are pinned and should not be upgraded without re-probing the live daemon.
 
+## Browser usage & deployment
+
+A browser app using this package must reach the daemon through a **same-origin
+proxy** (`/health`, `/tachi_*`, `/rpc`): the public Tachi daemon CORS-enables
+GETs but not POSTs (verified live 2026-09-27), so broadcasts and the sign
+ceremony fail cross-origin. Dev and production configs that implement the
+contract live in `apps/wallet/vite.config.ts` and `apps/wallet/vercel.json`;
+the full contract is in `docs/DEPLOYMENT.md`.
+
+Path-prefixed bases (e.g. `https://host/proxy`) are safe throughout this
+package (URLs are joined with `joinDaemonUrl` from `@ripcord/core/net`), but
+do not pass one to `@tachibtc/tachi-sdk-ts`'s `TachiClient`: it resolves
+absolute paths with `new URL(path, base)` and silently drops the base path.
+`describeDaemonFailure()` (same module) turns fetch failures into messages
+that name the likely cause (host not proxying, CORS gap on POST, timeout).
+
 ## Development & verification
 
 From the repository root:

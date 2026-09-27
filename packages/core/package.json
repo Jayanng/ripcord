@@ -29,6 +29,10 @@
       "import": "./dist/types.js",
       "types": "./dist/types.d.ts"
     },
+    "./net": {
+      "import": "./dist/net.js",
+      "types": "./dist/net.d.ts"
+    },
     "./store": {
       "import": "./dist/store.js",
       "types": "./dist/store.d.ts"
@@ -80,7 +84,6 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
-    "@tachibtc/tachi-sdk-ts": "0.2.1",
     "@tachibtc/taurus-vault-core": "0.3.3",
     "@tachibtc/taurus-wallet-aggregator": "0.4.3",
     "bip39": "^3.1.0",

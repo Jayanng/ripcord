@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { RecoveryProgress, type RecoveryStepState } from '../components/RecoveryProgress';
 import { truncate } from '../components/ui';
+import { describeDaemonFailure } from '@ripcord/core/net';
 
 const LABELS = [
   'Derive BIP84/BIP340 identity keys',
@@ -55,7 +56,7 @@ export function RecoveryScreen() {
       update(5, 'passed', `WSS connected; ${wallet.receipts.length} public receipts available`);
       setMnemonic('');
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = describeDaemonFailure(e);
       setError(message);
       update(currentStep, 'failed', message);
     } finally { setBusy(false); }

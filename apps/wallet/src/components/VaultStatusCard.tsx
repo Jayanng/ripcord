@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from './FaucetModal';
 import { truncate } from './ui';
+import { describeDaemonFailure } from '@ripcord/core/net';
 
 type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 'registering' | 'complete' | 'error';
 
@@ -52,7 +53,7 @@ export function VaultStatusCard() {
       localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
     } catch (e) {
       setFlow('error');
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describeDaemonFailure(e));
     } finally {
       setBusy(false);
     }

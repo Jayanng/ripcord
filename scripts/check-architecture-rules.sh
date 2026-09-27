@@ -38,6 +38,16 @@ if grep -rnE "\.skip\(" "${DIRS[@]}" --include='*.ts' --include='*.tsx' --exclud
   FAIL=1
 fi
 
+# Rule (net.ts / docs/DEPLOYMENT.md): never join daemon URLs with
+# new URL('/path', base). An absolute path silently drops the base's path
+# prefix (new URL('/health', 'https://host/proxy') -> https://host/health), the
+# request 404s against the host root, and fetch RESOLVES on 404 so the failure
+# is silent. Proven live 2026-09-27. Use joinDaemonUrl from src/net.ts.
+if grep -rnE "new URL\(['\"]/" packages --include='*.ts' --exclude-dir=node_modules 2>/dev/null | grep -v "test/"; then
+  echo "ERROR: new URL('/path', base) drops base path prefixes; use joinDaemonUrl (packages/core/src/net.ts, docs/DEPLOYMENT.md)"
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   echo "RULES FAILED."
   exit 1

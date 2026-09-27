@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
 import { formatSats } from './ui';
+import { describeDaemonFailure } from '@ripcord/core/net';
 
 type Field = 'recipient' | 'amount' | 'form';
 
@@ -35,7 +36,7 @@ export function SendForm() {
       const receipt = await buildPaymentReceipt({ txHash: committed.txHash, epoch: committed.epoch, code: committed.code, fromXOnly: wallet.identity.xOnly, toXOnly: recipientXOnly, amountSats: BigInt(sats), feeSats: 1n, baseUrl: wallet.daemonUrl, window: 0 });
       await wallet.saveReceipt(receipt);
       setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
-    } catch (cause) { fail('form', cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { fail('form', describeDaemonFailure(cause)); }
     finally { setBusy(false); }
   };
   const setMaxAmount = () => {

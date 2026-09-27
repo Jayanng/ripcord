@@ -3,6 +3,7 @@ import { generateMnemonic } from 'bip39';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { truncate } from '../components/ui';
+import { describeDaemonFailure } from '@ripcord/core/net';
 
 type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 'registering' | 'complete' | 'error';
 
@@ -68,7 +69,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
       await wallet.addVault(vault);
       onEnterWallet?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describeDaemonFailure(e));
     } finally {
       setBusy(false);
     }
@@ -109,7 +110,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
       localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
     } catch (e) {
       setFlow('error');
-      setError(e instanceof Error ? e.message : String(e));
+      setError(describeDaemonFailure(e));
     } finally {
       setBusy(false);
     }

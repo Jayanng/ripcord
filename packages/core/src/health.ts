@@ -1,6 +1,20 @@
-import { TachiClient } from '@tachibtc/tachi-sdk-ts';
 import { fetchConsensusQuorum, getFeeEstimate } from '@tachibtc/taurus-vault-core';
 import { RipcordCode, RipcordError } from './errors.js';
+import { describeDaemonFailure, joinDaemonUrl } from './net.js';
+
+/**
+ * Daemon preflight probes.
+ *
+ * AUDIT FIX (2026-09-27): the three daemon REST probes used
+ * `@tachibtc/tachi-sdk-ts`'s `TachiClient`, which resolves absolute paths
+ * with `new URL` against `baseUrl`. On a base WITH a path prefix (a subpath
+ * deployment, e.g. https://host/proxy) that silently drops the prefix, the
+ * probe 404s against the host's root, `fetch` RESOLVES on 404, and preflight
+ * reports an undebuggable failure. ripcord joins daemon URLs exactly one way
+ * (string concat via `joinDaemonUrl`, same as every other call site), so any
+ * base works and every probe failure now carries its likely cause and fix via
+ * `describeDaemonFailure` (see `docs/DEPLOYMENT.md`).
+ */
 
 /** Which preflight probe a failure came from. */
 export type ProbeName =
@@ -51,18 +65,39 @@ export interface PreflightResult {
   unreachable: boolean;
 }
 
-function errText(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return 'unknown error';
+const PROBE_TIMEOUT_MS = 30_000;
+
+/** Probe response shapes (live-verified 2026-09-27 against rpc-regtest). */
+interface HealthProbe {
+  status: string;
+}
+interface NodeInfoProbe {
+  chain_id: string;
+  version: string;
+  sync_status: string;
+}
+interface LiveValidatorsProbe {
+  count?: number;
+  validators?: unknown[];
+}
+
+/**
+ * GET a daemon REST path and parse JSON. Joins by string concat so a
+ * path-prefixed base survives (see ../src/net.ts for why that matters).
+ */
+async function daemonGetJson<T>(baseUrl: string, path: string): Promise<T> {
+  const url = joinDaemonUrl(baseUrl, path);
+  const response = await fetch(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}`);
+  }
+  return (await response.json()) as T;
 }
 
 export async function preflight(baseUrl: string, options: PreflightOptions = {}): Promise<PreflightResult> {
-  const client = new TachiClient({ baseUrl });
-
   const failures: ProbeFailure[] = [];
-  const fail = (probe: ProbeName, err: unknown): void => {
-    failures.push({ probe, message: errText(err) });
+  const fail = (probe: ProbeName, err: unknown, context?: { url?: string; method?: string }): void => {
+    failures.push({ probe, message: describeDaemonFailure(err, context) });
   };
 
   let healthOk = false;
@@ -83,23 +118,23 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
   let l1HeightSource: 'bitcoin-rpc' | 'unavailable' = 'unavailable';
 
   try {
-    const health = await client.getHealth();
+    const health = await daemonGetJson<HealthProbe>(baseUrl, 'health');
     healthOk = health.status === 'ok';
     if (!healthOk) {
       fail('health', `status was "${health.status}", expected "ok"`);
     }
   } catch (err) {
-    fail('health', err);
+    fail('health', err, { url: joinDaemonUrl(baseUrl, 'health'), method: 'GET' });
   }
 
   try {
-    const nodeInfo = await client.getNodeInfo();
+    const nodeInfo = await daemonGetJson<NodeInfoProbe>(baseUrl, 'tachi_nodeInfo');
     nodeInfoOk = true;
     chainId = nodeInfo.chain_id;
     version = nodeInfo.version;
     synced = nodeInfo.sync_status === 'synced';
   } catch (err) {
-    fail('nodeInfo', err);
+    fail('nodeInfo', err, { url: joinDaemonUrl(baseUrl, 'tachi_nodeInfo'), method: 'GET' });
   }
 
   // AUDIT FIX (2026-08-23): the chain guard used to run only after every probe
@@ -110,13 +145,13 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
   assertExpectedChain(chainId);
 
   try {
-    const liveValidatorsResponse = await client.getLiveValidators();
+    const liveValidatorsResponse = await daemonGetJson<LiveValidatorsProbe>(baseUrl, 'tachi_validators/live');
     liveValidatorsOk = true;
     // Verified live: returns 7. Prefer the count field, fall back to the array length.
     liveValidators = liveValidatorsResponse.count ??
       (liveValidatorsResponse.validators ?? []).length;
   } catch (err) {
-    fail('liveValidators', err);
+    fail('liveValidators', err, { url: joinDaemonUrl(baseUrl, 'tachi_validators/live'), method: 'GET' });
   }
 
   try {
@@ -125,10 +160,12 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
     // NOT Bitcoin L1 (~9k). Substituting it on failure would silently report
     // a wildly wrong height, so unavailability is surfaced as null + source flag.
     const bitcoinRpcBaseUrl = options.bitcoinRpcBaseUrl ?? baseUrl;
-    const rpcRes = await fetch(`${bitcoinRpcBaseUrl.replace(/\/+$/, '')}/`, {
+    const rpcUrl = joinDaemonUrl(bitcoinRpcBaseUrl, '');
+    const rpcRes = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: '1', jsonrpc: '1.0', method: 'getblockchaininfo', params: [] }),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     if (rpcRes.ok) {
       const rpcJson = (await rpcRes.json()) as { result?: { blocks?: number } };
@@ -140,10 +177,10 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
         fail('bitcoinRpc', 'getblockchaininfo returned no numeric "blocks" field');
       }
     } else {
-      fail('bitcoinRpc', `HTTP ${rpcRes.status} from the Bitcoin RPC proxy`);
+      fail('bitcoinRpc', `HTTP ${rpcRes.status} from the Bitcoin RPC proxy`, { url: rpcUrl, method: 'POST' });
     }
   } catch (err) {
-    fail('bitcoinRpc', err);
+    fail('bitcoinRpc', err, { url: joinDaemonUrl(options.bitcoinRpcBaseUrl ?? baseUrl, ''), method: 'POST' });
   }
 
   try {
@@ -152,7 +189,7 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
     quorumThreshold = quorum.threshold;
     quorumSize = quorum.nodePubkeys.length;
   } catch (err) {
-    fail('quorum', err);
+    fail('quorum', err, { method: 'GET' });
   }
 
   try {
@@ -161,7 +198,7 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
     feeRecommendedSats = BigInt(feeEstimate.recommendedFeeSats);
     feeMinSats = BigInt(feeEstimate.minFeeSats);
   } catch (err) {
-    fail('feeEstimate', err);
+    fail('feeEstimate', err, { method: 'GET' });
   }
 
   const daemonOk = healthOk && nodeInfoOk && liveValidatorsOk && quorumOk && feeEstimateOk;

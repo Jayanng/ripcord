@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useRipcord } from '../hooks/useRipcord';
+import { describeDaemonFailure } from '@ripcord/core/net';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { ProofOfReservesBadge } from './ProofOfReservesBadge';
 import { TapscriptInspector } from './TapscriptInspector';
@@ -14,13 +15,13 @@ export function RipcordPanel() {
     let cancelled = false;
     const refresh = async () => {
       try { await refreshMaturity(vault); }
-      catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); }
+      catch (e) { if (!cancelled) setError(describeDaemonFailure(e)); }
     };
     void refresh();
     const timer = window.setInterval(() => void refresh(), 15_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [vault?.address, vault?.funding?.txid, vault?.funding?.vout]);
-  const run = async () => { if (!vault || !identity) return; setBusy(true); setError(''); try { await assess(vault); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
+  const run = async () => { if (!vault || !identity) return; setBusy(true); setError(''); try { await assess(vault); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } };
   const confirmations = readiness?.confirmations ?? 0;
   const csvBlocks = vault?.csvBlocks ?? 1;
   const progressPercent = vault ? Math.min(100, Math.round((confirmations / csvBlocks) * 100)) : 0;
@@ -54,6 +55,6 @@ export function RipcordPanel() {
     {error && <p className="inline-error" role="alert">{error}</p>}
     {broadcastTxid && <p className="flow-note" role="status">Exit broadcast: <code>{broadcastTxid}</code>. Confirm it on the regtest explorer before treating funds as settled.</p>}
     {vault && <TapscriptInspector vault={vault} />}
-    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Building exit…' : readiness?.dryRun ? 'Run test-pull again' : 'Run test-pull'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); await refreshMaturity(vault); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } }} /></div>
+    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Building exit…' : readiness?.dryRun ? 'Run test-pull again' : 'Run test-pull'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); await refreshMaturity(vault); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
   </section>;
 }

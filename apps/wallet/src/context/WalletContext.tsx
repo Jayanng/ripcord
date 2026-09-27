@@ -3,6 +3,7 @@ import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
 import { vaultsForIdentity, type ExitReadiness, type Identity, type PaymentReceipt, type VaultRecord } from '@ripcord/core/types';
 import type { PreflightResult } from '@ripcord/core/health';
 import type { IndexerEvent, IndexerStatus } from '@ripcord/core/indexer';
+import { describeDaemonFailure } from '@ripcord/core/net';
 
 // Browser calls use the same-origin dev proxy because the public daemon does
 // not opt into CORS. Production should provide an equivalent backend proxy.
@@ -73,7 +74,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setReceipts(nextReceipts);
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeDaemonFailure(error);
       setHealth({
         daemonOk: false, chainId: '', version: '', synced: false,
         liveValidators: 0, quorumThreshold: 0, quorumSize: 0,
@@ -145,7 +146,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const url = configured ?? 'wss://rpc-regtest.tachibtc.com/tachi_ws';
       indexer = new VaultIndexer({ url, address: identity.xOnly, blocks: true, onEvent: event => { if (event.kind === 'block:new' && event.txCount === 0) return; setActivity(current => { const key = 'txHash' in event ? `tx:${event.txHash.toLowerCase()}:${event.kind}` : `block:${event.height}`; const seen = current.some(item => { const other = 'txHash' in item ? `tx:${item.txHash.toLowerCase()}:${item.kind}` : `block:${item.height}`; return other === key; }); return seen ? current : [event, ...current].slice(0, 200); }); }, onStatus: setIndexerStatus, onError: error => setIndexerStatus({ state: 'closed', reason: error.message }) });
       indexer.start();
-    }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: error instanceof Error ? error.message : String(error) }); });
+    }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: describeDaemonFailure(error) }); });
     return () => { cancelled = true; indexer?.close(); };
   }, [identity]);
 
