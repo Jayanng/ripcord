@@ -13,9 +13,12 @@ export interface FundVaultLifecycleParams {
   amountSats: bigint;
   feeRateSatVb?: number;
   confirmationPollMs?: number;
+  explicitInput?: import('./types.js').ExplicitSpendableInput;
+  existingDepositTxid?: string;
   onProgress?: (stage: 'depositing' | 'confirming-deposit' | 'minting' | 'registering') => void;
   onDepositBroadcast?: (deposit: DepositResult) => void;
   onConfirmationPoll?: (confirmations: number) => void;
+  onFallback?: (error: unknown, diagnosis: string) => void;
 }
 
 export interface FundVaultLifecycleResult {
@@ -27,6 +30,19 @@ export interface FundVaultLifecycleResult {
 }
 
 type LifecycleDeposit = FundVaultLifecycleResult['deposit'];
+
+async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs = 1500): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i >= attempts || !(err instanceof Error && /timeout|deadline|network|UND_ERR|fetch failed/i.test(err.message))) {
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, delayMs * i));
+    }
+  }
+}
 
 export interface RecoverVaultLifecycleStateParams {
   vault: VaultRecord;
@@ -44,12 +60,12 @@ export async function recoverVaultLifecycleState(
   const daemonUrl = new URL(params.daemonBaseUrl);
   const allowInsecureHttp = daemonUrl.protocol === 'http:'
     && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
-  const listed = await vc.listVaults(params.vault.userKeyDescriptor.publicKey, {
+  const listed = await retryDaemonQuery(() => vc.listVaults(params.vault.userKeyDescriptor.publicKey, {
     baseUrl: params.daemonBaseUrl,
     pageSize: 100,
     allowInsecureHttp,
     fetchImpl: globalThis.fetch.bind(globalThis),
-  });
+  }));
   const internalFundingTxid = Buffer.from(deposit.txid, 'hex').reverse().toString('hex');
   const registered = listed.vaults.find(item =>
     item.fundingTxid.toLowerCase() === internalFundingTxid && item.fundingVout === deposit.vout,
@@ -140,6 +156,46 @@ async function findExistingVaultFunding(baseUrl: string, vault: VaultRecord) {
     }
   }
   return null;
+}
+
+async function findBroadcastVaultFunding(baseUrl: string, vault: VaultRecord, txid: string) {
+  if (!/^[0-9a-fA-F]{64}$/.test(txid)) return null;
+  try {
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'getrawtransaction',
+        params: [txid, true],
+      }),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      result?: {
+        txid: string;
+        vout: Array<{ n: number; value: number; scriptPubKey: { hex: string } }>;
+      };
+      error?: unknown;
+    };
+    if (payload.error || !payload.result) return null;
+    const expectedScript = vault.p2tr
+      ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase()
+      : '';
+    const match = payload.result.vout?.find(
+      v => v.scriptPubKey.hex.toLowerCase() === expectedScript
+    );
+    if (!match) return null;
+    return {
+      txid: payload.result.txid as import('./types.js').DisplayTxid,
+      vout: match.n,
+      amountSats: BigInt(Math.round(match.value * 1e8)),
+      source: 'broadcast' as const,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs: number, onPoll?: (confirmations: number) => void): Promise<void> {
@@ -235,12 +291,13 @@ export function computeFundingSteps(params: {
   const { vault, flow, depositTxid, pendingFaucetTxid } = params;
   const vaultReady = Boolean((vault?.funding || vault?.vaultIdHex) && (vault?.registered || vault?.vaultIdHex));
   const isDepositBroadcast = Boolean(depositTxid || vault?.funding);
+  const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
 
   return [
     { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
-    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' || vaultReady },
     { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
-    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Faucet confirmed on L1', done: isDepositConfirmed },
+    { label: 'Deposit confirmed on L1', done: isDepositConfirmed },
     { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
   ];
@@ -282,20 +339,74 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     let deposit: LifecycleDeposit | null = params.vault.funding
       ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
       : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+
+    if (!deposit && params.existingDepositTxid) {
+      deposit = await findBroadcastVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.existingDepositTxid);
+      if (deposit) {
+        params.onProgress?.('confirming-deposit');
+        await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
+      }
+    }
+
     if (!deposit) {
       params.onProgress?.('depositing');
-      const broadcast = await depositFromMnemonic({ vault: params.vault, mnemonic: params.mnemonic, rpc: { baseUrl: params.bitcoinRpcBaseUrl }, amountSats: params.amountSats, feeRateSatVb: params.feeRateSatVb });
+      let broadcast: DepositResult | null = null;
+      if (params.explicitInput) {
+        try {
+          broadcast = await depositFromMnemonic({
+            vault: params.vault,
+            mnemonic: params.mnemonic,
+            rpc: { baseUrl: params.bitcoinRpcBaseUrl },
+            amountSats: params.amountSats,
+            feeRateSatVb: params.feeRateSatVb,
+            explicitInput: params.explicitInput,
+          });
+        } catch (chainedError) {
+          const { describeDaemonFailure } = await import('./net.js');
+          const diagnosis = describeDaemonFailure(chainedError, {
+            url: params.bitcoinRpcBaseUrl,
+            method: 'POST',
+          });
+          params.onFallback?.(chainedError, diagnosis);
+          // Fall back to legacy path: wait for payout confirmation
+          params.onProgress?.('confirming-deposit');
+          await waitForBitcoinConfirmation(
+            params.bitcoinRpcBaseUrl,
+            params.explicitInput.txid,
+            params.confirmationPollMs ?? 5_000,
+            params.onConfirmationPoll
+          );
+          // Legacy deposit with confirmed UTXO selection
+          params.onProgress?.('depositing');
+          broadcast = await depositFromMnemonic({
+            vault: params.vault,
+            mnemonic: params.mnemonic,
+            rpc: { baseUrl: params.bitcoinRpcBaseUrl },
+            amountSats: params.amountSats,
+            feeRateSatVb: params.feeRateSatVb,
+          });
+        }
+      } else {
+        broadcast = await depositFromMnemonic({
+          vault: params.vault,
+          mnemonic: params.mnemonic,
+          rpc: { baseUrl: params.bitcoinRpcBaseUrl },
+          amountSats: params.amountSats,
+          feeRateSatVb: params.feeRateSatVb,
+        });
+      }
+
       params.onDepositBroadcast?.(broadcast);
       deposit = { txid: broadcast.txid, vout: broadcast.vout, amountSats: broadcast.amountSats, source: 'broadcast' as const };
       params.onProgress?.('confirming-deposit');
       await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
     }
 
-    const listed = await vc.listVaults(params.vault.userKeyDescriptor.publicKey, { baseUrl: params.daemonBaseUrl, pageSize: 100, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+    const listed = await retryDaemonQuery(() => vc.listVaults(params.vault.userKeyDescriptor.publicKey, { baseUrl: params.daemonBaseUrl, pageSize: 100, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
     const internalFundingTxid = Buffer.from(deposit.txid, 'hex').reverse().toString('hex');
     const registered = listed.vaults.find(item => item.fundingTxid.toLowerCase() === internalFundingTxid && item.fundingVout === deposit.vout);
     if (registered) {
-      const current = await vc.getAddressVtxos(params.vault.userKeyDescriptor.publicKey.slice(2), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+      const current = await retryDaemonQuery(() => vc.getAddressVtxos(params.vault.userKeyDescriptor.publicKey.slice(2), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
       const evidence = current.vtxos.find(item => !item.spent);
       return { deposit, vtxoId: evidence?.id ?? '', mintTxHash: '', mintEpoch: evidence?.height ?? 0, vaultId: registered.vaultId };
     }
@@ -304,7 +415,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     const signer = makeSigner(params.mnemonic, 'regtest', params.vault.userKeyIndex);
     const mintAmount = deposit.amountSats - 1n;
     const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
-    const existing = await vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+    const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
     const recoveredVtxo = existing.vtxos.find(item => !item.spent && item.amountSats === mintAmount);
     let vtxoId: string;
     let mintTxHash = '';
@@ -313,7 +424,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       vtxoId = recoveredVtxo.id;
       mintEpoch = recoveredVtxo.height;
     } else {
-      const nonce = await vc.getAccountNonce(Buffer.from(owner, 'hex'), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+      const nonce = await retryDaemonQuery(() => vc.getAccountNonce(Buffer.from(owner, 'hex'), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
       const draft = vc.buildTachiTxDeposit({ userXOnly: Buffer.from(owner, 'hex'), amountSats: mintAmount, nonce, feeSats: 1n });
       const signed = await vc.signTachiTx(draft, signer);
       const broadcast = await vc.broadcastTachiTx(signed, { url: params.daemonBaseUrl + '/tachi_txBroadcastSync', allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });

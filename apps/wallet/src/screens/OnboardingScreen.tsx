@@ -75,7 +75,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     }
   };
 
-  const completeFunding = async () => {
+  const completeFunding = async (explicitInput?: import('@ripcord/core/types').ExplicitSpendableInput) => {
     if (!wallet.identity || !wallet.activeVault) return;
     const activeVault = wallet.activeVault;
     if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
@@ -90,6 +90,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     try {
       const { fundVaultLifecycle } = await import('@ripcord/core/lifecycle');
       setFlow('depositing');
+      const savedDeposit = localStorage.getItem(`ripcord:deposit:${activeVault.address}`);
       const result = await fundVaultLifecycle({
         vault: activeVault,
         mnemonic: wallet.identity.mnemonic,
@@ -97,6 +98,8 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         daemonBaseUrl: wallet.daemonUrl,
         amountSats: 40_000n,
         feeRateSatVb: 2,
+        explicitInput,
+        existingDepositTxid: savedDeposit ?? undefined,
         onProgress: setFlow,
         onConfirmationPoll: setDepositConfirmations,
         onDepositBroadcast: deposit => {
@@ -147,10 +150,31 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [savedFaucet, true] }),
           });
-          const payload = (await response.json()) as { result?: { confirmations?: number } };
+          const payload = (await response.json()) as {
+            result?: {
+              confirmations?: number;
+              vout: Array<{ n: number; value: number; scriptPubKey: { hex: string; address?: string } }>;
+            };
+          };
           if (!mounted) return;
-          if ((payload.result?.confirmations ?? 0) > 0) {
-            await completeFunding();
+          if (payload.result) {
+            const targetAddr = wallet.identity?.l1Address;
+            if (!targetAddr) return;
+            const { addressToScriptPubKeyHex } = await import('@ripcord/core/deposit');
+            const expectedScript = addressToScriptPubKeyHex(targetAddr, 'regtest').toLowerCase();
+            const match = payload.result.vout?.find(
+              v => v.scriptPubKey.hex.toLowerCase() === expectedScript || v.scriptPubKey.address === targetAddr
+            );
+            if (match) {
+              await completeFunding({
+                txid: savedFaucet,
+                vout: match.n,
+                amountSats: BigInt(Math.round(match.value * 1e8)),
+                scriptPubKey: match.scriptPubKey.hex,
+              });
+            } else if ((payload.result.confirmations ?? 0) > 0) {
+              await completeFunding();
+            }
           }
         }
       } catch {
@@ -171,13 +195,14 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
 
   const explorerUrl = (txid: string) => `https://explorer-regtest.tachibtc.com/tx/${txid}`;
   const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
+  const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
 
   const statusText = vaultReady
     ? 'Your vault is funded and registered. You can now receive and send VTXOs.'
     : flow === 'depositing'
-    ? 'Funding is confirmed. We are now depositing 40,000 sats into your vault.'
+    ? 'Preparing and broadcasting your vault deposit…'
     : flow === 'confirming-deposit'
-    ? `Your vault deposit is broadcast with ${depositConfirmations} of 1 confirmations. You can safely leave and return later.`
+    ? `Your vault deposit is broadcast with ${depositConfirmations} of 1 confirmations. Mining takes ~10 min on regtest (~5 min avg); funding and deposit confirm in the same block.`
     : flow === 'minting'
     ? 'Your deposit is confirmed. Creating your first spendable VTXO on Tachi.'
     : flow === 'registering'
@@ -185,16 +210,16 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     : flow === 'complete'
     ? 'Your wallet is funded, your first VTXO is created, and your vault is registered.'
     : isDepositBroadcast
-    ? `Vault deposit broadcast (${truncate(depositTxid || savedDepositTxid || '', 10, 8)}). Monitoring Bitcoin L1 block mining in background (~10 min).`
+    ? `Vault deposit broadcast (${truncate(depositTxid || savedDepositTxid || '', 10, 8)}). Monitoring Bitcoin L1 block mining in background (~10 min single wait).`
     : pendingFaucetTxid
-    ? `Faucet funds broadcast (${truncate(pendingFaucetTxid, 10, 8)}). Checking Bitcoin L1 block mining in background (~10 min). You can explore the wallet freely; registration will resume automatically.`
+    ? `Faucet funds broadcast (${truncate(pendingFaucetTxid, 10, 8)}). Chaining vault deposit without waiting for block mining…`
     : 'Fund this settlement address first, or continue if it already has confirmed L1 funds.';
 
   const fundingSteps = [
     { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
-    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' || vaultReady },
     { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
-    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Faucet confirmed on L1', done: isDepositConfirmed },
+    { label: 'Deposit confirmed on L1', done: isDepositConfirmed },
     { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
   ];
@@ -321,9 +346,9 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
       <FaucetModal
         address={wallet.identity.l1Address}
         onClose={() => setFaucet(false)}
-        onConfirmed={() => {
+        onConfirmed={(_txid, explicitInput) => {
           setFaucet(false);
-          void completeFunding();
+          void completeFunding(explicitInput);
         }}
       />
     )}

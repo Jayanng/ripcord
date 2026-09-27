@@ -73,6 +73,10 @@
       "import": "./dist/payment.js",
       "types": "./dist/payment.d.ts"
     },
+    "./deposit": {
+      "import": "./dist/deposit.js",
+      "types": "./dist/deposit.d.ts"
+    },
     "./lifecycle": {
       "import": "./dist/lifecycle.js",
       "types": "./dist/lifecycle.d.ts"

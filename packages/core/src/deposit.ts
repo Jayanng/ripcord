@@ -4,12 +4,25 @@ import {
   asDisplayTxid,
   isVaultAddress,
   asVaultAddress,
+  ExplicitSpendableInput,
 } from './types.js';
 import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 import type { Utxo } from '@tachibtc/taurus-wallet-aggregator';
+import * as btc from 'bitcoinjs-lib';
 import { Transaction } from 'bitcoinjs-lib';
+
+export type { ExplicitSpendableInput };
+
+/**
+ * Convert an address to its scriptPubKey hex string on regtest or mainnet.
+ * Used for matching L1 settlement outputs in 0-conf chaining without leaking @tachibtc imports into apps/.
+ */
+export function addressToScriptPubKeyHex(address: string, network: 'regtest' | 'bitcoin' = 'regtest'): string {
+  const net = network === 'regtest' ? btc.networks.regtest : btc.networks.bitcoin;
+  return Buffer.from(btc.address.toOutputScript(address, net)).toString('hex');
+}
 
 export interface DepositToVaultParams {
   vault: VaultRecord;
@@ -18,6 +31,8 @@ export interface DepositToVaultParams {
   amountSats: bigint;
   /** Optional fee rate in sats/vbyte. Defaults to 2 (the verified regtest rate). */
   feeRateSatVb?: number;
+  /** Optional unconfirmed payout UTXO to spend directly (0-conf faucet chaining). */
+  explicitInput?: ExplicitSpendableInput;
 }
 
 export interface DepositResult {
@@ -37,7 +52,7 @@ export interface DepositResult {
 export async function depositToVault(
   params: DepositToVaultParams
 ): Promise<DepositResult> {
-  const { vault, userWallet, rpc, amountSats, feeRateSatVb } = params;
+  const { vault, userWallet, rpc, amountSats, feeRateSatVb, explicitInput } = params;
   // The SDK requires feeRateSatVb; default to the verified regtest rate when
   // the caller omits it rather than passing undefined through.
   const effectiveFeeRateSatVb = feeRateSatVb ?? 2;
@@ -58,6 +73,70 @@ export async function depositToVault(
       { hint: 'Address must be a valid vault P2TR' }
     );
   }
+
+  if (explicitInput) {
+    if (!/^[0-9a-fA-F]{64}$/.test(explicitInput.txid)) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Invalid explicitInput txid: ${explicitInput.txid}`,
+        { hint: 'Expected a 64-character hex string in display order' }
+      );
+    }
+    if (!Number.isInteger(explicitInput.vout) || explicitInput.vout < 0) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Invalid explicitInput vout: ${explicitInput.vout}`,
+        { hint: 'vout must be a non-negative integer' }
+      );
+    }
+    if (typeof explicitInput.amountSats !== 'bigint' || explicitInput.amountSats <= 0n) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Invalid explicitInput amountSats: ${explicitInput.amountSats}`,
+        { hint: 'amountSats must be a positive bigint' }
+      );
+    }
+
+    const expectedL1ScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    if (explicitInput.scriptPubKey.toLowerCase() !== expectedL1ScriptHex) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Explicit input scriptPubKey mismatch: expected ${expectedL1ScriptHex}, got ${explicitInput.scriptPubKey.toLowerCase()}`,
+        { hint: 'Explicit input must pay to vault.userKeyDescriptor.address' }
+      );
+    }
+
+    const explicitUtxo: Utxo = {
+      txid: asDisplayTxid(explicitInput.txid),
+      vout: explicitInput.vout,
+      valueSats: explicitInput.amountSats,
+      address: vault.userKeyDescriptor.address,
+      scriptPubKey: expectedL1ScriptHex,
+      height: 0,
+      confirmations: 0,
+      coinbase: false,
+      derivationPath: vault.userKeyDescriptor.path,
+      change: false,
+      addressIndex: vault.userKeyDescriptor.index ?? vault.userKeyIndex,
+    };
+
+    const existing = userWallet.utxos ?? [];
+    const combined = [
+      explicitUtxo,
+      ...existing.filter(u => !(u.txid === explicitUtxo.txid && u.vout === explicitUtxo.vout)),
+    ];
+
+    Object.defineProperty(userWallet, 'utxos', {
+      get: () => combined,
+      configurable: true,
+    });
+  }
+
+  // Ensure change output returns directly to the user's L1 settlement address
+  Object.defineProperty(userWallet, 'changeAddress', {
+    get: () => vault.userKeyDescriptor.address,
+    configurable: true,
+  });
 
   const bitcoinRpcClient = new agg.BitcoinCoreRpcClient({
     url: rpc.baseUrl,
@@ -82,6 +161,7 @@ export async function depositToVault(
     rpc: bitcoinRpcClient,
     amountSats,
     feeRateSatVb: effectiveFeeRateSatVb,
+    skipSync: explicitInput !== undefined,
   });
 
   if (!dep.txid || !dep.rawTxHex) {
@@ -105,9 +185,43 @@ export async function depositToVault(
     );
   }
 
-  // The SDK returns these values explicitly. Dropping amount/change/inputs here
-  // made the public Phase 4 result falsely claim that fee accounting was
-  // unavailable, and forced later callers to reparse raw transaction bytes.
+  // Money path validations:
+  // 1. Fee conservation: feeSats = sum(inputs) - sum(outputs) exactly
+  const sumInputs = dep.inputs.reduce((acc, input) => acc + input.valueSats, 0n);
+  const sumOutputs = dep.amountSats + dep.changeSats;
+  const actualFee = sumInputs - sumOutputs;
+  if (actualFee !== dep.feeSats) {
+    throw new RipcordError(
+      RipcordCode.AMOUNT_MISMATCH,
+      `Fee conservation violated: sum(inputs) [${sumInputs}] - sum(outputs) [${sumOutputs}] = ${actualFee} sats, but feeSats is ${dep.feeSats}`,
+      { hint: 'feeSats must exactly equal sum(inputs) - sum(outputs)' }
+    );
+  }
+
+  // 2. Refusal to overspend: inputs must strictly cover amount + fee
+  if (sumInputs < dep.amountSats + dep.feeSats) {
+    throw new RipcordError(
+      RipcordCode.AMOUNT_MISMATCH,
+      `Overspend detected: total input ${sumInputs} cannot cover amount ${dep.amountSats} + fee ${dep.feeSats}`,
+      { hint: 'Deposit inputs must cover amount and fee' }
+    );
+  }
+
+  // 3. Change correctness: change output must return to user L1 settlement address
+  if (dep.changeSats > 0n) {
+    const expectedChangeScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    const changeVout = decodedTx.outs.findIndex(
+      (out, idx) => idx !== vout && Buffer.from(out.script).toString('hex').toLowerCase() === expectedChangeScriptHex
+    );
+    if (changeVout < 0) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        'Deposit transaction change output is not sent to the user L1 settlement address',
+        { hint: 'Change output must return to vault.userKeyDescriptor.address' }
+      );
+    }
+  }
+
   return {
     txid: asDisplayTxid(dep.txid),
     vout,
@@ -177,6 +291,8 @@ export interface DepositFromMnemonicParams {
   rpc: { baseUrl: string };
   amountSats: bigint;
   feeRateSatVb?: number;
+  /** Optional unconfirmed payout UTXO to spend directly (0-conf faucet chaining). */
+  explicitInput?: ExplicitSpendableInput;
 }
 
 /** Build the SDK wallet inside core, sync it against live Bitcoin RPC, then deposit. */
@@ -191,12 +307,16 @@ export async function depositFromMnemonic(params: DepositFromMnemonicParams): Pr
     rpc: rpcClient,
   });
   const userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
-  await userWallet.sync();
+  if (!params.explicitInput) {
+    await userWallet.sync();
+  }
   return depositToVault({
     vault: params.vault,
     userWallet,
     rpc: params.rpc,
     amountSats: params.amountSats,
     feeRateSatVb: params.feeRateSatVb,
+    explicitInput: params.explicitInput,
   });
 }
+

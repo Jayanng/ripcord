@@ -389,3 +389,12 @@ export interface VtxoVisibilityItem {
   readonly vaultAddress?: string;
 }
 
+/** 0-conf chained deposit input: unconfirmed payout UTXO from the faucet. */
+export interface ExplicitSpendableInput {
+  readonly txid: string;
+  readonly vout: number;
+  readonly amountSats: bigint;
+  readonly scriptPubKey: string;
+}
+
+
