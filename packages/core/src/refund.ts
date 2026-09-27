@@ -57,6 +57,7 @@ import {
 } from './types.js';
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
+import { joinDaemonUrl } from './net.js';
 
 export const MIN_FEE_SATS = 1n;
 /** Default fee for cooperative refund transaction (1 input, 1 to_local output). */
@@ -85,7 +86,7 @@ async function bitcoinRpc(
   method: string,
   params: unknown[],
 ): Promise<BitcoinRpcResponse> {
-  const url = `${baseUrl.replace(/\/+$/, '')}/`;
+  const url = joinDaemonUrl(baseUrl, '');
   let response: Response;
   try {
     response = await fetch(url, {
@@ -566,7 +567,7 @@ export async function cosignRefundWithQuorum(
       ? (vault as SdkVault)
       : toSdkVault(vault as VaultRecord);
 
-  const cosignUrl = `${baseUrl.replace(/\/+$/, '')}/tachi_signTransaction`;
+  const cosignUrl = joinDaemonUrl(baseUrl, 'tachi_signTransaction');
 
   let attempts = 0;
   while (true) {

@@ -3,14 +3,14 @@ import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
 import { vaultsForIdentity, type ExitReadiness, type Identity, type PaymentReceipt, type VaultRecord } from '@ripcord/core/types';
 import type { PreflightResult } from '@ripcord/core/health';
 import type { IndexerEvent, IndexerStatus } from '@ripcord/core/indexer';
-import { describeDaemonFailure } from '@ripcord/core/net';
+import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
 
 // Browser calls use the same-origin dev proxy because the public daemon does
 // not opt into CORS. Production should provide an equivalent backend proxy.
 const LOCAL_DAEMON = window.location.origin;
 const DEFAULT_DAEMON = import.meta.env.VITE_DAEMON_URL ?? LOCAL_DAEMON;
 const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL
-  ?? new URL('/rpc', window.location.origin).toString().replace(/\/$/, '');
+  ?? joinDaemonUrl(window.location.origin, 'rpc');
 
 type BootState = 'checking' | 'ready' | 'degraded' | 'unreachable';
 
