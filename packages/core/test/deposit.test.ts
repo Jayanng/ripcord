@@ -7,7 +7,7 @@ import {
   verifyDepositProofOfReserves,
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { syncWalletWithScan } from './live-fixtures.js';
+import { syncWalletWithScan, ensureFixtureFunds } from './live-fixtures.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 
 const ALICE_MNEMONIC =
@@ -51,7 +51,19 @@ describe('deposit.ts', { timeout: 120000 }, () => {
   }
 
   describe('depositToVault', () => {
-    it('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async () => {
+    it('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async (ctx) => {
+      // Fixture economics (live, measured): each run moves ~41k sats out of
+      // the wallet's visible set (change lands on the vault user's address by
+      // product design). ensureFixtureFunds self-heals via the faucet when
+      // short; if funds are still unavailable (24h per-address faucet limit,
+      // waiting on a block) skip LOUDLY instead of failing - this test spends
+      // scarce live resources (AGENTS.md skipIf rule).
+      const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, 42_000n);
+      if (funds.visibleSats < 42_000n) {
+        console.warn(`[fixture] deposit.test skipped: ${funds.visibleSats} sats visible. ${funds.faucetMessage ?? ''} Re-run after the next block.`);
+        ctx.skip();
+        return;
+      }
       // Vaults are atomic (verified): one deposit per vault. Use a fresh index
       // per run so repeat executions never collide with an already-funded vault.
       const freshIndex = 20000 + Math.floor(Math.random() * 100000);

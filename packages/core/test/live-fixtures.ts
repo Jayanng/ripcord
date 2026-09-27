@@ -77,10 +77,12 @@ export async function withTransportRetry<T>(
     validate?: (result: T) => void;
   } = {},
 ): Promise<T> {
-  // Budget is sized to the measured daemon wobble (2026-09-27): healthy
-  // responses 0.16-0.45s, wobble waves 6-9s per call with intermittent 502s
-  // lasting 15-60s. 5 attempts at 2/4/8/16s backoff spans ~30s of wave.
-  const attempts = options.attempts ?? 5;
+  // Budget is sized to the measured daemon wobble (2026-09-27/28): healthy
+  // responses 0.16-0.45s, wobble waves 5-9s per call with intermittent 502s
+  // and >10s stalls lasting 15-120s (waves with healthy gaps in between).
+  // 7 attempts at 2/4/8/16/32/64s backoff spans ~126s of wave — the previous
+  // 5-attempt ~30s budget lost 3 tests to a single 60-120s wave on 2026-09-28.
+  const attempts = options.attempts ?? 7;
   const initialDelay = options.initialDelayMs ?? 2000;
   const factor = options.backoffFactor ?? 2;
 
@@ -190,6 +192,54 @@ export function pinChangeAddress(
     configurable: true,
   });
   return pinned;
+}
+
+/**
+ * Best-effort faucet top-up for the shared test fixture, with graceful
+ * degradation. The faucet allows 0.5 BTC per address per rolling 24h window
+ * (enforced live: "rate limit: only 0.00000000 BTC remaining for this
+ * address"). When the fixture is short this broadcasts a top-up and returns
+ * the CURRENT visible balance WITHOUT waiting for the block - callers skip
+ * cleanly this run and the next run finds the funds. No human top-ups, no
+ * red suites from fixture economics.
+ */
+export async function ensureFixtureFunds(
+  userWallet: {
+    sync(): Promise<void>;
+    readonly receiveAddress?: string;
+    readonly changeAddress?: string;
+    readonly utxos?: readonly unknown[];
+  },
+  bitcoinRpcUrl: string,
+  neededSats: bigint,
+  options: { faucetUrl?: string } = {},
+): Promise<{ visibleSats: bigint; topUpAttempted: boolean; faucetMessage?: string }> {
+  await syncWalletWithScan(userWallet, bitcoinRpcUrl);
+  const visibleSats = (userWallet.utxos ?? []).reduce((acc, u) => {
+    const v = (u as { valueSats?: bigint }).valueSats;
+    return acc + (typeof v === 'bigint' ? v : 0n);
+  }, 0n);
+  if (visibleSats >= neededSats) return { visibleSats, topUpAttempted: false };
+
+  const faucetUrl = options.faucetUrl ?? 'https://faucet.tachibtc.com/api/faucet';
+  const target = userWallet.receiveAddress ?? userWallet.changeAddress;
+  if (!target) return { visibleSats, topUpAttempted: false, faucetMessage: 'no faucet target address' };
+
+  try {
+    const res = await fetch(faucetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: target, amountBtc: 0.5 }),
+    });
+    const body = await res.text();
+    return {
+      visibleSats,
+      topUpAttempted: true,
+      faucetMessage: res.ok ? `top-up broadcast to ${target}` : `faucet said: ${body.slice(0, 140)}`,
+    };
+  } catch (err) {
+    return { visibleSats, topUpAttempted: true, faucetMessage: `faucet unreachable: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 /**

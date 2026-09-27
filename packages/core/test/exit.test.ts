@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { syncWalletWithScan } from './live-fixtures.js';
+import { syncWalletWithScan, ensureFixtureFunds } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -95,7 +95,15 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     })).rejects.toThrow(/cannot be the vault address/);
   });
 
-  it('assessExit on a 0-conf deposit is maturing, vsize 125, nSequence 2, and does not spend', async () => {
+  it('assessExit on a 0-conf deposit is maturing, vsize 125, nSequence 2, and does not spend', async (ctx) => {
+    // See deposit.test.ts: fixture economics. Self-heal via faucet when
+    // short, skip loudly when the faucet/blocks cannot provide funds now.
+    const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, 42_000n);
+    if (funds.visibleSats < 42_000n) {
+      console.warn(`[fixture] exit.test skipped: ${funds.visibleSats} sats visible. ${funds.faucetMessage ?? ''} Re-run after the next block.`);
+      ctx.skip();
+      return;
+    }
     const index = 53000 + Math.floor(Math.random() * 10000);
     const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
     const vault = await createVault({
