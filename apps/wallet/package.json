@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@radix-ui/colors": "^3.0.0",
-    "@ripcord/core": "0.1.1",
+    "@ripcord/core": "*",
     "@types/qrcode": "^1.5.6",
     "bip39": "^3.1.0",
     "qrcode": "^1.5.4",
