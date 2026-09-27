@@ -3,7 +3,114 @@ import { depositFromMnemonic, type DepositResult } from './deposit.js';
 import { makeSigner } from './keys.js';
 import { registerVault, isCode17VaultExists, adoptVaultOnCode17 } from './register.js';
 import { mapDaemonError } from './errors.js';
+import { joinDaemonUrl, describeDaemonFailure } from './net.js';
 import type { VaultRecord } from './types.js';
+
+export const DAEMON_SLOW_NOTE = 'The daemon is slow to answer. Your setup continues safely; status will refresh shortly.';
+
+export function isDaemonSlowError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /timeout|timed?\s*out|deadline|context deadline exceeded|502|slow or down/i.test(msg);
+}
+
+export function composeFlowErrorMessage(err: unknown): string {
+  if (isDaemonSlowError(err)) {
+    return DAEMON_SLOW_NOTE;
+  }
+  const described = describeDaemonFailure(err);
+  if (isDaemonSlowError(described)) {
+    return DAEMON_SLOW_NOTE;
+  }
+  return described.replace(/^Unknown error:\s*/i, '');
+}
+
+export interface ListedVaultSummary {
+  vaultId: string;
+  fundingTxid: string;
+  fundingVout: number;
+  address?: string;
+}
+
+export interface QueryListVaultsOptions {
+  baseUrl: string;
+  pageSize?: number;
+  timeoutMs?: number;
+  allowInsecureHttp?: boolean;
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Query daemon /tachi_listVaults using the X-ONLY key (avoiding compressed-key/parity issues).
+ * Raises default per-attempt timeout for these non-critical lookups to 20s.
+ */
+export async function queryListVaults(
+  userKey: string,
+  options: QueryListVaultsOptions,
+): Promise<{ user: string; vaults: ListedVaultSummary[] }> {
+  const ownerXOnly = (userKey.length === 66 ? userKey.slice(2) : userKey).toLowerCase();
+  const pageSize = options.pageSize ?? 100;
+  const timeoutMs = options.timeoutMs ?? 20_000;
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const url = `${joinDaemonUrl(options.baseUrl, 'tachi_listVaults')}?user=${ownerXOnly}&page_size=${pageSize}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await Promise.race([
+      fetchImpl(url, {
+        method: 'GET',
+        signal: controller.signal,
+      }),
+      new Promise<Response>((_, reject) => {
+        controller.signal.addEventListener('abort', () => {
+          reject(new DOMException(`listVaults: query to ${url} timed out after ${timeoutMs}ms`, 'AbortError'));
+        });
+      }),
+    ]);
+
+    if (!response.ok) {
+      throw new Error(`listVaults: HTTP ${response.status} from ${url}`);
+    }
+
+    const data = (await response.json()) as {
+      user?: string;
+      vaults?: Array<{
+        vault_id?: string;
+        vaultId?: string;
+        funding_txid?: string;
+        fundingTxid?: string;
+        funding_vout?: number;
+        fundingVout?: number;
+        address?: string;
+      }>;
+    };
+
+    const vaults: ListedVaultSummary[] = (data.vaults ?? []).map(item => ({
+      vaultId: item.vault_id ?? item.vaultId ?? '',
+      fundingTxid: (item.funding_txid ?? item.fundingTxid ?? '').toLowerCase(),
+      fundingVout: item.funding_vout ?? item.fundingVout ?? 0,
+      address: item.address,
+    }));
+
+    return {
+      user: data.user ?? ownerXOnly,
+      vaults,
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`listVaults: query to ${url} timed out after ${timeoutMs}ms`);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    if (/timeout|aborted/i.test(message)) {
+      throw new Error(`listVaults: query to ${url} timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export interface FundVaultLifecycleParams {
   vault: VaultRecord;
@@ -19,6 +126,8 @@ export interface FundVaultLifecycleParams {
   onDepositBroadcast?: (deposit: DepositResult) => void;
   onConfirmationPoll?: (confirmations: number) => void;
   onFallback?: (error: unknown, diagnosis: string) => void;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 export interface FundVaultLifecycleResult {
@@ -36,7 +145,15 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
     try {
       return await fn();
     } catch (err) {
-      if (i >= attempts || !(err instanceof Error && /timeout|deadline|network|UND_ERR|fetch failed/i.test(err.message))) {
+      if (
+        i >= attempts ||
+        !(
+          err instanceof Error &&
+          /timeout|timed?\s*out|502|503|504|AbortError|deadline|context deadline exceeded|network|UND_ERR|fetch failed|ECONNRESET|ECONNREFUSED/i.test(
+            err.message,
+          )
+        )
+      ) {
         throw err;
       }
       await new Promise(r => setTimeout(r, delayMs * i));
@@ -48,24 +165,48 @@ export interface RecoverVaultLifecycleStateParams {
   vault: VaultRecord;
   bitcoinRpcBaseUrl: string;
   daemonBaseUrl: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 /** Restore an existing vault's public funding and registration evidence without broadcasting. */
 export async function recoverVaultLifecycleState(
   params: RecoverVaultLifecycleStateParams,
 ): Promise<VaultRecord> {
-  const deposit = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+  const deposit = params.vault.funding
+    ? {
+        txid: params.vault.funding.txid,
+        vout: params.vault.funding.vout,
+        amountSats: params.vault.funding.valueSats,
+        source: 'recovered' as const,
+      }
+    : await findExistingVaultFunding(
+        params.bitcoinRpcBaseUrl,
+        params.vault,
+        params.fetchImpl ?? globalThis.fetch.bind(globalThis),
+      );
   if (!deposit) return params.vault;
 
   const daemonUrl = new URL(params.daemonBaseUrl);
   const allowInsecureHttp = daemonUrl.protocol === 'http:'
     && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
-  const listed = await retryDaemonQuery(() => vc.listVaults(params.vault.userKeyDescriptor.publicKey, {
-    baseUrl: params.daemonBaseUrl,
-    pageSize: 100,
-    allowInsecureHttp,
-    fetchImpl: globalThis.fetch.bind(globalThis),
-  }));
+
+  let listed: { vaults: ListedVaultSummary[] } | null = null;
+  try {
+    listed = await retryDaemonQuery(() =>
+      queryListVaults(params.vault.userKeyDescriptor.publicKey, {
+        baseUrl: params.daemonBaseUrl,
+        pageSize: 100,
+        timeoutMs: params.timeoutMs ?? 20_000,
+        allowInsecureHttp,
+        fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis),
+      }),
+    );
+  } catch (_err) {
+    // Soft-fail: treat registration state as unknown-but-not-registered and continue with local state
+    return params.vault;
+  }
+
   const internalFundingTxid = Buffer.from(deposit.txid, 'hex').reverse().toString('hex');
   const registered = listed.vaults.find(item =>
     item.fundingTxid.toLowerCase() === internalFundingTxid && item.fundingVout === deposit.vout,
@@ -130,10 +271,14 @@ export async function getLockedVaultVtxos(vaultAddress: string, daemonBaseUrl: s
   }));
 }
 
-async function findExistingVaultFunding(baseUrl: string, vault: VaultRecord) {
+async function findExistingVaultFunding(
+  baseUrl: string,
+  vault: VaultRecord,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const response = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) });
+      const response = await fetchImpl(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) });
       if (!response.ok) {
         if ([502, 503, 504, 429].includes(response.status) && attempt < 3) {
           await new Promise(r => setTimeout(r, attempt * 1000));
@@ -242,8 +387,9 @@ export function evaluateFundingStep(state: {
   deposit?: { txid: string; vout: number } | null;
   hasConfirmedDeposit?: boolean;
   hasVtxo?: boolean;
+  registrationState?: 'registered' | 'unregistered' | 'unknown';
 }): FlowStepDecision {
-  if (state.vault?.vaultIdHex || state.vault?.registered) {
+  if (state.registrationState === 'registered' || state.vault?.vaultIdHex || state.vault?.registered) {
     return {
       action: 'complete',
       shouldRegister: false,
@@ -319,7 +465,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       if (params.vault.funding) {
         dep = { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' };
       } else {
-        const found = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+        const found = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
         dep = found ?? {
           txid: '' as import('./types.js').DisplayTxid,
           vout: 0,
@@ -338,7 +484,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
 
     let deposit: LifecycleDeposit | null = params.vault.funding
       ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
-      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
 
     if (!deposit && params.existingDepositTxid) {
       deposit = await findBroadcastVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.existingDepositTxid);
@@ -402,11 +548,27 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
     }
 
-    const listed = await retryDaemonQuery(() => vc.listVaults(params.vault.userKeyDescriptor.publicKey, { baseUrl: params.daemonBaseUrl, pageSize: 100, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
-    const internalFundingTxid = Buffer.from(deposit.txid, 'hex').reverse().toString('hex');
-    const registered = listed.vaults.find(item => item.fundingTxid.toLowerCase() === internalFundingTxid && item.fundingVout === deposit.vout);
+    let registered: ListedVaultSummary | undefined;
+    try {
+      const listed = await retryDaemonQuery(() =>
+        queryListVaults(params.vault.userKeyDescriptor.publicKey, {
+          baseUrl: params.daemonBaseUrl,
+          pageSize: 100,
+          timeoutMs: params.timeoutMs ?? 20_000,
+          allowInsecureHttp,
+          fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis),
+        }),
+      );
+      const internalFundingTxid = Buffer.from(deposit.txid, 'hex').reverse().toString('hex');
+      registered = listed.vaults.find(item => item.fundingTxid.toLowerCase() === internalFundingTxid && item.fundingVout === deposit.vout);
+    } catch (_err) {
+      // Soft-fail: when listVaults ultimately fails, treat registration state as
+      // UNKNOWN-but-not-registered and continue step machine (do NOT throw).
+      registered = undefined;
+    }
+
     if (registered) {
-      const current = await retryDaemonQuery(() => vc.getAddressVtxos(params.vault.userKeyDescriptor.publicKey.slice(2), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
+      const current = await retryDaemonQuery(() => vc.getAddressVtxos(params.vault.userKeyDescriptor.publicKey.slice(2), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));
       const evidence = current.vtxos.find(item => !item.spent);
       return { deposit, vtxoId: evidence?.id ?? '', mintTxHash: '', mintEpoch: evidence?.height ?? 0, vaultId: registered.vaultId };
     }
@@ -415,7 +577,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     const signer = makeSigner(params.mnemonic, 'regtest', params.vault.userKeyIndex);
     const mintAmount = deposit.amountSats - 1n;
     const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
-    const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
+    const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));
     const recoveredVtxo = existing.vtxos.find(item => !item.spent && item.amountSats === mintAmount);
     let vtxoId: string;
     let mintTxHash = '';
@@ -424,11 +586,11 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       vtxoId = recoveredVtxo.id;
       mintEpoch = recoveredVtxo.height;
     } else {
-      const nonce = await retryDaemonQuery(() => vc.getAccountNonce(Buffer.from(owner, 'hex'), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) }));
+      const nonce = await retryDaemonQuery(() => vc.getAccountNonce(Buffer.from(owner, 'hex'), { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));
       const draft = vc.buildTachiTxDeposit({ userXOnly: Buffer.from(owner, 'hex'), amountSats: mintAmount, nonce, feeSats: 1n });
       const signed = await vc.signTachiTx(draft, signer);
-      const broadcast = await vc.broadcastTachiTx(signed, { url: params.daemonBaseUrl + '/tachi_txBroadcastSync', allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
-      const commit = await vc.waitForTachiTxCommit(broadcast.tendermintTxHash, { baseUrl: params.daemonBaseUrl, overallTimeoutMs: 120_000, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+      const broadcast = await vc.broadcastTachiTx(signed, { url: params.daemonBaseUrl + '/tachi_txBroadcastSync', allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) });
+      const commit = await vc.waitForTachiTxCommit(broadcast.tendermintTxHash, { baseUrl: params.daemonBaseUrl, overallTimeoutMs: 120_000, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) });
       if (commit.code !== 0) throw mapDaemonError(commit);
       vtxoId = Buffer.from(vc.vtxoIdFromDeposit(signed, 0)).toString('hex');
       mintTxHash = commit.hash;
@@ -436,7 +598,19 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     }
     params.onProgress?.('registering');
     const registrationAmount = mintAmount - 1n;
-    const registration = await registerVault({ vault: params.vault, fundingTxid: deposit.txid, fundingVout: deposit.vout, userSigner: signer, vtxoId, owner: params.vault.userKeyDescriptor.publicKey.slice(2), amount: registrationAmount, baseUrl: params.daemonBaseUrl, allowInsecureHttp });
+    const registration = await registerVault({
+      vault: params.vault,
+      fundingTxid: deposit.txid,
+      fundingVout: deposit.vout,
+      userSigner: signer,
+      vtxoId,
+      owner: params.vault.userKeyDescriptor.publicKey.slice(2),
+      amount: registrationAmount,
+      baseUrl: params.daemonBaseUrl,
+      allowInsecureHttp,
+      fetchImpl: params.fetchImpl,
+      timeoutMs: params.timeoutMs,
+    });
     return { deposit, vtxoId, mintTxHash, mintEpoch, vaultId: registration.vaultId };
   } catch (error) {
     if (isCode17VaultExists(error)) {
@@ -450,6 +624,8 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
         ownerXOnly: owner,
         baseUrl: params.daemonBaseUrl,
         allowInsecureHttp,
+        fetchImpl: params.fetchImpl,
+        timeoutMs: params.timeoutMs,
       });
       return {
         deposit: { txid: depTxid, vout: fundingVout, amountSats: params.vault.funding?.valueSats ?? 0n, source: 'recovered' },

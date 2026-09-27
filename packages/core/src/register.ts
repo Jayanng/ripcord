@@ -21,6 +21,8 @@ export interface RegisterVaultParams {
   /** SDK account/query base URL, without a path suffix. */
   baseUrl: string;
   allowInsecureHttp?: boolean;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 export async function registerVault(params: RegisterVaultParams): Promise<{ vaultId: string }> {
@@ -127,9 +129,9 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
       inputs: [{ vtxoId: vtxoIdBuf }],
       outputs: [{ owner: xOnlyBuf, amount }],
       feeSats: 1n,
-      account: { baseUrl, allowInsecureHttp },
-      broadcast: { url: baseUrl + '/tachi_txBroadcastSync', allowInsecureHttp },
-      confirm: { baseUrl, allowInsecureHttp },
+      account: { baseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl, requestTimeoutMs: params.timeoutMs },
+      broadcast: { url: baseUrl + '/tachi_txBroadcastSync', allowInsecureHttp, fetchImpl: params.fetchImpl, timeoutMs: params.timeoutMs },
+      confirm: { baseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl, requestTimeoutMs: params.timeoutMs },
     });
 
     return { vaultId: reg.vaultIdHex };
@@ -141,6 +143,8 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
         ownerXOnly: parsedOwnerXOnly,
         baseUrl: params.baseUrl,
         allowInsecureHttp: params.allowInsecureHttp,
+        fetchImpl: params.fetchImpl,
+        timeoutMs: params.timeoutMs,
       });
     }
     throw mapDaemonError(err);
@@ -228,10 +232,35 @@ export interface AdoptVaultOnCode17Params {
   ownerXOnly: string;
   baseUrl: string;
   allowInsecureHttp?: boolean;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs = 1500): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (
+        i >= attempts ||
+        !(
+          err instanceof Error &&
+          /timeout|timed?\s*out|502|503|504|AbortError|deadline|context deadline exceeded|network|UND_ERR|fetch failed|ECONNRESET|ECONNREFUSED/i.test(
+            err.message,
+          )
+        )
+      ) {
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, delayMs * i));
+    }
+  }
 }
 
 export async function adoptVaultOnCode17(params: AdoptVaultOnCode17Params): Promise<{ vaultId: string }> {
   const { fundingTxid, fundingVout, ownerXOnly, baseUrl } = params;
+  const timeoutMs = params.timeoutMs ?? 20_000;
+  const fetchImpl = params.fetchImpl ?? globalThis.fetch.bind(globalThis);
 
   // a. compute expectedVaultId from our fundingTxid+fundingVout
   const expectedVaultIdBuf = vc.deriveVaultId(fundingTxid, fundingVout);
@@ -243,16 +272,37 @@ export async function adoptVaultOnCode17(params: AdoptVaultOnCode17Params): Prom
 
   let response: Response;
   try {
-    response = await fetch(listUrl);
+    response = await retryDaemonQuery(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await Promise.race([
+          fetchImpl(listUrl, { signal: controller.signal }),
+          new Promise<Response>((_, reject) => {
+            controller.signal.addEventListener('abort', () => {
+              reject(new DOMException(`adoptVault: query timed out after ${timeoutMs}ms`, 'AbortError'));
+            });
+          }),
+        ]);
+        if (!res.ok) {
+          throw new Error(`listVaults: HTTP ${res.status} from ${listUrl}`);
+        }
+        return res;
+      } finally {
+        clearTimeout(timer);
+      }
+    }, 4, 1500);
   } catch (netErr) {
-    throw mapDaemonError(netErr);
-  }
-
-  if (!response.ok) {
+    const isSlow = /timeout|timed?\s*out|deadline|context deadline exceeded|502|503|504|slow or down/i.test(
+      netErr instanceof Error ? netErr.message : String(netErr),
+    );
+    const msg = isSlow
+      ? 'The daemon is slow to answer. Your setup continues safely; status will refresh shortly.'
+      : `Failed to query daemon vaults for adoption: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
     throw new RipcordError(
       RipcordCode.DAEMON_UNREACHABLE,
-      `Failed to query daemon vaults for adoption (HTTP ${response.status})`,
-      { cause: response, daemonCode: 17 }
+      msg,
+      { cause: netErr, daemonCode: 17 }
     );
   }
 

@@ -3,6 +3,7 @@ import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from './FaucetModal';
 import { truncate } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
+import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
 type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 'registering' | 'complete' | 'error';
 
@@ -61,8 +62,9 @@ export function VaultStatusCard() {
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
       localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
     } catch (e) {
-      setFlow('error');
-      setError(describeDaemonFailure(e));
+      const isSlow = isDaemonSlowError(e);
+      setFlow(isSlow ? 'ready' : 'error');
+      setError(composeFlowErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -206,7 +208,7 @@ export function VaultStatusCard() {
           </button>
         </div>
       )}
-      <p className={flow === 'error' ? 'inline-error' : 'flow-note'} role={flow === 'error' ? 'alert' : 'status'}>
+      <p className={flow === 'error' && !isDaemonSlowError(error) ? 'inline-error' : 'flow-note'} role={flow === 'error' && !isDaemonSlowError(error) ? 'alert' : 'status'}>
         {error || statusText}
       </p>
       {pendingFaucetTxid && flow === 'ready' && (

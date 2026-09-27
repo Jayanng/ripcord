@@ -246,18 +246,41 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
 
   const byVaultId = new Map<string, VaultRecord>();
 
+async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs = 1500): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (
+        i >= attempts ||
+        !(
+          err instanceof Error &&
+          /timeout|timed?\s*out|502|503|504|AbortError|deadline|context deadline exceeded|network|UND_ERR|fetch failed|ECONNRESET|ECONNREFUSED/i.test(
+            err.message,
+          )
+        )
+      ) {
+        throw err;
+      }
+      await new Promise(r => setTimeout(r, delayMs * i));
+    }
+  }
+}
+
   for (const csvBlocks of csvCandidates) {
-    const discovered = await vc.discoverVaults({
-      network: 'regtest',
-      userWallet: wallet,
-      nodePubkeys: quorum.nodePubkeys,
-      threshold: quorum.threshold,
-      csvBlocks,
-      query: { baseUrl, allowInsecureHttp },
-      startIndex: resolvedStartIndex,
-      gapLimit: resolvedGapLimit,
-      maxIndex: resolvedMaxIndex,
-    });
+    const discovered = await retryDaemonQuery(() =>
+      vc.discoverVaults({
+        network: 'regtest',
+        userWallet: wallet,
+        nodePubkeys: quorum.nodePubkeys,
+        threshold: quorum.threshold,
+        csvBlocks,
+        query: { baseUrl, allowInsecureHttp, timeoutMs: 20_000 },
+        startIndex: resolvedStartIndex,
+        gapLimit: resolvedGapLimit,
+        maxIndex: resolvedMaxIndex,
+      }),
+    );
 
     for (const d of discovered) {
       // Strict gates per the build plan: internal VaultID consistency AND
@@ -288,13 +311,21 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
       const descriptor = vc.userKeyDescriptorFromWallet(wallet, { index: d.userKeyIndex });
 
       // Money binding: the funding output's on-chain scriptPubKey must equal
-      // the rebuilt P2TR output. Throws on any disagreement.
-      const funding = await fetchFundingBinding(
-        bitcoinRpcBaseUrl,
-        d.summary.fundingTxid,
-        d.summary.fundingVout,
-        Buffer.from(d.vault.p2tr.output).toString('hex')
-      );
+      // the rebuilt P2TR output. If funding is missing on chain, skip the orphan vault.
+      let funding: FundingBinding;
+      try {
+        funding = await fetchFundingBinding(
+          bitcoinRpcBaseUrl,
+          d.summary.fundingTxid,
+          d.summary.fundingVout,
+          Buffer.from(d.vault.p2tr.output).toString('hex')
+        );
+      } catch (err) {
+        if (err instanceof RipcordError && err.code === RipcordCode.FUNDING_MISSING) {
+          continue;
+        }
+        throw err;
+      }
 
       const record: VaultRecord = {
         vaultIdHex: d.summary.vaultId,

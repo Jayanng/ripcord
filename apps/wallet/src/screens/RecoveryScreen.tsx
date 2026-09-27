@@ -3,6 +3,7 @@ import { useWallet } from '../context/WalletContext';
 import { RecoveryProgress, type RecoveryStepState } from '../components/RecoveryProgress';
 import { truncate } from '../components/ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
+import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
 const LABELS = [
   'Derive BIP84/BIP340 identity keys',
@@ -56,9 +57,9 @@ export function RecoveryScreen() {
       update(5, 'passed', `WSS connected; ${wallet.receipts.length} public receipts available`);
       setMnemonic('');
     } catch (e) {
-      const message = describeDaemonFailure(e);
+      const message = composeFlowErrorMessage(e);
       setError(message);
-      update(currentStep, 'failed', message);
+      update(currentStep, isDaemonSlowError(e) ? 'active' : 'failed', message);
     } finally { setBusy(false); }
   };
 
@@ -73,6 +74,6 @@ export function RecoveryScreen() {
     </form>
     <RecoveryProgress steps={steps} />
     {states[5] === 'passed' && wallet.activeVault && <><dl className="recovery-evidence"><div><dt>Vault</dt><dd>{wallet.activeVault.address}</dd></div><div><dt>Funding</dt><dd>{wallet.activeVault.funding ? `${wallet.activeVault.funding.txid}:${wallet.activeVault.funding.vout}` : 'Not reported'}</dd></div><div><dt>VTXOs</dt><dd>{wallet.liveVtxos.length}</dd></div></dl><p className="flow-note">Historical proof receipts are restored only when the daemon exposes them or they were persisted locally. This recovery run does not fabricate missing receipts.</p></>}
-    {error && <p className="inline-error" role="alert">{error}</p>}
+    {error && <p className={isDaemonSlowError(error) ? 'flow-note' : 'inline-error'} role={isDaemonSlowError(error) ? 'status' : 'alert'}>{error}</p>}
   </section>;
 }
