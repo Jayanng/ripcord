@@ -11,11 +11,11 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 | Import | What lives there |
 | --- | --- |
 | `@ripcord/core` | Everything below, re-exported |
-| `./keys` `./quorum` `./vault` `./deposit` `./register` | Identity, quorum discovery, vault lifecycle (incl. idempotent re-registration adoption) |
+| `./keys` `./quorum` `./vault` `./deposit` `./register` `./lifecycle` | Identity, quorum discovery, vault lifecycle (incl. idempotent re-registration adoption), flow orchestration |
 | `./payment` `./coinselect` `./queue` | VTXO sends with per-input scripts, coin selection, serializing TxQueue |
 | `./indexer` `./proofs` `./health` | Live indexing + receipts, HAT/RIP proofs, daemon health/watchtower reads |
 | `./exit` `./refund` `./recovery` | Unilateral exit assessment/execution, cooperative refunds, recovery |
-| `./net` `./errors` `./store` `./types` | Daemon transport + retries, friendly error mapping, pluggable stores, types |
+| `./net` `./errors` `./store` `./types` `./bytes` | Daemon URL joining & fetch failure diagnosis, friendly error mapping, pluggable stores, txid byte order + JSON serialization, types |
 
 The current release is **experimental and regtest-only**. It is not production custody software and must not be used with funds that matter.
 
@@ -24,6 +24,8 @@ The current release is **experimental and regtest-only**. It is not production c
 ```bash
 npm install @ripcord/core
 ```
+
+The package is ESM-only (`"type": "module"`). CommonJS consumers should use dynamic `import()`.
 
 ## Basic usage
 
@@ -41,7 +43,7 @@ Never log or persist a mnemonic or signing key. The example requires the mnemoni
 
 ## Public subpaths
 
-The package exports the root API and focused subpaths for `types`, `store`, `health`, `exit`, `vault`, `indexer`, `keys`, `quorum`, `recovery`, `payment`, and `lifecycle`.
+The package exports the root API and focused subpaths for `types`, `bytes`, `net`, `store`, `health`, `exit`, `refund`, `vault`, `deposit`, `lifecycle`, `payment`, `coinselect`, `queue`, `proofs`, `quorum`, `recovery`, `indexer`, `keys`, `register`, and `errors`.
 
 ## Verified environment
 

@@ -12,94 +12,113 @@
     "url": "https://github.com/Jayanng/ripcord/issues"
   },
   "homepage": "https://github.com/Jayanng/ripcord/tree/main/packages/core#readme",
-  "keywords": ["bitcoin", "tachi", "taurus", "vtxo", "taproot", "self-custody"],
+  "keywords": [
+    "bitcoin",
+    "tachi",
+    "taurus",
+    "vtxo",
+    "taproot",
+    "self-custody"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bytes": {
+      "types": "./dist/bytes.d.ts",
+      "import": "./dist/bytes.js"
     },
     "./types": {
-      "import": "./dist/types.js",
-      "types": "./dist/types.d.ts"
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
     },
     "./net": {
-      "import": "./dist/net.js",
-      "types": "./dist/net.d.ts"
+      "types": "./dist/net.d.ts",
+      "import": "./dist/net.js"
     },
     "./store": {
-      "import": "./dist/store.js",
-      "types": "./dist/store.d.ts"
+      "types": "./dist/store.d.ts",
+      "import": "./dist/store.js"
     },
     "./health": {
-      "import": "./dist/health.js",
-      "types": "./dist/health.d.ts"
+      "types": "./dist/health.d.ts",
+      "import": "./dist/health.js"
     },
     "./exit": {
-      "import": "./dist/exit.js",
-      "types": "./dist/exit.d.ts"
+      "types": "./dist/exit.d.ts",
+      "import": "./dist/exit.js"
     },
     "./refund": {
-      "import": "./dist/refund.js",
-      "types": "./dist/refund.d.ts"
+      "types": "./dist/refund.d.ts",
+      "import": "./dist/refund.js"
     },
     "./vault": {
-      "import": "./dist/vault.js",
-      "types": "./dist/vault.d.ts"
+      "types": "./dist/vault.d.ts",
+      "import": "./dist/vault.js"
     },
     "./indexer": {
-      "import": "./dist/indexer.js",
-      "types": "./dist/indexer.d.ts"
+      "types": "./dist/indexer.d.ts",
+      "import": "./dist/indexer.js"
     },
     "./keys": {
-      "import": "./dist/keys.js",
-      "types": "./dist/keys.d.ts"
+      "types": "./dist/keys.d.ts",
+      "import": "./dist/keys.js"
     },
     "./quorum": {
-      "import": "./dist/quorum.js",
-      "types": "./dist/quorum.d.ts"
+      "types": "./dist/quorum.d.ts",
+      "import": "./dist/quorum.js"
     },
     "./recovery": {
-      "import": "./dist/recovery.js",
-      "types": "./dist/recovery.d.ts"
+      "types": "./dist/recovery.d.ts",
+      "import": "./dist/recovery.js"
     },
     "./payment": {
-      "import": "./dist/payment.js",
-      "types": "./dist/payment.d.ts"
+      "types": "./dist/payment.d.ts",
+      "import": "./dist/payment.js"
     },
     "./proofs": {
-      "import": "./dist/proofs.js",
-      "types": "./dist/proofs.d.ts"
+      "types": "./dist/proofs.d.ts",
+      "import": "./dist/proofs.js"
     },
     "./register": {
-      "import": "./dist/register.js",
-      "types": "./dist/register.d.ts"
+      "types": "./dist/register.d.ts",
+      "import": "./dist/register.js"
     },
     "./queue": {
-      "import": "./dist/queue.js",
-      "types": "./dist/queue.d.ts"
+      "types": "./dist/queue.d.ts",
+      "import": "./dist/queue.js"
     },
     "./errors": {
-      "import": "./dist/errors.js",
-      "types": "./dist/errors.d.ts"
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
     },
     "./coinselect": {
-      "import": "./dist/coinselect.js",
-      "types": "./dist/coinselect.d.ts"
+      "types": "./dist/coinselect.d.ts",
+      "import": "./dist/coinselect.js"
     },
     "./deposit": {
-      "import": "./dist/deposit.js",
-      "types": "./dist/deposit.d.ts"
+      "types": "./dist/deposit.d.ts",
+      "import": "./dist/deposit.js"
     },
     "./lifecycle": {
-      "import": "./dist/lifecycle.js",
-      "types": "./dist/lifecycle.d.ts"
+      "types": "./dist/lifecycle.d.ts",
+      "import": "./dist/lifecycle.js"
     }
   },
   "scripts": {
@@ -111,11 +130,13 @@
     "@tachibtc/taurus-vault-core": "0.3.3",
     "@tachibtc/taurus-wallet-aggregator": "0.4.3",
     "bip39": "^3.1.0",
-    "bitcoinjs-lib": "^7.0.1"
+    "bitcoinjs-lib": "^7.0.1",
+    "@types/node": ">=18"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
-  }
+  },
+  "sideEffects": false
 }

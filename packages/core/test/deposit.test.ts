@@ -61,7 +61,7 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, 42_000n);
       if (funds.visibleSats < 42_000n) {
         console.warn(`[fixture] deposit.test skipped: ${funds.visibleSats} sats visible. ${funds.faucetMessage ?? ''} Re-run after the next block.`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): conditional on live fixture funds after faucet attempt
         return;
       }
       // Vaults are atomic (verified): one deposit per vault. Use a fresh index
