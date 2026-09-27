@@ -1,7 +1,7 @@
 import { useWallet } from '../context/WalletContext';
 
 export function TruthRail() {
-  const { bootState, health, refresh, indexerStatus } = useWallet();
+  const { bootState, health, refresh, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts } = useWallet();
   const statusLabel = bootState === 'ready'
     ? 'All probes answered'
     : bootState === 'checking'
@@ -10,7 +10,38 @@ export function TruthRail() {
     ? 'Daemon unreachable'
     : 'Daemon degraded';
 
+  const crossCheckLabel = balanceCrossCheck
+    ? !balanceCrossCheck.chainReachable || balanceCrossCheck.matches === null
+      ? `snapshot ${balanceCrossCheck.snapshotSats.toString()} sats (chain unavailable)`
+      : `snapshot ${balanceCrossCheck.snapshotSats.toString()} sats vs chain ${balanceCrossCheck.chainBalanceSats.toString()} sats${balanceCrossCheck.matches ? ' (match)' : ' (mismatch)'}`
+    : 'Not checked';
+
   return <>
+    {/* Scope 5: Prominent warning state if any breach receipt exists for the user's vault */}
+    {vaultBreachReceipts.length > 0 && (
+      <section className="failures" role="alert" aria-labelledby="breach-warning-title">
+        <div>
+          <p className="eyebrow" style={{ color: '#DC2626' }}>SECURITY ALERT</p>
+          <h2 id="breach-warning-title" style={{ color: '#DC2626', margin: 0, fontSize: '18px', fontWeight: 750 }}>
+            Breach Detected on Active Vault ({vaultBreachReceipts.length})
+          </h2>
+          <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#7F1D1D' }}>
+            The watchtower reported breach receipts for your vault. A unilateral exit or recovery is advised.
+          </p>
+        </div>
+        <ul>
+          {vaultBreachReceipts.map((receipt, idx) => (
+            <li key={receipt.spendTxid || idx} style={{ borderLeft: '3px solid #DC2626' }}>
+              <strong>Breach: {receipt.classification}</strong>
+              <span>
+                Spend txid: {receipt.spendTxid || 'unknown'} (vout {receipt.spendVout}) · Detected at L1 block {receipt.detectedHeight} · State {receipt.broadcastState}/{receipt.latestState}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
     <section className={`truth-rail ${bootState}`} aria-live="polite">
       <div className="truth-heading">
         <span className="status-dot" />
@@ -21,6 +52,16 @@ export function TruthRail() {
         <div><dt>Quorum</dt><dd>{health?.quorumSize ? `${health.quorumThreshold} of ${health.quorumSize}` : 'Not verified'}</dd></div>
         <div><dt>L1 height</dt><dd>{health?.l1Height ?? 'Unavailable'}</dd></div>
         <div><dt>Indexer</dt><dd>{`Indexer ${indexerStatus.state}`}</dd></div>
+        {/* Scope 5: Watchtower status in CHAIN TRUTH */}
+        <div><dt>Watchtower</dt><dd>{watchtowerStatus ? `${watchtowerStatus.mode} (L1: ${watchtowerStatus.lastScannedHeight})` : 'Not checked'}</dd></div>
+        <div><dt>WT Receipts</dt><dd>{watchtowerStatus ? `${watchtowerStatus.receiptCount} receipts` : 'Not checked'}</dd></div>
+        {/* Scope 3: Balance cross-check (informational, never silently changes balance) */}
+        <div>
+          <dt>Balance Cross-Check</dt>
+          <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${balanceCrossCheck.snapshotSats.toString()} sats, Chain: ${balanceCrossCheck.chainBalanceSats.toString()} sats (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${balanceCrossCheck.snapshotSats.toString()} sats (chain unavailable)`) : undefined}>
+            {crossCheckLabel}
+          </dd>
+        </div>
       </dl>
       <div className="truth-actions">
         <button

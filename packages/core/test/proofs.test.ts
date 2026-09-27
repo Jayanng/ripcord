@@ -39,7 +39,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
 
     hatA = await fetchHat(HIST_A.hash, { baseUrl: DAEMON });
     ripA0 = await fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 });
-  }, 60000);
+  }, 180000);
 
   describe('fetchHat', () => {
     it('returns a 64-char bare lowercase hex proof and the spent-input vtxo_id', () => {

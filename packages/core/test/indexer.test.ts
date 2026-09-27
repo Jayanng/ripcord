@@ -14,7 +14,21 @@ import {
   createVault,
   makeSigner,
   toSdkVault,
+  isOutputForXOnly,
+  getIncomingAmountSats,
+  isIncomingPayment,
+  synthesizeIncomingReceipt,
+  mergePaymentReceipt,
+  dedupeReceiptList,
+  saveReceiptMerged,
+  classifyCredit,
+  lookupTachiTx,
+  extractSenderPubkeyFromTachiHex,
+  NEUTRAL_FROM_XONLY,
+  asXOnlyHex,
 } from '../src/index.js';
+import { MemoryStore } from '../src/store.js';
+import type { PaymentReceipt, TxLookupResult, CreditClassification } from '../src/types.js';
 import { RipcordCode } from '../src/errors.js';
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
@@ -97,6 +111,465 @@ describe('mapVaultEvent (pure)', () => {
       raw: {},
     };
     expect(mapVaultEvent(breach)).toBeNull();
+  });
+});
+
+describe('Incoming receipt synthesis and deduplication (pure)', () => {
+  // Captured from real regtest identity derivation (Alice & Bob)
+  const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
+  const ALICE_COMPRESSED = '02e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
+  const BOB_XONLY = '110d9ecab272c72b5c5b4e3ecb00bf8a081cfd076ff7a2d3ef0c74f762694b88';
+  // Real transaction hash captured from live regtest epoch 857232
+  const REAL_TX_HASH = '0c8af8cf18444109099cd6da9a23e26425363b7c5bdcf7c1136cefabdc591ff7';
+  const SECOND_TX_HASH = '861c3e79d319a8664b49e945f9632dfb4b8d40b6cb9d91d3f1f38ff3fa2eb108';
+
+  describe('isOutputForXOnly', () => {
+    it('matches exact 64-character x-only hex string', () => {
+      expect(isOutputForXOnly(ALICE_XONLY, ALICE_XONLY)).toBe(true);
+      expect(isOutputForXOnly(ALICE_XONLY.toUpperCase(), ALICE_XONLY)).toBe(true);
+      expect(isOutputForXOnly(BOB_XONLY, ALICE_XONLY)).toBe(false);
+    });
+
+    it('matches 66-character compressed hex with 02 or 03 prefix', () => {
+      expect(isOutputForXOnly(ALICE_COMPRESSED, ALICE_XONLY)).toBe(true);
+      expect(isOutputForXOnly('03' + ALICE_XONLY, ALICE_XONLY)).toBe(true);
+      expect(isOutputForXOnly('04' + ALICE_XONLY, ALICE_XONLY)).toBe(false);
+    });
+
+    it('rejects malformed or empty owners', () => {
+      expect(isOutputForXOnly('', ALICE_XONLY)).toBe(false);
+      expect(isOutputForXOnly('invalid-hex', ALICE_XONLY)).toBe(false);
+      expect(isOutputForXOnly(ALICE_XONLY.slice(0, 32), ALICE_XONLY)).toBe(false);
+    });
+  });
+
+  describe('getIncomingAmountSats and isIncomingPayment', () => {
+    it('sums only outputs crediting the target identity', () => {
+      const event: IndexerTxEvent = {
+        kind: 'tx:committed',
+        type: 'transfer',
+        txHash: REAL_TX_HASH,
+        vaultAddress: '',
+        height: 14170,
+        committed: true,
+        receivedAt: 1700000000000,
+        vout: [
+          { owner: ALICE_XONLY, amountSats: 15_000n, script: '' },
+          { owner: BOB_XONLY, amountSats: 25_000n, script: '' },
+          { owner: ALICE_COMPRESSED, amountSats: 5_000n, script: '' },
+        ],
+      };
+
+      expect(getIncomingAmountSats(event, ALICE_XONLY)).toBe(20_000n);
+      expect(isIncomingPayment(event, ALICE_XONLY)).toBe(true);
+
+      expect(getIncomingAmountSats(event, BOB_XONLY)).toBe(25_000n);
+      expect(isIncomingPayment(event, BOB_XONLY)).toBe(true);
+
+      expect(getIncomingAmountSats(event, '00'.repeat(32))).toBe(0n);
+      expect(isIncomingPayment(event, '00'.repeat(32))).toBe(false);
+    });
+  });
+
+  describe('synthesizeIncomingReceipt', () => {
+    it('synthesizes a pending receipt with epoch 0 and neutral attestation data', () => {
+      const pendingEvent: IndexerTxEvent = {
+        kind: 'tx:pending',
+        type: 'transfer',
+        txHash: REAL_TX_HASH,
+        vaultAddress: '',
+        height: 0,
+        committed: false,
+        receivedAt: 1700000000000,
+        vout: [{ owner: ALICE_XONLY, amountSats: 50_000n, script: '' }],
+      };
+
+      const receipt = synthesizeIncomingReceipt(pendingEvent, ALICE_XONLY);
+      expect(receipt).not.toBeNull();
+      expect(receipt!.txHash).toBe(REAL_TX_HASH);
+      expect(receipt!.toXOnly).toBe(ALICE_XONLY);
+      expect(receipt!.fromXOnly).toBe(NEUTRAL_FROM_XONLY);
+      expect(receipt!.amountSats).toBe(50_000n);
+      expect(receipt!.feeSats).toBe(0n);
+      expect(receipt!.code).toBe(0);
+      expect(receipt!.epoch).toBe(0);
+      // Hard Rule: NEVER fabricate attestation data
+      expect(receipt!.hat).toBeUndefined();
+      expect(receipt!.rip).toBeUndefined();
+    });
+
+    it('synthesizes a committed receipt with epoch set to block height', () => {
+      const committedEvent: IndexerTxEvent = {
+        kind: 'tx:committed',
+        type: 'transfer',
+        txHash: REAL_TX_HASH,
+        vaultAddress: '',
+        height: 14170,
+        committed: true,
+        receivedAt: 1700000000000,
+        vout: [{ owner: ALICE_COMPRESSED, amountSats: 30_000n, script: '' }],
+      };
+
+      const receipt = synthesizeIncomingReceipt(committedEvent, ALICE_XONLY);
+      expect(receipt).not.toBeNull();
+      expect(receipt!.amountSats).toBe(30_000n);
+      expect(receipt!.epoch).toBe(14170);
+      expect(receipt!.hat).toBeUndefined();
+      expect(receipt!.rip).toBeUndefined();
+    });
+
+    it('returns null when transaction has no outputs crediting identity', () => {
+      const otherEvent: IndexerTxEvent = {
+        kind: 'tx:committed',
+        type: 'transfer',
+        txHash: REAL_TX_HASH,
+        vaultAddress: '',
+        height: 14170,
+        committed: true,
+        receivedAt: 1700000000000,
+        vout: [{ owner: BOB_XONLY, amountSats: 10_000n, script: '' }],
+      };
+      expect(synthesizeIncomingReceipt(otherEvent, ALICE_XONLY)).toBeNull();
+    });
+  });
+
+  describe('mergePaymentReceipt and dedupeReceiptList', () => {
+    it('prevents pending receipt from downgrading a committed receipt', () => {
+      const committedReceipt: PaymentReceipt = {
+        txHash: REAL_TX_HASH,
+        epoch: 14170,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(ALICE_XONLY),
+        amountSats: 50_000n,
+        feeSats: 0n,
+      };
+
+      const pendingUpdate: PaymentReceipt = {
+        txHash: REAL_TX_HASH,
+        epoch: 0,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(ALICE_XONLY),
+        amountSats: 50_000n,
+        feeSats: 0n,
+      };
+
+      const merged = mergePaymentReceipt(committedReceipt, pendingUpdate);
+      expect(merged.epoch).toBe(14170); // preserved committed epoch
+    });
+
+    it('upgrades a pending receipt when commit arrives', () => {
+      const pendingReceipt: PaymentReceipt = {
+        txHash: REAL_TX_HASH,
+        epoch: 0,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(ALICE_XONLY),
+        amountSats: 50_000n,
+        feeSats: 0n,
+      };
+
+      const committedUpdate: PaymentReceipt = {
+        txHash: REAL_TX_HASH,
+        epoch: 14172,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(ALICE_XONLY),
+        amountSats: 50_000n,
+        feeSats: 0n,
+      };
+
+      const merged = mergePaymentReceipt(pendingReceipt, committedUpdate);
+      expect(merged.epoch).toBe(14172);
+    });
+
+    it('deduplicates receipt list and updates in place', () => {
+      const existing: PaymentReceipt[] = [
+        {
+          txHash: REAL_TX_HASH,
+          epoch: 0,
+          code: 0,
+          fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+          toXOnly: asXOnlyHex(ALICE_XONLY),
+          amountSats: 50_000n,
+          feeSats: 0n,
+        },
+      ];
+
+      const updateCommitted: PaymentReceipt = {
+        txHash: REAL_TX_HASH.toUpperCase(), // case-insensitive dedupe
+        epoch: 14175,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(ALICE_XONLY),
+        amountSats: 50_000n,
+        feeSats: 0n,
+      };
+
+      const updated = dedupeReceiptList(existing, updateCommitted);
+      expect(updated.length).toBe(1);
+      expect(updated[0].epoch).toBe(14175);
+
+      const brandNew: PaymentReceipt = {
+        txHash: SECOND_TX_HASH,
+        epoch: 0,
+        code: 0,
+        fromXOnly: asXOnlyHex(NEUTRAL_FROM_XONLY),
+        toXOnly: asXOnlyHex(BOB_XONLY),
+        amountSats: 20_000n,
+        feeSats: 0n,
+      };
+
+      const withNew = dedupeReceiptList(updated, brandNew);
+      expect(withNew.length).toBe(2);
+      expect(withNew[0].txHash).toBe(SECOND_TX_HASH); // prepended
+    });
+
+    it('DEFECT 1 regression: synthesized receipt does not clobber rich stored receipt in store', async () => {
+      const store = new MemoryStore();
+      const txHash = '768f02444109099cd6da9a23e26425363b7c5bdcf7c1136cefabdc591ff7a123';
+      const richReceipt: PaymentReceipt = {
+        txHash,
+        epoch: 14170,
+        code: 0,
+        fromXOnly: asXOnlyHex(ALICE_XONLY),
+        toXOnly: asXOnlyHex(BOB_XONLY),
+        amountSats: 5_000n,
+        feeSats: 1n,
+        hat: {
+          vtxoId: '11'.repeat(32),
+          proof: 'aa'.repeat(32),
+          btcHeight: 0,
+        },
+        rip: {
+          originEpoch: 14170,
+          finalEpoch: 14170,
+          chainLength: 0,
+          finalRoot: 'bb'.repeat(16),
+          hatInStateDiff: true,
+        },
+      };
+
+      // 1. Plant rich receipt (e.g. from SendForm:37 with hat + real fromXOnly)
+      await store.saveReceipt(richReceipt);
+
+      // 2. Synthesized incoming event arrives for the same txHash crediting Alice (change output)
+      const incomingEvent: IndexerTxEvent = {
+        kind: 'tx:committed',
+        type: 'transfer',
+        txHash,
+        vaultAddress: '',
+        height: 14170,
+        committed: true,
+        receivedAt: Date.now(),
+        vout: [
+          { owner: BOB_XONLY, amountSats: 5_000n, script: '' },
+          { owner: ALICE_XONLY, amountSats: 35_000n, script: '' },
+        ],
+      };
+
+      const rawSynthesized = synthesizeIncomingReceipt(incomingEvent, ALICE_XONLY);
+      expect(rawSynthesized).not.toBeNull();
+      expect(rawSynthesized!.fromXOnly).toBe(NEUTRAL_FROM_XONLY);
+      expect(rawSynthesized!.hat).toBeUndefined();
+
+      // 3. Save synthesized receipt through merged persistence (Defect 1 fix)
+      await saveReceiptMerged(store, rawSynthesized!);
+
+      // 4. Reload from store and verify
+      const storedList = await store.getReceipts();
+      const reloaded = storedList.find(r => r.txHash.toLowerCase() === txHash.toLowerCase());
+      expect(reloaded).toBeDefined();
+
+      // Proves the stored/reloaded record still carries hat + original counterpart fields:
+      expect(reloaded!.hat).toEqual(richReceipt.hat);
+      expect(reloaded!.rip).toEqual(richReceipt.rip);
+      expect(reloaded!.fromXOnly).toBe(richReceipt.fromXOnly);
+      expect(reloaded!.toXOnly).toBe(richReceipt.toXOnly);
+      expect(reloaded!.amountSats).toBe(5_000n); // original send amount preserved, not overwritten by 35_000n change
+      expect(reloaded!.feeSats).toBe(1n);
+    });
+  });
+
+  describe('classifyCredit (pure)', () => {
+    const transferEvent: IndexerTxEvent = {
+      kind: 'tx:pending',
+      type: 'transfer',
+      txHash: REAL_TX_HASH,
+      vaultAddress: '',
+      height: 0,
+      committed: false,
+      receivedAt: 1700000000000,
+      vout: [
+        { owner: BOB_XONLY, amountSats: 10_000n, script: '' },
+        { owner: ALICE_XONLY, amountSats: 30_000n, script: '' },
+      ],
+    };
+
+    it('classifies as none when the event has no outputs crediting identity', () => {
+      const otherKey = '99'.repeat(32);
+      const res = classifyCredit(transferEvent, null, otherKey);
+      expect(res).toBe('none');
+    });
+
+    it('classifies deposit as incoming without requiring lookup (cannot be self-funded)', () => {
+      const depositEvent: IndexerTxEvent = {
+        ...transferEvent,
+        type: 'deposit',
+      };
+      // Lookup is null (no lookup needed), still returns incoming
+      const res = classifyCredit(depositEvent, null, ALICE_XONLY);
+      expect(res).toBe('incoming');
+    });
+
+    it('fails closed (skip) on transfer when lookup is null or failed', () => {
+      // Daemon outage, 502, network failure -> null lookup
+      const res = classifyCredit(transferEvent, null, ALICE_XONLY);
+      expect(res).toBe('skip');
+    });
+
+    it('classifies as self_move when lookup senderPubkey matches identity (change output)', () => {
+      const lookup: TxLookupResult = {
+        txHash: REAL_TX_HASH,
+        type: 'transfer',
+        senderPubkey: ALICE_XONLY,
+        vin: [{ vtxoId: '11'.repeat(32), valueSats: 40_001n }],
+        vout: [
+          { owner: BOB_XONLY, amountSats: 10_000n },
+          { owner: ALICE_XONLY, amountSats: 30_000n },
+        ],
+      };
+
+      const res = classifyCredit(transferEvent, lookup, ALICE_XONLY);
+      expect(res).toBe('self_move');
+    });
+
+    it('classifies as self_move when lookup senderPubkey is compressed prefix of identity', () => {
+      const lookup: TxLookupResult = {
+        txHash: REAL_TX_HASH,
+        type: 'transfer',
+        senderPubkey: ALICE_COMPRESSED,
+        vin: [{ vtxoId: '11'.repeat(32), valueSats: 40_001n }],
+      };
+
+      const res = classifyCredit(transferEvent, lookup, ALICE_XONLY);
+      expect(res).toBe('self_move');
+    });
+
+    it('classifies as self_move when all vin inputs are owned by identity', () => {
+      const lookup: TxLookupResult = {
+        txHash: REAL_TX_HASH,
+        type: 'transfer',
+        senderPubkey: '',
+        vin: [
+          { vtxoId: '11'.repeat(32), owner: ALICE_XONLY },
+          { vtxoId: '22'.repeat(32), owner: ALICE_COMPRESSED },
+        ],
+      };
+
+      const res = classifyCredit(transferEvent, lookup, ALICE_XONLY);
+      expect(res).toBe('self_move');
+    });
+
+    it('classifies as incoming when senderPubkey is a third party', () => {
+      const lookup: TxLookupResult = {
+        txHash: REAL_TX_HASH,
+        type: 'transfer',
+        senderPubkey: BOB_XONLY, // Bob sent Alice money
+        vin: [{ vtxoId: '11'.repeat(32), valueSats: 40_001n }],
+      };
+
+      const res = classifyCredit(transferEvent, lookup, ALICE_XONLY);
+      expect(res).toBe('incoming');
+    });
+
+    it('classifies as incoming when vin inputs belong to a third party', () => {
+      const lookup: TxLookupResult = {
+        txHash: REAL_TX_HASH,
+        type: 'transfer',
+        senderPubkey: '',
+        vin: [{ vtxoId: '11'.repeat(32), owner: BOB_XONLY }],
+      };
+
+      const res = classifyCredit(transferEvent, lookup, ALICE_XONLY);
+      expect(res).toBe('incoming');
+    });
+  });
+
+  describe('lookupTachiTx (live probe against daemon v0.39.0)', { timeout: 30000 }, () => {
+    it('retrieves and parses real committed transaction', async () => {
+      const result = await lookupTachiTx(REAL_TX_HASH, DAEMON);
+      expect(result).not.toBeNull();
+      expect(result!.txHash).toBe(REAL_TX_HASH);
+      expect(result!.type).toBe('transfer');
+      expect(result!.senderPubkey).toBe(ALICE_XONLY);
+      expect(result!.vin?.length).toBeGreaterThan(0);
+      expect(result!.vout?.length).toBe(2);
+
+      const testVout = (result!.vout ?? []).map(v => ({
+        owner: v.owner,
+        amountSats: v.amountSats,
+        script: v.script ?? '',
+      }));
+
+      // Verify classification with real lookup:
+      // Alice sent it, so Alice's credit is self_move (change)
+      const aliceCredit = classifyCredit(
+        {
+          kind: 'tx:committed',
+          type: 'transfer',
+          txHash: REAL_TX_HASH,
+          vaultAddress: '',
+          height: 857232,
+          committed: true,
+          receivedAt: Date.now(),
+          vout: testVout,
+        },
+        result,
+        ALICE_XONLY,
+      );
+      expect(aliceCredit).toBe('self_move');
+
+      // The actual recipient in output 0 received it from Alice (external sender), so recipient's credit is incoming
+      const recipientCredit = classifyCredit(
+        {
+          kind: 'tx:committed',
+          type: 'transfer',
+          txHash: REAL_TX_HASH,
+          vaultAddress: '',
+          height: 857232,
+          committed: true,
+          receivedAt: Date.now(),
+          vout: testVout,
+        },
+        result,
+        result!.vout[0].owner,
+      );
+      expect(recipientCredit).toBe('incoming');
+
+      // A third party not in outputs gets 'none'
+      const thirdPartyCredit = classifyCredit(
+        {
+          kind: 'tx:committed',
+          type: 'transfer',
+          txHash: REAL_TX_HASH,
+          vaultAddress: '',
+          height: 857232,
+          committed: true,
+          receivedAt: Date.now(),
+          vout: testVout,
+        },
+        result,
+        BOB_XONLY,
+      );
+      expect(thirdPartyCredit).toBe('none');
+    });
+
+    it('returns null when looking up unknown txHash', async () => {
+      const result = await lookupTachiTx('ff'.repeat(32), DAEMON);
+      expect(result).toBeNull();
+    });
   });
 });
 

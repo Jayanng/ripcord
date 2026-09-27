@@ -21,7 +21,16 @@ export interface FaucetActivity {
   createdAt: number;
 }
 
-export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity;
+export interface VtxoSpentActivity {
+  kind: 'vtxo:spent';
+  id: string;
+  amountSats: bigint;
+  height?: number;
+  owner?: string;
+  createdAt?: number;
+}
+
+export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity;
 
 export function ActivityRow({
   item,
@@ -178,6 +187,48 @@ export function ActivityRow({
             >
               Explorer ↗
             </a>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === 'vtxo:spent') {
+    const [txHash] = item.id.split(':');
+    return (
+      <article className="activity-row spent" style={{ opacity: 0.85 }}>
+        <div>
+          <div className="activity-title-group">
+            <strong style={{ color: 'var(--text-lo)' }}>-{formatSats(item.amountSats)}</strong>
+            <span className="activity-tag" style={{ background: '#F1F5F9', color: '#64748B' }}>Spent VTXO</span>
+          </div>
+          {txHash ? (
+            <a
+              className="tx-link"
+              href={explorerTxUrl(txHash)}
+              target="_blank"
+              rel="noreferrer"
+              title={`View spent VTXO ${item.id} on regtest explorer`}
+            >
+              {truncate(txHash, 14, 10)} ↗
+            </a>
+          ) : (
+            <span className="tx-link">{truncate(item.id, 14, 10)}</span>
+          )}
+        </div>
+        <div>
+          <span>{item.height ? `Spent at height ${item.height}` : 'Spent VTXO on chain'}</span>
+          <div className="activity-actions">
+            {txHash && (
+              <a
+                className="explorer-btn"
+                href={explorerTxUrl(txHash)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Explorer ↗
+              </a>
+            )}
           </div>
         </div>
       </article>

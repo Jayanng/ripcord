@@ -1,6 +1,12 @@
 import { fetchConsensusQuorum, getFeeEstimate } from '@tachibtc/taurus-vault-core';
 import { RipcordCode, RipcordError } from './errors.js';
 import { describeDaemonFailure, joinDaemonUrl } from './net.js';
+import type {
+  WatchtowerStatus,
+  WatchtowerBreachReceipt,
+  BalanceCrossCheckParams,
+  BalanceCrossCheckResult,
+} from './types.js';
 
 /**
  * Daemon preflight probes.
@@ -23,7 +29,8 @@ export type ProbeName =
   | 'liveValidators'
   | 'bitcoinRpc'
   | 'quorum'
-  | 'feeEstimate';
+  | 'feeEstimate'
+  | 'watchtower';
 
 /** A single failed probe, with the reason preserved. */
 export interface ProbeFailure {
@@ -34,6 +41,10 @@ export interface ProbeFailure {
 export interface PreflightOptions {
   readonly allowInsecureHttp?: boolean;
   readonly bitcoinRpcBaseUrl?: string;
+  readonly balanceCheck?: {
+    readonly ownerXOnly: string;
+    readonly snapshotSats: bigint;
+  };
 }
 
 export interface PreflightResult {
@@ -48,6 +59,8 @@ export interface PreflightResult {
   feeMinSats: bigint;
   l1Height: number | null;
   l1HeightSource: 'bitcoin-rpc' | 'unavailable';
+  watchtower?: WatchtowerStatus | null;
+  balanceCrossCheck?: BalanceCrossCheckResult | null;
   /**
    * Which probes failed and why. Empty when `daemonOk` is true.
    *
@@ -201,6 +214,31 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
     fail('feeEstimate', err, { method: 'GET' });
   }
 
+  let watchtower: WatchtowerStatus | null = null;
+  try {
+    watchtower = await fetchWatchtowerStatus(baseUrl, {
+      allowInsecureHttp: options.allowInsecureHttp,
+      timeoutMs: PROBE_TIMEOUT_MS,
+    });
+  } catch (err) {
+    fail('watchtower', err, { url: joinDaemonUrl(baseUrl, 'tachi_watchtower/status'), method: 'GET' });
+  }
+
+  let balanceCrossCheck: BalanceCrossCheckResult | null = null;
+  if (options.balanceCheck) {
+    try {
+      balanceCrossCheck = await crossCheckBalance({
+        baseUrl,
+        ownerXOnly: options.balanceCheck.ownerXOnly,
+        snapshotSats: options.balanceCheck.snapshotSats,
+        allowInsecureHttp: options.allowInsecureHttp,
+        timeoutMs: PROBE_TIMEOUT_MS,
+      });
+    } catch {
+      /* Non-fatal: balance cross-check is informational */
+    }
+  }
+
   const daemonOk = healthOk && nodeInfoOk && liveValidatorsOk && quorumOk && feeEstimateOk;
   // Every daemon-facing probe failed: nothing answered, so this is an outage
   // rather than a degraded daemon. The Bitcoin RPC proxy is excluded because it
@@ -219,9 +257,160 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
     feeMinSats,
     l1Height,
     l1HeightSource,
+    watchtower,
+    balanceCrossCheck,
     probeFailures: failures,
     unreachable,
   };
+}
+
+/**
+ * Cross-check the wallet's VTXO snapshot sum against live chain state.
+ *
+ * Reads:
+ *   - GET /tachi_balance?address=<ownerXOnly>  -> total unspent balance sats
+ *   - GET /tachi_address?address=<ownerXOnly>  -> balance, nonce, vtxo_count
+ *
+ * Returns both numbers plus a boolean matches flag.
+ * Does NOT alter or mutate any wallet state.
+ */
+export async function crossCheckBalance(params: BalanceCrossCheckParams): Promise<BalanceCrossCheckResult> {
+  const fetchImpl = params.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = params.timeoutMs ?? 15_000;
+  const signal = AbortSignal.timeout(timeoutMs);
+
+  const balanceUrl = joinDaemonUrl(params.baseUrl, `tachi_balance?address=${encodeURIComponent(params.ownerXOnly)}`);
+  const addressUrl = joinDaemonUrl(params.baseUrl, `tachi_address?address=${encodeURIComponent(params.ownerXOnly)}`);
+
+  const [balanceRes, addressRes] = await Promise.all([
+    fetchImpl(balanceUrl, { signal }).catch(() => null),
+    fetchImpl(addressUrl, { signal }).catch(() => null),
+  ]);
+
+  let chainBalanceSats = 0n;
+  let chainVtxoCount = 0;
+  let balanceAnswered = false;
+  let addressAnswered = false;
+
+  if (balanceRes && balanceRes.ok) {
+    const data = (await balanceRes.json().catch(() => ({}))) as { balance_sat?: number };
+    if (typeof data.balance_sat === 'number') {
+      chainBalanceSats = BigInt(data.balance_sat);
+      balanceAnswered = true;
+    }
+  }
+
+  if (addressRes && addressRes.ok) {
+    const data = (await addressRes.json().catch(() => ({}))) as { balance_sat?: number; vtxo_count?: number };
+    if (typeof data.balance_sat === 'number' && !balanceAnswered) {
+      chainBalanceSats = BigInt(data.balance_sat);
+    }
+    if (typeof data.vtxo_count === 'number') {
+      chainVtxoCount = data.vtxo_count;
+    }
+    if (typeof data.balance_sat === 'number' || typeof data.vtxo_count === 'number') {
+      addressAnswered = true;
+    }
+  }
+
+  // Reachability signal (Defect 3): true only when at least one endpoint answered ok with parseable JSON.
+  // When chain is unreachable, matches is null (tri-state) so caller/TruthRail never reports false match/mismatch.
+  const chainReachable = balanceAnswered || addressAnswered;
+  const matches = chainReachable ? params.snapshotSats === chainBalanceSats : null;
+
+  return {
+    snapshotSats: params.snapshotSats,
+    chainBalanceSats,
+    chainVtxoCount,
+    matches,
+    chainReachable,
+  };
+}
+
+/**
+ * Fetch watchtower status from the live daemon.
+ * Endpoint: GET /tachi_watchtower/status
+ */
+export async function fetchWatchtowerStatus(
+  baseUrl: string,
+  options?: { allowInsecureHttp?: boolean; timeoutMs?: number; fetchImpl?: typeof fetch },
+): Promise<WatchtowerStatus | null> {
+  const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const url = joinDaemonUrl(baseUrl, 'tachi_watchtower/status');
+  try {
+    const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return null;
+    const json = (await response.json()) as {
+      mode?: string;
+      last_scanned_height?: number;
+      receipt_count?: number;
+      sweep_threshold?: number;
+      bounty_configured?: boolean;
+    };
+    return {
+      mode: json.mode ?? 'unknown',
+      lastScannedHeight: json.last_scanned_height ?? 0,
+      receiptCount: json.receipt_count ?? 0,
+      sweepThreshold: json.sweep_threshold ?? 0,
+      bountyConfigured: Boolean(json.bounty_configured),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch watchtower breach receipts from the live daemon.
+ * Endpoint: GET /tachi_watchtower/receipts
+ * Note: Daemon expects 64-hex vault_id for the ?vault= parameter.
+ * Bech32m address returns HTTP 400 "invalid vault id".
+ */
+export async function fetchWatchtowerReceipts(
+  baseUrl: string,
+  vaultIdHex?: string,
+  options?: { allowInsecureHttp?: boolean; timeoutMs?: number; fetchImpl?: typeof fetch },
+): Promise<WatchtowerBreachReceipt[]> {
+  const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const is64Hex = vaultIdHex && /^[0-9a-f]{64}$/i.test(vaultIdHex);
+  const path = is64Hex
+    ? `tachi_watchtower/receipts?vault=${encodeURIComponent(vaultIdHex)}`
+    : 'tachi_watchtower/receipts';
+  const url = joinDaemonUrl(baseUrl, path);
+  try {
+    const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return [];
+    const json = (await response.json()) as {
+      receipts?: Array<{
+        vault_id?: string;
+        broadcast_state?: number;
+        latest_state?: number;
+        classification?: string;
+        spend_txid?: string;
+        spend_vout?: number;
+        detected_height?: number;
+        detected_at?: number;
+      }>;
+    };
+    const receipts = (json.receipts ?? []).map(r => ({
+      vaultId: r.vault_id ?? '',
+      broadcastState: r.broadcast_state ?? 0,
+      latestState: r.latest_state ?? 0,
+      classification: r.classification ?? 'unknown',
+      spendTxid: r.spend_txid ?? '',
+      spendVout: r.spend_vout ?? 0,
+      detectedHeight: r.detected_height ?? 0,
+      detectedAt: r.detected_at ?? 0,
+    }));
+    if (vaultIdHex) {
+      const target = vaultIdHex.toLowerCase();
+      return receipts.filter(r => r.vaultId.toLowerCase() === target);
+    }
+    return receipts;
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -238,3 +427,4 @@ function assertExpectedChain(chainId: string): void {
     );
   }
 }
+

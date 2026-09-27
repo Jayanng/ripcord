@@ -66,7 +66,52 @@ export async function getLiveVtxos(ownerXOnly: string, daemonBaseUrl: string) {
   const url = new URL(daemonBaseUrl);
   const allowInsecureHttp = url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1');
   const result = await vc.getAddressVtxos(ownerXOnly, { baseUrl: daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
-  return result.vtxos.map(item => ({ id: item.id, amountSats: item.amountSats, spent: item.spent, locked: item.locked }));
+  return result.vtxos.map(item => ({ id: item.id, amountSats: item.amountSats, spent: item.spent, locked: item.locked, height: item.height ?? 0 }));
+}
+
+/**
+ * Query full VTXO history for an address or x-only key, including spent VTXOs.
+ * Endpoint: GET /tachi_addressVtxos?address=<pubkey>&include_spent=true
+ */
+export async function getAddressVtxosHistory(ownerXOnly: string, daemonBaseUrl: string) {
+  const url = new URL(daemonBaseUrl);
+  const allowInsecureHttp = url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1');
+  const result = await vc.getAddressVtxos(ownerXOnly, {
+    baseUrl: daemonBaseUrl,
+    includeSpent: true,
+    allowInsecureHttp,
+    fetchImpl: globalThis.fetch.bind(globalThis),
+  });
+  return result.vtxos.map(item => ({
+    id: item.id,
+    amountSats: item.amountSats,
+    spent: item.spent,
+    locked: item.locked,
+    height: item.height ?? 0,
+    owner: item.owner,
+  }));
+}
+
+/**
+ * Query all VTXOs locked to a given vault address.
+ * Endpoint: GET /tachi_vtxoLocked?vault=<vaultAddress>
+ */
+export async function getLockedVaultVtxos(vaultAddress: string, daemonBaseUrl: string) {
+  const url = new URL(daemonBaseUrl);
+  const allowInsecureHttp = url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1');
+  const result = await vc.getLockedVtxos(vaultAddress, {
+    baseUrl: daemonBaseUrl,
+    allowInsecureHttp,
+    fetchImpl: globalThis.fetch.bind(globalThis),
+  });
+  return result.vtxos.map(item => ({
+    id: item.id,
+    amountSats: item.amountSats,
+    spent: item.spent,
+    locked: true,
+    height: item.height ?? 0,
+    vaultAddress,
+  }));
 }
 
 async function findExistingVaultFunding(baseUrl: string, vault: VaultRecord) {

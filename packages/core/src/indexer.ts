@@ -39,6 +39,9 @@ import {
   type WebSocketCtor,
 } from '@tachibtc/taurus-vault-core';
 import { RipcordError, RipcordCode } from './errors.js';
+import type { PaymentReceipt, XOnlyHex, TxLookupResult, CreditClassification } from './types.js';
+import type { RipcordStore } from './store.js';
+import { joinDaemonUrl } from './net.js';
 
 /** A single VTXO output credited by a `tx` event. */
 export interface IndexerVout {
@@ -127,6 +130,375 @@ export function mapVaultEvent(raw: VaultEvent): IndexerEvent | null {
 
   return null;
 }
+
+/**
+ * Check if a VTXO output owner matches an identity's x-only key.
+ * Handles both 64-char x-only keys and 66-char compressed keys (02/03 prefix).
+ */
+export function isOutputForXOnly(owner: string, identityXOnly: string): boolean {
+  const normOwner = owner.toLowerCase().trim();
+  const normXOnly = identityXOnly.toLowerCase().trim();
+  if (normOwner === normXOnly) return true;
+  if (normOwner.length === 66 && (normOwner.startsWith('02') || normOwner.startsWith('03'))) {
+    return normOwner.slice(2) === normXOnly;
+  }
+  return false;
+}
+
+/**
+ * Calculate the total satoshis credited to identityXOnly in this event's outputs.
+ */
+export function getIncomingAmountSats(event: IndexerTxEvent, identityXOnly: string): bigint {
+  let total = 0n;
+  for (const out of event.vout) {
+    if (isOutputForXOnly(out.owner, identityXOnly)) {
+      total += out.amountSats;
+    }
+  }
+  return total;
+}
+
+/**
+ * Check if an IndexerTxEvent credits the identity's x-only address.
+ */
+export function isIncomingPayment(event: IndexerTxEvent, identityXOnly: string): boolean {
+  return getIncomingAmountSats(event, identityXOnly) > 0n;
+}
+
+/** Documented neutral 32-byte zero key for unspecified/external senders. */
+export const NEUTRAL_FROM_XONLY = '0000000000000000000000000000000000000000000000000000000000000000';
+
+/**
+ * Extra metadata that can enrich a synthesized receipt if sourced from real data
+ * (e.g. /tachi_tx or /tachi_txDecode lookup).
+ */
+export interface SynthesizeReceiptExtra {
+  readonly epoch?: number;
+  readonly code?: number;
+  readonly fromXOnly?: string;
+  readonly feeSats?: bigint;
+}
+
+/**
+ * Synthesize a PaymentReceipt from an incoming IndexerTxEvent.
+ * Returns null if the event does not credit the given identity.
+ *
+ * RECEIPT MAPPING TABLE (CONSERVATIVE GROUND TRUTH):
+ * - txHash:     event.txHash.toLowerCase() — Sourced from CometBFT event payload (case-normalized)
+ * - toXOnly:    identityXOnly.toLowerCase() — Sourced from matched identity's x-only pubkey
+ * - amountSats: Sum of event.vout outputs crediting toXOnly
+ * - epoch:      extra?.epoch ?? (event.kind === 'tx:committed' && event.height > 0 ? event.height : 0)
+ *               0 for pending transactions; block height or confirmed epoch once committed
+ * - code:       extra?.code ?? 0 — Documented neutral ABCI execution code (0 = success)
+ * - fromXOnly:  extra?.fromXOnly ? lower : NEUTRAL_FROM_XONLY (64-char zero hex)
+ *               Incoming alerts do not carry sender inputs; external sender is neutral unless enriched
+ * - feeSats:    extra?.feeSats ?? 0n — Documented neutral value (recipient pays 0 fee for incoming payment)
+ * - hat / rip:  OMITTED (undefined) — Off-chain sender attestation protocol owns HAT/RIP proofs.
+ *               NEVER fabricate cryptographic attestation data.
+ */
+export function synthesizeIncomingReceipt(
+  event: IndexerTxEvent,
+  identityXOnly: string,
+  extra?: SynthesizeReceiptExtra,
+): PaymentReceipt | null {
+  const amountSats = getIncomingAmountSats(event, identityXOnly);
+  if (amountSats <= 0n) return null;
+
+  const txHash = event.txHash.toLowerCase();
+  const toXOnly = identityXOnly.toLowerCase() as XOnlyHex;
+
+  const epoch = extra?.epoch !== undefined
+    ? extra.epoch
+    : event.kind === 'tx:committed' && event.height > 0
+    ? event.height
+    : 0;
+
+  const code = extra?.code ?? 0;
+  const fromXOnly = (extra?.fromXOnly ? extra.fromXOnly.toLowerCase() : NEUTRAL_FROM_XONLY) as XOnlyHex;
+  const feeSats = extra?.feeSats ?? 0n;
+
+  return {
+    txHash,
+    epoch,
+    code,
+    fromXOnly,
+    toXOnly,
+    amountSats,
+    feeSats,
+  };
+}
+
+/**
+ * Merge an existing PaymentReceipt with an updated (or incoming) PaymentReceipt.
+ * Ensures:
+ * - tx:pending does NOT downgrade a committed receipt
+ * - tx:committed updates height/epoch and code
+ * - Existing proofs (hat, rip) are preserved
+ * - fromXOnly is updated if previously neutral
+ * - Never double-counts or corrupts state
+ */
+export function mergePaymentReceipt(existing: PaymentReceipt, update: PaymentReceipt): PaymentReceipt {
+  const txHash = existing.txHash.toLowerCase();
+  const epoch = update.epoch > 0 ? update.epoch : existing.epoch;
+  const code = update.code !== 0 ? update.code : existing.code;
+  const fromXOnly = (existing.fromXOnly !== NEUTRAL_FROM_XONLY ? existing.fromXOnly : update.fromXOnly) as XOnlyHex;
+  // If existing is a rich send receipt (non-neutral fromXOnly with positive amount), preserve original counterpart amounts
+  const amountSats = (existing.fromXOnly !== NEUTRAL_FROM_XONLY && existing.amountSats > 0n)
+    ? existing.amountSats
+    : (update.amountSats > 0n ? update.amountSats : existing.amountSats);
+  const feeSats = existing.feeSats > 0n ? existing.feeSats : (update.feeSats > 0n ? update.feeSats : existing.feeSats);
+  const hat = existing.hat ?? update.hat;
+  const rip = existing.rip ?? update.rip;
+
+  return {
+    txHash,
+    epoch,
+    code,
+    fromXOnly,
+    toXOnly: existing.toXOnly || update.toXOnly,
+    amountSats,
+    feeSats,
+    ...(hat ? { hat } : {}),
+    ...(rip ? { rip } : {}),
+  };
+}
+
+/**
+ * Persist a receipt to a store, merging with any existing record for that txHash.
+ * Guarantees synthesized incoming receipts do not clobber richer stored records
+ * (e.g. send receipts containing hat/rip attestation or recipient details).
+ */
+export async function saveReceiptMerged(
+  store: RipcordStore,
+  receipt: PaymentReceipt,
+): Promise<PaymentReceipt> {
+  const existingList = await store.getReceipts();
+  const existing = existingList.find(r => r.txHash.toLowerCase() === receipt.txHash.toLowerCase());
+  const merged = existing ? mergePaymentReceipt(existing, receipt) : receipt;
+  await store.saveReceipt(merged);
+  return merged;
+}
+
+/**
+ * Deduplicate a receipt list against an incoming receipt by txHash (case-insensitive).
+ * Updates an existing entry in-place or prepends the new receipt.
+ */
+export function dedupeReceiptList(receipts: readonly PaymentReceipt[], incoming: PaymentReceipt): PaymentReceipt[] {
+  const incomingHash = incoming.txHash.toLowerCase();
+  const index = receipts.findIndex(r => r.txHash.toLowerCase() === incomingHash);
+  if (index >= 0) {
+    const merged = mergePaymentReceipt(receipts[index], incoming);
+    const updated = [...receipts];
+    updated[index] = merged;
+    return updated;
+  }
+  return [incoming, ...receipts];
+}
+
+/**
+ * Extract the 32-byte sender x-only pubkey (hex) from a raw TachiTx wire hex string.
+ *
+ * Wire layout (see encodeTachiTx / TachiTx specification):
+ * - version: 1 byte
+ * - type: 1 byte
+ * - inputsCount: 2 bytes (uint16BE)
+ *   - for each input:
+ *       32 bytes vtxoId + 32 bytes txid + 4 bytes vout + 8 bytes valueSats
+ *       + 2 bytes sigScriptLen + sigScriptLen bytes
+ * - outputsCount: 2 bytes (uint16BE)
+ *   - for each output:
+ *       2 bytes ownerLen + ownerLen bytes + 8 bytes amount
+ *       + 2 bytes scriptLen + scriptLen bytes
+ * - fee: 8 bytes
+ * - nonce: 8 bytes
+ * - pubKeyLen: 2 bytes (uint16BE)
+ * - pubKey: pubKeyLen bytes (32 bytes)
+ */
+export function extractSenderPubkeyFromTachiHex(hex: string): string {
+  const cleanHex = hex.trim().toLowerCase();
+  if (cleanHex.length < 8) throw new Error('Hex too short for TachiTx');
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  let offset = 2; // version (1) + type (1)
+  if (offset + 2 > bytes.length) throw new Error('Truncated inputs count');
+  const inCount = view.getUint16(offset, false);
+  offset += 2;
+
+  for (let i = 0; i < inCount; i++) {
+    offset += 76; // 32 (vtxoId) + 32 (txid) + 4 (vout) + 8 (valueSats)
+    if (offset + 2 > bytes.length) throw new Error('Truncated input sigScript length');
+    const sigLen = view.getUint16(offset, false);
+    offset += 2 + sigLen;
+    if (offset > bytes.length) throw new Error('Truncated input sigScript');
+  }
+
+  if (offset + 2 > bytes.length) throw new Error('Truncated outputs count');
+  const outCount = view.getUint16(offset, false);
+  offset += 2;
+
+  for (let i = 0; i < outCount; i++) {
+    if (offset + 2 > bytes.length) throw new Error('Truncated output owner length');
+    const ownerLen = view.getUint16(offset, false);
+    offset += 2 + ownerLen + 8; // ownerLen + owner + amount
+    if (offset + 2 > bytes.length) throw new Error('Truncated output script length');
+    const scriptLen = view.getUint16(offset, false);
+    offset += 2 + scriptLen;
+    if (offset > bytes.length) throw new Error('Truncated output script');
+  }
+
+  offset += 16; // fee (8) + nonce (8)
+  if (offset + 2 > bytes.length) throw new Error('Truncated pubKey length');
+  const pubKeyLen = view.getUint16(offset, false);
+  offset += 2;
+  if (offset + pubKeyLen > bytes.length) throw new Error('Truncated pubKey');
+
+  let pubKeyHex = '';
+  for (let i = 0; i < pubKeyLen; i++) {
+    pubKeyHex += bytes[offset + i].toString(16).padStart(2, '0');
+  }
+  return pubKeyHex;
+}
+
+/**
+ * Async transaction lookup helper.
+ * Queries /tachi_tx on the daemon using joinDaemonUrl.
+ * Extracts the sender public key (from pubkey field or raw hex) and parsed inputs/outputs.
+ */
+export async function lookupTachiTx(
+  txHash: string,
+  baseUrl: string,
+  options?: {
+    readonly fetchImpl?: typeof fetch;
+    readonly timeoutMs?: number;
+    readonly allowInsecureHttp?: boolean;
+  },
+): Promise<TxLookupResult | null> {
+  const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = options?.timeoutMs ?? 5_000;
+  const signal = AbortSignal.timeout(timeoutMs);
+
+  const url = `${joinDaemonUrl(baseUrl, 'tachi_tx')}?hash=${encodeURIComponent(txHash)}`;
+
+  try {
+    const res = await fetchImpl(url, { signal });
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as {
+      txHash?: string;
+      txid?: string;
+      type?: string;
+      hex?: string;
+      pubkey?: string;
+      vin?: Array<{ vtxo_id?: string; txid?: string; vout?: number; value_sats?: number; owner?: string }>;
+      vout?: Array<{ owner?: string; amount?: number; script?: string }>;
+    };
+
+    let senderPubkey = data.pubkey ? data.pubkey.toLowerCase() : '';
+
+    if (!senderPubkey && data.hex && typeof data.hex === 'string') {
+      try {
+        senderPubkey = extractSenderPubkeyFromTachiHex(data.hex);
+      } catch {
+        // parsing failed, leave empty
+      }
+    }
+
+    const vin = (data.vin ?? []).map(input => ({
+      vtxoId: input.vtxo_id,
+      txid: input.txid,
+      vout: input.vout,
+      valueSats: typeof input.value_sats === 'number' ? BigInt(input.value_sats) : undefined,
+      owner: input.owner,
+    }));
+
+    const vout = (data.vout ?? []).map(output => ({
+      owner: output.owner ?? '',
+      amountSats: typeof output.amount === 'number' ? BigInt(output.amount) : 0n,
+      script: output.script ?? '',
+    }));
+
+    return {
+      txHash: data.txHash || data.txid || txHash,
+      type: data.type ?? 'transfer',
+      senderPubkey,
+      vin,
+      vout,
+      raw: data,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pure decision logic to classify transaction credits.
+ *
+ * POLICY (Defect 2):
+ * 1. Events that do not credit the identity's outputs are classified as 'none'.
+ * 2. Events whose type cannot be self-funded (e.g. 'deposit' — external L1 funding)
+ *    synthesize without requiring a lookup ('incoming').
+ * 3. Transfer-type events require transaction lookup to discriminate self-credits:
+ *    - When ALL inputs are owned by the identity's x-only key, the credit is treated
+ *      as a SELF-MOVE ('self_move'): no incoming receipt is minted, and pendingIncoming
+ *      count is not incremented (the activity feed still shows the tx, as today).
+ *    - When at least one input is owned by an external key, or the sender pubkey is not
+ *      the identity, the credit is classified as 'incoming'.
+ *    - When the lookup fails (daemon 502, network failure, timeout, 404, etc.),
+ *      the policy FAILS CLOSED for receipt synthesis and pending counting on
+ *      'transfer'-type events ('skip'): skip synthesis; the activity event remains visible.
+ */
+export function classifyCredit(
+  event: IndexerTxEvent,
+  lookup: TxLookupResult | null | undefined,
+  identity: string | { readonly xOnly: string },
+): CreditClassification {
+  const identityXOnly = (typeof identity === 'string' ? identity : identity.xOnly).toLowerCase().trim();
+  if (getIncomingAmountSats(event, identityXOnly) <= 0n) {
+    return 'none';
+  }
+
+  // Events whose type cannot be self-funded (e.g. 'deposit' — external L1 funding)
+  // synthesize without lookup.
+  if (event.type === 'deposit') {
+    return 'incoming';
+  }
+
+  // Transfer events (and potentially self-funded events):
+  // When lookup fails, fail closed: skip synthesis and pending counting.
+  if (!lookup) {
+    return 'skip';
+  }
+
+  // If senderPubkey matches the identity, all inputs were owned by identity (Tachi consensus rule:
+  // tx.pubKey must own all inputs or daemon rejects with code=6 unauthorized).
+  if (lookup.senderPubkey && isOutputForXOnly(lookup.senderPubkey, identityXOnly)) {
+    return 'self_move';
+  }
+
+  // If vin inputs explicitly specify owner and all match identity:
+  if (lookup.vin && lookup.vin.length > 0 && lookup.vin.every(input => input.owner && isOutputForXOnly(input.owner, identityXOnly))) {
+    return 'self_move';
+  }
+
+  // If senderPubkey is known and belongs to someone else, this is an incoming payment:
+  if (lookup.senderPubkey && !isOutputForXOnly(lookup.senderPubkey, identityXOnly)) {
+    return 'incoming';
+  }
+
+  // If any vin input is owned by someone else:
+  if (lookup.vin && lookup.vin.length > 0 && lookup.vin.some(input => input.owner && !isOutputForXOnly(input.owner, identityXOnly))) {
+    return 'incoming';
+  }
+
+  // Succeeded lookup did not provide conclusive ownership: fail closed
+  return 'skip';
+}
+
 
 /**
  * A bounded FIFO event queue. `push` throws a QUEUE_OVERFLOW RipcordError

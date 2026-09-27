@@ -315,3 +315,77 @@ export interface SatVmExecutionReceipt {
   gasUsedSats: bigint;
   status: 'committed' | 'rejected';
 }
+
+/** Observability Phase: Watchtower daemon status */
+export interface WatchtowerStatus {
+  readonly mode: string;
+  readonly lastScannedHeight: number;
+  readonly receiptCount: number;
+  readonly sweepThreshold: number;
+  readonly bountyConfigured: boolean;
+}
+
+/** Observability Phase: Breach receipt observed by watchtower */
+export interface WatchtowerBreachReceipt {
+  readonly vaultId: string;
+  readonly broadcastState: number;
+  readonly latestState: number;
+  readonly classification: string;
+  readonly spendTxid: string;
+  readonly spendVout: number;
+  readonly detectedHeight: number;
+  readonly detectedAt: number;
+}
+
+/** Observability Phase: Balance cross-check parameters */
+export interface BalanceCrossCheckParams {
+  readonly snapshotSats: bigint;
+  readonly ownerXOnly: string;
+  readonly baseUrl: string;
+  readonly allowInsecureHttp?: boolean;
+  readonly timeoutMs?: number;
+  readonly fetchImpl?: typeof fetch;
+}
+
+/** Observability Phase: Balance cross-check result comparing snapshot against live chain */
+export interface BalanceCrossCheckResult {
+  readonly snapshotSats: bigint;
+  readonly chainBalanceSats: bigint;
+  readonly chainVtxoCount: number;
+  readonly matches: boolean | null;
+  readonly chainReachable: boolean;
+}
+
+/** Result of looking up transaction details on the daemon for input/credit analysis */
+export interface TxLookupResult {
+  readonly txHash: string;
+  readonly type: string;
+  readonly senderPubkey?: string;
+  readonly vin?: readonly {
+    readonly vtxoId?: string;
+    readonly txid?: string;
+    readonly vout?: number;
+    readonly valueSats?: bigint;
+    readonly owner?: string;
+  }[];
+  readonly vout?: readonly {
+    readonly owner: string;
+    readonly amountSats: bigint;
+    readonly script?: string;
+  }[];
+  readonly raw?: unknown;
+}
+
+/** Classification of a transaction credit for receipt synthesis and pending balance tracking */
+export type CreditClassification = 'incoming' | 'self_move' | 'skip' | 'none';
+
+/** Observability Phase: VTXO visibility item */
+export interface VtxoVisibilityItem {
+  readonly id: string;
+  readonly amountSats: bigint;
+  readonly spent: boolean;
+  readonly locked: boolean;
+  readonly height: number;
+  readonly vaultAddress?: string;
+}
+

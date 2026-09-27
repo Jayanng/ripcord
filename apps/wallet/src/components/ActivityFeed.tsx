@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
-import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity } from './ActivityRow';
+import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 
 export function ActivityFeed() {
-  const { activity, receipts, indexerStatus, identity, activeVault } = useActivity();
+  const { activity, receipts, indexerStatus, identity, activeVault, spentVtxos } = useActivity();
   const [selected, setSelected] = useState<PaymentReceipt | null>(null);
 
   const receiptByHash = new Map(receipts.map(receipt => [receipt.txHash.toLowerCase(), receipt]));
@@ -59,7 +59,15 @@ export function ActivityFeed() {
   for (const r of dedupedReceipts) knownTxHashes.add(r.txHash.toLowerCase());
   const dedupedOnChain = onChainItems.filter(item => !knownTxHashes.has(item.txHash.toLowerCase()));
 
-  const items: ActivityItem[] = [...activity, ...dedupedReceipts, ...dedupedOnChain];
+  const spentItems: VtxoSpentActivity[] = (spentVtxos ?? []).map(v => ({
+    kind: 'vtxo:spent',
+    id: v.id,
+    amountSats: v.amountSats,
+    height: v.height,
+    owner: v.owner,
+  }));
+
+  const items: ActivityItem[] = [...activity, ...dedupedReceipts, ...dedupedOnChain, ...spentItems];
   const ownerKeys = identity ? [identity.xOnly.toLowerCase(), identity.userKeyDescriptor.publicKey.toLowerCase()] : [];
 
   return (
@@ -90,6 +98,8 @@ export function ActivityFeed() {
               ? `receipt:${item.txHash.toLowerCase()}`
               : 'kind' in item && item.kind === 'block:new'
               ? `block:${item.height}:${item.receivedAt}`
+              : 'kind' in item && item.kind === 'vtxo:spent'
+              ? `spent:${item.id}`
               : 'kind' in item
               ? `tx:${item.txHash.toLowerCase()}:${item.kind}`
               : `item:${index}`;
