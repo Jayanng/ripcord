@@ -16,11 +16,17 @@ export function VaultStatusCard() {
   const [depositTxid, setDepositTxid] = useState(() => savedDepositTxid ?? '');
   const [depositConfirmations, setDepositConfirmations] = useState(0);
   const pendingFaucetTxid = wallet.identity ? localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`) : null;
-  const vaultReady = Boolean(wallet.activeVault?.funding && wallet.activeVault.registered);
+  const vaultReady = Boolean((wallet.activeVault?.funding || wallet.activeVault?.vaultIdHex) && (wallet.activeVault?.registered || wallet.activeVault?.vaultIdHex));
 
   const completeFunding = async () => {
     if (!wallet.identity || !wallet.activeVault) return;
     const activeVault = wallet.activeVault;
+    if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
+      setFlow('complete');
+      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      return;
+    }
     setBusy(true);
     setError('');
     setFlow('depositing');
@@ -61,6 +67,12 @@ export function VaultStatusCard() {
 
   useEffect(() => {
     if (!wallet.identity || !wallet.activeVault || busy || flow !== 'ready') return;
+    if (wallet.activeVault.vaultIdHex && (wallet.activeVault.registered || wallet.activeVault.funding)) {
+      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:deposit:${wallet.activeVault.address}`);
+      setFlow('complete');
+      return;
+    }
     const savedFaucet = localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`);
     const savedDeposit = localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`);
     if (!savedFaucet && !savedDeposit) return;
@@ -121,14 +133,14 @@ export function VaultStatusCard() {
     ? `Faucet funds broadcast (${truncate(pendingFaucetTxid, 10, 8)}). Checking Bitcoin L1 block mining in background (~10 min). You can explore the wallet freely; registration will resume automatically.`
     : 'Your sovereign vault is ready to fund. Request test BTC from the faucet to mint your first spendable VTXO.';
 
-  const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid);
+  const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
 
   const fundingSteps = [
-    { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' },
-    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' },
-    { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) },
-    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) },
-    { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) },
+    { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
   ];
 

@@ -1,7 +1,7 @@
 import * as vc from '@tachibtc/taurus-vault-core';
 import { depositFromMnemonic, type DepositResult } from './deposit.js';
 import { makeSigner } from './keys.js';
-import { registerVault } from './register.js';
+import { registerVault, isCode17VaultExists, adoptVaultOnCode17 } from './register.js';
 import { mapDaemonError } from './errors.js';
 import type { VaultRecord } from './types.js';
 
@@ -170,12 +170,118 @@ async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs:
   }
 }
 
+export interface FlowStepDecision {
+  action: 'deposit' | 'confirm-deposit' | 'mint' | 'register' | 'complete';
+  shouldRegister: boolean;
+  stage?: 'depositing' | 'confirming-deposit' | 'minting' | 'registering';
+}
+
+/**
+ * Pure step resolution logic for the vault funding pipeline.
+ * Guarantees that if the local store or vault record already has vaultId recorded
+ * (or is marked registered), NO registration attempt is emitted.
+ */
+export function evaluateFundingStep(state: {
+  vault?: Partial<VaultRecord> | null;
+  deposit?: { txid: string; vout: number } | null;
+  hasConfirmedDeposit?: boolean;
+  hasVtxo?: boolean;
+}): FlowStepDecision {
+  if (state.vault?.vaultIdHex || state.vault?.registered) {
+    return {
+      action: 'complete',
+      shouldRegister: false,
+    };
+  }
+  if (!state.deposit && !state.vault?.funding) {
+    return {
+      action: 'deposit',
+      shouldRegister: false,
+      stage: 'depositing',
+    };
+  }
+  if (!state.hasConfirmedDeposit && !state.vault?.funding) {
+    return {
+      action: 'confirm-deposit',
+      shouldRegister: false,
+      stage: 'confirming-deposit',
+    };
+  }
+  if (!state.hasVtxo) {
+    return {
+      action: 'mint',
+      shouldRegister: false,
+      stage: 'minting',
+    };
+  }
+  return {
+    action: 'register',
+    shouldRegister: true,
+    stage: 'registering',
+  };
+}
+
+export interface FundingStepState {
+  label: string;
+  done: boolean;
+}
+
+export function computeFundingSteps(params: {
+  vault?: Partial<VaultRecord> | null;
+  flow: 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 'registering' | 'complete' | 'error';
+  depositTxid?: string | null;
+  pendingFaucetTxid?: string | null;
+}): FundingStepState[] {
+  const { vault, flow, depositTxid, pendingFaucetTxid } = params;
+  const vaultReady = Boolean((vault?.funding || vault?.vaultIdHex) && (vault?.registered || vault?.vaultIdHex));
+  const isDepositBroadcast = Boolean(depositTxid || vault?.funding);
+
+  return [
+    { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Vault registered', done: flow === 'complete' || vaultReady },
+  ];
+}
+
 /** Live deposit → L1 confirmation → VTXO mint → vault registration. */
 export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Promise<FundVaultLifecycleResult> {
+  const daemonUrl = new URL(params.daemonBaseUrl);
+  const allowInsecureHttp = daemonUrl.protocol === 'http:' && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
+
   try {
-    const daemonUrl = new URL(params.daemonBaseUrl);
-    const allowInsecureHttp = daemonUrl.protocol === 'http:' && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
-    let deposit: LifecycleDeposit | null = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+    // FIX 2: If the local store already records the vaultId for this deposit, skip registration entirely!
+    const decision = evaluateFundingStep({ vault: params.vault });
+    if (!decision.shouldRegister && params.vault.vaultIdHex) {
+      const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
+      const current = await vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+      const evidence = current.vtxos.find(item => !item.spent);
+      let dep: LifecycleDeposit;
+      if (params.vault.funding) {
+        dep = { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' };
+      } else {
+        const found = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
+        dep = found ?? {
+          txid: '' as import('./types.js').DisplayTxid,
+          vout: 0,
+          amountSats: 0n,
+          source: 'recovered',
+        };
+      }
+      return {
+        deposit: dep,
+        vtxoId: evidence?.id ?? '',
+        mintTxHash: '',
+        mintEpoch: evidence?.height ?? 0,
+        vaultId: params.vault.vaultIdHex,
+      };
+    }
+
+    let deposit: LifecycleDeposit | null = params.vault.funding
+      ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
+      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault);
     if (!deposit) {
       params.onProgress?.('depositing');
       const broadcast = await depositFromMnemonic({ vault: params.vault, mnemonic: params.mnemonic, rpc: { baseUrl: params.bitcoinRpcBaseUrl }, amountSats: params.amountSats, feeRateSatVb: params.feeRateSatVb });
@@ -222,6 +328,26 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     const registration = await registerVault({ vault: params.vault, fundingTxid: deposit.txid, fundingVout: deposit.vout, userSigner: signer, vtxoId, owner: params.vault.userKeyDescriptor.publicKey.slice(2), amount: registrationAmount, baseUrl: params.daemonBaseUrl, allowInsecureHttp });
     return { deposit, vtxoId, mintTxHash, mintEpoch, vaultId: registration.vaultId };
   } catch (error) {
+    if (isCode17VaultExists(error)) {
+      const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
+      const depTxid = (params.vault.funding?.txid ?? '') as import('./types.js').DisplayTxid;
+      const fundingTxidBuf = Buffer.from(depTxid, 'hex').reverse();
+      const fundingVout = params.vault.funding?.vout ?? 0;
+      const adopted = await adoptVaultOnCode17({
+        fundingTxid: fundingTxidBuf,
+        fundingVout,
+        ownerXOnly: owner,
+        baseUrl: params.daemonBaseUrl,
+        allowInsecureHttp,
+      });
+      return {
+        deposit: { txid: depTxid, vout: fundingVout, amountSats: params.vault.funding?.valueSats ?? 0n, source: 'recovered' },
+        vtxoId: '',
+        mintTxHash: '',
+        mintEpoch: 0,
+        vaultId: adopted.vaultId,
+      };
+    }
     throw mapDaemonError(error);
   }
 }

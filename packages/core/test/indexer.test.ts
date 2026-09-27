@@ -544,7 +544,7 @@ describe('Incoming receipt synthesis and deduplication (pure)', () => {
           vout: testVout,
         },
         result,
-        result!.vout[0].owner,
+        result!.vout![0]!.owner,
       );
       expect(recipientCredit).toBe('incoming');
 

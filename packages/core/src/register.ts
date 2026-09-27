@@ -1,7 +1,8 @@
 import * as vc from '@tachibtc/taurus-vault-core';
 import type { Vault as SdkVaultShape } from '@tachibtc/taurus-vault-core';
 import { VaultRecord, toSdkVault } from './types.js';
-import { mapDaemonError } from './errors.js';
+import { mapDaemonError, RipcordError, RipcordCode } from './errors.js';
+import { joinDaemonUrl } from './net.js';
 
 export interface RegisterVaultParams {
   vault: VaultRecord | SdkVaultShape;
@@ -23,6 +24,9 @@ export interface RegisterVaultParams {
 }
 
 export async function registerVault(params: RegisterVaultParams): Promise<{ vaultId: string }> {
+  let parsedFundingTxid: Buffer | undefined;
+  let parsedFundingVout = 0;
+  let parsedOwnerXOnly = '';
   try {
     const rec = params.vault as Partial<VaultRecord>;
     const txid =
@@ -109,6 +113,10 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
       ? (vault as SdkVaultShape)
       : toSdkVault(vault as VaultRecord);
 
+    parsedFundingTxid = fundingTxid;
+    parsedFundingVout = fundingVout;
+    parsedOwnerXOnly = xOnlyBuf.toString('hex');
+
     const reg = await vc.registerVault({
       vault: sdkVault,
       outpoint: {
@@ -126,6 +134,159 @@ export async function registerVault(params: RegisterVaultParams): Promise<{ vaul
 
     return { vaultId: reg.vaultIdHex };
   } catch (err) {
+    if (isCode17VaultExists(err) && parsedFundingTxid && parsedOwnerXOnly) {
+      return await adoptVaultOnCode17({
+        fundingTxid: parsedFundingTxid,
+        fundingVout: parsedFundingVout,
+        ownerXOnly: parsedOwnerXOnly,
+        baseUrl: params.baseUrl,
+        allowInsecureHttp: params.allowInsecureHttp,
+      });
+    }
     throw mapDaemonError(err);
   }
 }
+
+export interface DaemonVaultLookupRecord {
+  vault_id?: string;
+  vaultId?: string;
+  user?: string;
+  owner?: string;
+  user_key?: string;
+  userKey?: string;
+  funding_txid?: string;
+  fundingTxid?: string;
+  funding_vout?: number;
+  fundingVout?: number;
+}
+
+export function isCode17VaultExists(err: unknown): boolean {
+  if (!err) return false;
+  if (typeof err === 'string') {
+    return err.includes('17') && err.toLowerCase().includes('vault already exists for this funding outpoint');
+  }
+  if (typeof err !== 'object') return false;
+  const anyErr = err as Record<string, unknown>;
+  const code = anyErr.tendermintCode ?? anyErr.daemonCode ?? anyErr.code;
+  const is17 = code === 17 || code === '17';
+  const text = [
+    typeof anyErr.message === 'string' ? anyErr.message : '',
+    typeof anyErr.tendermintLog === 'string' ? anyErr.tendermintLog : '',
+    typeof anyErr.log === 'string' ? anyErr.log : '',
+  ].join(' ').toLowerCase();
+
+  return (is17 || text.includes('code=17') || text.includes('code: 17')) &&
+    text.includes('vault already exists for this funding outpoint');
+}
+
+export function verifyVaultForAdoption(
+  daemonVault: DaemonVaultLookupRecord | undefined | null,
+  daemonUser: string | undefined | null,
+  expectedVaultId: string,
+  expectedOwnerXOnly: string,
+): { vaultId: string } {
+  if (!daemonVault) {
+    throw new RipcordError(
+      RipcordCode.NOT_OWNER,
+      'vault exists on our funding outpoint but does not match our keys — possible front-run; refusing to adopt',
+      { daemonCode: 17, hint: 'Vault not found under our owner key on daemon' }
+    );
+  }
+
+  const actualVaultId = (daemonVault.vault_id ?? daemonVault.vaultId ?? '').toLowerCase();
+  const expVaultId = expectedVaultId.toLowerCase();
+
+  if (actualVaultId !== expVaultId) {
+    throw new RipcordError(
+      RipcordCode.NOT_OWNER,
+      'vault exists on our funding outpoint but does not match our keys — possible front-run; refusing to adopt',
+      { daemonCode: 17, hint: `Vault ID mismatch: expected ${expVaultId}, got ${actualVaultId}` }
+    );
+  }
+
+  const actualOwner = (daemonVault.user_key ?? daemonVault.userKey ?? daemonVault.owner ?? daemonUser ?? '').toLowerCase();
+  const expOwner = expectedOwnerXOnly.toLowerCase();
+
+  const ownersMatch = actualOwner === expOwner ||
+    (actualOwner.length === 66 && actualOwner.slice(2) === expOwner) ||
+    (expOwner.length === 66 && expOwner.slice(2) === actualOwner);
+
+  if (!ownersMatch) {
+    throw new RipcordError(
+      RipcordCode.NOT_OWNER,
+      'vault exists on our funding outpoint but does not match our keys — possible front-run; refusing to adopt',
+      { daemonCode: 17, hint: `Owner key mismatch: expected ${expOwner}, got ${actualOwner}` }
+    );
+  }
+
+  return { vaultId: expVaultId };
+}
+
+export interface AdoptVaultOnCode17Params {
+  fundingTxid: Buffer;
+  fundingVout: number;
+  ownerXOnly: string;
+  baseUrl: string;
+  allowInsecureHttp?: boolean;
+}
+
+export async function adoptVaultOnCode17(params: AdoptVaultOnCode17Params): Promise<{ vaultId: string }> {
+  const { fundingTxid, fundingVout, ownerXOnly, baseUrl } = params;
+
+  // a. compute expectedVaultId from our fundingTxid+fundingVout
+  const expectedVaultIdBuf = vc.deriveVaultId(fundingTxid, fundingVout);
+  const expectedVaultId = Buffer.from(expectedVaultIdBuf).toString('hex').toLowerCase();
+
+  // b. look up the daemon-side vault (/tachi_listVaults?user=<our x-only key>)
+  const normalizedOwner = ownerXOnly.toLowerCase();
+  const listUrl = `${joinDaemonUrl(baseUrl, 'tachi_listVaults')}?user=${normalizedOwner}&page_size=100`;
+
+  let response: Response;
+  try {
+    response = await fetch(listUrl);
+  } catch (netErr) {
+    throw mapDaemonError(netErr);
+  }
+
+  if (!response.ok) {
+    throw new RipcordError(
+      RipcordCode.DAEMON_UNREACHABLE,
+      `Failed to query daemon vaults for adoption (HTTP ${response.status})`,
+      { cause: response, daemonCode: 17 }
+    );
+  }
+
+  const data = (await response.json()) as {
+    user?: string;
+    vaults?: Array<DaemonVaultLookupRecord>;
+  };
+
+  const internalTxidHex = fundingTxid.toString('hex').toLowerCase();
+  const daemonVault = data.vaults?.find(v => {
+    const vId = (v.vault_id ?? v.vaultId ?? '').toLowerCase();
+    const vTxid = (v.funding_txid ?? v.fundingTxid ?? '').toLowerCase();
+    const vVout = v.funding_vout ?? v.fundingVout;
+    return vId === expectedVaultId || (vTxid === internalTxidHex && vVout === fundingVout);
+  });
+
+  // c. ADOPT ONLY IF vault_id equals expectedVaultId AND owner equals our x-only key
+  // d. If not found or mismatched: throw typed error
+  return verifyVaultForAdoption(daemonVault, data.user, expectedVaultId, normalizedOwner);
+}
+
+export function deriveVaultIdFromOutpoint(
+  fundingTxidDisplayOrInternal: string | Buffer,
+  fundingVout: number,
+  isDisplayOrder = true,
+): string {
+  let buf: Buffer;
+  if (Buffer.isBuffer(fundingTxidDisplayOrInternal)) {
+    buf = fundingTxidDisplayOrInternal;
+  } else if (isDisplayOrder) {
+    buf = Buffer.from(fundingTxidDisplayOrInternal, 'hex').reverse();
+  } else {
+    buf = Buffer.from(fundingTxidDisplayOrInternal, 'hex');
+  }
+  return Buffer.from(vc.deriveVaultId(buf, fundingVout)).toString('hex');
+}
+

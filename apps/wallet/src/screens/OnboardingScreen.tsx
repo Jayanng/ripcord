@@ -21,7 +21,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const [depositTxid, setDepositTxid] = useState(() => savedDepositTxid ?? '');
   const [depositConfirmations, setDepositConfirmations] = useState(0);
   const pendingFaucetTxid = wallet.identity ? localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`) : null;
-  const vaultReady = Boolean(wallet.activeVault?.funding && wallet.activeVault.registered);
+  const vaultReady = Boolean((wallet.activeVault?.funding || wallet.activeVault?.vaultIdHex) && (wallet.activeVault?.registered || wallet.activeVault?.vaultIdHex));
 
   const generateNewMnemonic = () => {
     setMnemonic(generateMnemonic(128));
@@ -78,6 +78,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const completeFunding = async () => {
     if (!wallet.identity || !wallet.activeVault) return;
     const activeVault = wallet.activeVault;
+    if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
+      setFlow('complete');
+      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      return;
+    }
     setBusy(true);
     setError('');
     setFlow('depositing');
@@ -118,6 +124,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
 
   useEffect(() => {
     if (!wallet.identity || !wallet.activeVault || busy || flow !== 'ready') return;
+    if (wallet.activeVault.vaultIdHex && (wallet.activeVault.registered || wallet.activeVault.funding)) {
+      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:deposit:${wallet.activeVault.address}`);
+      setFlow('complete');
+      return;
+    }
     const savedFaucet = localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`);
     const savedDeposit = localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`);
     if (!savedFaucet && !savedDeposit) return;
@@ -158,7 +170,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   }, [wallet.identity, wallet.vaults, busy, flow]);
 
   const explorerUrl = (txid: string) => `https://explorer-regtest.tachibtc.com/tx/${txid}`;
-  const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid);
+  const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
 
   const statusText = vaultReady
     ? 'Your vault is funded and registered. You can now receive and send VTXOs.'
@@ -179,11 +191,11 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     : 'Fund this settlement address first, or continue if it already has confirmed L1 funds.';
 
   const fundingSteps = [
-    { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' },
-    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' },
-    { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) },
-    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) },
-    { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) },
+    { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Faucet confirmed on L1', done: isDepositBroadcast || flow !== 'ready' || vaultReady },
+    { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Deposit confirmed on L1', done: ['minting', 'registering', 'complete'].includes(flow) || vaultReady },
+    { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
   ];
 
