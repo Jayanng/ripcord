@@ -1,7 +1,7 @@
 {
   "name": "@ripcord/core",
-  "version": "0.1.1",
-  "description": "Verified TypeScript core library for Tachi/Taurus regtest wallet mechanics.",
+  "version": "0.2.0",
+  "description": "Verified TypeScript core library for Tachi/Taurus Bitcoin vaults: keys, quorum, deposits, VTXO payments with per-input scripts, live indexing with receipts, proofs, and unilateral exit.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -72,6 +72,26 @@
     "./payment": {
       "import": "./dist/payment.js",
       "types": "./dist/payment.d.ts"
+    },
+    "./proofs": {
+      "import": "./dist/proofs.js",
+      "types": "./dist/proofs.d.ts"
+    },
+    "./register": {
+      "import": "./dist/register.js",
+      "types": "./dist/register.d.ts"
+    },
+    "./queue": {
+      "import": "./dist/queue.js",
+      "types": "./dist/queue.d.ts"
+    },
+    "./errors": {
+      "import": "./dist/errors.js",
+      "types": "./dist/errors.d.ts"
+    },
+    "./coinselect": {
+      "import": "./dist/coinselect.js",
+      "types": "./dist/coinselect.d.ts"
     },
     "./deposit": {
       "import": "./dist/deposit.js",

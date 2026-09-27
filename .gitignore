@@ -30,3 +30,4 @@ evidence/
 .env
 .env.*
 !.env.example
+*.tgz

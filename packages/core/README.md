@@ -4,7 +4,18 @@ Verified TypeScript core library for Tachi/Taurus Bitcoin regtest wallet mechani
 
 ## Scope
 
-This package contains the protocol boundary used by RIPCORD, including key derivation, quorum discovery, vault construction, deposits, recovery, VTXO payments, live indexing, proof retrieval, public-state storage, and unilateral-exit assessment.
+This package contains the protocol boundary used by RIPCORD, including key derivation, quorum discovery, vault construction, deposits, recovery, VTXO payments (per-input witness scripts, tx serialization queue), live indexing with payment receipts and balance cross-checks, watchtower breach receipts, proof retrieval (HAT/RIP with window clamping), public-state storage, and unilateral-exit assessment.
+
+## Modules
+
+| Import | What lives there |
+| --- | --- |
+| `@ripcord/core` | Everything below, re-exported |
+| `./keys` `./quorum` `./vault` `./deposit` `./register` | Identity, quorum discovery, vault lifecycle (incl. idempotent re-registration adoption) |
+| `./payment` `./coinselect` `./queue` | VTXO sends with per-input scripts, coin selection, serializing TxQueue |
+| `./indexer` `./proofs` `./health` | Live indexing + receipts, HAT/RIP proofs, daemon health/watchtower reads |
+| `./exit` `./refund` `./recovery` | Unilateral exit assessment/execution, cooperative refunds, recovery |
+| `./net` `./errors` `./store` `./types` | Daemon transport + retries, friendly error mapping, pluggable stores, types |
 
 The current release is **experimental and regtest-only**. It is not production custody software and must not be used with funds that matter.
 
