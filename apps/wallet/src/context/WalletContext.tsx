@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
+import { TxQueue } from '@ripcord/core';
 import {
   vaultsForIdentity,
   type ExitReadiness,
@@ -52,6 +53,7 @@ interface WalletContextValue {
   indexerStatus: IndexerStatus;
   exitReadiness: ExitReadiness | null;
   store: RipcordStore | null;
+  txQueue: TxQueue;
   refresh: () => Promise<void>;
   setIdentity: (identity: Identity | null) => void;
   addVault: (vault: VaultRecord) => Promise<void>;
@@ -62,6 +64,8 @@ interface WalletContextValue {
   setIndexerStatus: (status: IndexerStatus) => void;
   waitForIndexerReady: (timeoutMs?: number) => Promise<void>;
 }
+
+export const walletTxQueue = new TxQueue();
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
@@ -351,7 +355,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
     liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts,
-    activity, indexerStatus, exitReadiness, store, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
+    activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
   }), [activeVault, activity, addVault, balanceCrossCheck, bootState, exitReadiness, health, identity, indexerStatus,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, setExitReadiness, spentVtxos,

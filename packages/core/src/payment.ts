@@ -124,6 +124,8 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
       spent: v.spent,
       locked: v.locked,
       localSpentAt: reserved ? Date.now() : undefined,
+      script: v.script,
+      owner: v.owner,
     };
   });
 
@@ -134,7 +136,7 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     txid: v.id,
     vout: 0,
     valueSats: v.amountSats,
-    scriptPubKey: Buffer.from(params.vault.p2tr.output).toString('hex'),
+    scriptPubKey: v.script || Buffer.from(params.vault.p2tr.output).toString('hex'),
     vtxoId: Buffer.from(v.id, 'hex'),
   }));
 

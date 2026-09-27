@@ -9,6 +9,8 @@ export interface SpendableVtxo {
   readonly spent: boolean;
   readonly locked: boolean;
   readonly localSpentAt?: number;
+  readonly script?: string;
+  readonly owner?: string;
 }
 
 export interface CoinSelection {

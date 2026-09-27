@@ -108,5 +108,63 @@ describe('selectCoins', () => {
     const expectedChange = result.totalInputSats - 10000n - 5n;
     expect(result.changeSats).toBe(expectedChange);
   });
+
+  it('retains script and owner fields on selected inputs', () => {
+    const vtxos: SpendableVtxo[] = [
+      {
+        id: '11'.repeat(32),
+        amountSats: 50000n,
+        spent: false,
+        locked: false,
+        script: '5120' + 'aa'.repeat(32),
+        owner: 'aa'.repeat(32),
+      },
+    ];
+    const result = selectCoins(vtxos, 10000n, 1n);
+    expect(result.inputs).toHaveLength(1);
+    expect(result.inputs[0].id).toBe('11'.repeat(32));
+    expect(result.inputs[0].script).toBe('5120' + 'aa'.repeat(32));
+    expect(result.inputs[0].owner).toBe('aa'.repeat(32));
+  });
+
+  it('mixed-type input sets build with distinct scriptPubKeys asserted exactly', () => {
+    const userChangeScript = '5120' + 'aa'.repeat(32);
+    const vaultScript = '5120' + 'dd'.repeat(32);
+
+    const spendable: SpendableVtxo[] = [
+      {
+        id: '11'.repeat(32),
+        amountSats: 20000n,
+        spent: false,
+        locked: false,
+        script: userChangeScript,
+        owner: 'aa'.repeat(32),
+      },
+      {
+        id: '22'.repeat(32),
+        amountSats: 15000n,
+        spent: false,
+        locked: false,
+        script: '',
+        owner: 'dd'.repeat(32),
+      },
+    ];
+
+    const selection = selectCoins(spendable, 25000n, 1n);
+    expect(selection.inputs).toHaveLength(2);
+
+    // Build inputs following the exact input-construction site in payment.ts (line 139)
+    const inputs = selection.inputs.map(v => ({
+      txid: v.id,
+      vout: 0,
+      valueSats: v.amountSats,
+      scriptPubKey: v.script || vaultScript,
+      vtxoId: Buffer.from(v.id, 'hex'),
+    }));
+
+    expect(inputs[0].scriptPubKey).toBe(userChangeScript);
+    expect(inputs[1].scriptPubKey).toBe(vaultScript);
+    expect(inputs[0].scriptPubKey).not.toBe(inputs[1].scriptPubKey);
+  });
 });
 

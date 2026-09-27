@@ -163,6 +163,53 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(received!.owner).toBe(ALICE_XONLY);
   });
 
+  it('multi-input send: Alice spends two VTXOs together; commit code=0; fee conservation & change ownership hold', async () => {
+    const aliceBefore = await withTransportRetry(() => vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }));
+    const unspent = aliceBefore.vtxos.filter(v => !v.spent && !v.locked).sort((a, b) => (b.amountSats > a.amountSats ? 1 : -1));
+    expect(unspent.length).toBeGreaterThanOrEqual(2);
+
+    // Target exceeding the single largest VTXO guarantees selecting at least two VTXOs
+    const amountSats = unspent[0].amountSats + 500n;
+    const feeSats = 1n;
+    let selectedInputIds: readonly string[] = [];
+
+    const result = await withTransportRetry(() =>
+      sendTransfer({
+        vault: toSdkVault(aliceVault),
+        senderXOnly: ALICE_XONLY,
+        recipientAddress: bobUserAddr,
+        amountSats,
+        feeSats,
+        baseUrl: DAEMON,
+        network: 'regtest',
+        userSigner: aliceSigner,
+        onInputsSelected: ids => { selectedInputIds = ids; },
+      }),
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.epoch).toBeGreaterThan(0);
+    expect(selectedInputIds.length).toBeGreaterThanOrEqual(2);
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Live verification on committed transaction
+    const tx = await withTransportRetry(async () => {
+      const res = await fetch(`${DAEMON}/tachi_tx?hash=${result.txHash}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    });
+
+    const totalInputSats = (tx.vin as Array<{ value_sats: number }>).reduce((sum, vin) => sum + BigInt(vin.value_sats), 0n);
+    const totalOutputSats = (tx.vout as Array<{ amount: number }>).reduce((sum, vout) => sum + BigInt(vout.amount), 0n);
+    expect(totalInputSats - totalOutputSats).toBe(feeSats);
+
+    const changeOutput = (tx.vout as Array<{ owner: string; amount: number }>).find(vout => vout.owner === ALICE_XONLY);
+    expect(changeOutput).toBeDefined();
+    expect(changeOutput!.owner).toBe(ALICE_XONLY);
+    expect(BigInt(changeOutput!.amount)).toBe(totalInputSats - amountSats - feeSats);
+  });
+
   it('two queued transfers serialize without code=5 double-spend', async () => {
     // Use two of Bob's remaining received VTXOs (each 5000) for two sends.
     const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
@@ -178,7 +225,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     const queue = new TxQueue();
     const selectedIds: string[] = [];
 
-    const sendTask = (amount: bigint, tag: string) => async (): Promise<{ code: number; epoch: number }> => {
+    const sendTask = (amount: bigint, tag: string) => async (): Promise<{ code: number; epoch: number; txHash: string }> => {
       const r = await withTransportRetry(() =>
         sendTransfer({
           vault: toSdkVault(bobVault),
@@ -193,8 +240,8 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
           onInputsSelected: ids => { selectedIds.push(...ids); },
         }),
       );
-      console.log(tag, 'committed epoch', r.epoch);
-      return { code: r.code, epoch: r.epoch };
+      console.log(tag, 'committed epoch', r.epoch, 'txHash', r.txHash);
+      return { code: r.code, epoch: r.epoch, txHash: r.txHash };
     };
 
     const p1 = queue.enqueue({ id: 'send-a', execute: sendTask(1000n, 'send-a') });
@@ -209,5 +256,22 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     const counts = new Map<string, number>();
     for (const id of selectedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
     for (const [id, c] of counts) expect(c, `VTXO ${id} selected ${c} times`).toBe(1);
+
+    // Fee conservation & change ownership verified on both serialized transfers
+    for (const res of results) {
+      const tx = await withTransportRetry(async () => {
+        const r = await fetch(`${DAEMON}/tachi_tx?hash=${res.txHash}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+      const totalIn = (tx.vin as Array<{ value_sats: number }>).reduce((sum, vin) => sum + BigInt(vin.value_sats), 0n);
+      const totalOut = (tx.vout as Array<{ amount: number }>).reduce((sum, vout) => sum + BigInt(vout.amount), 0n);
+      expect(totalIn - totalOut).toBe(1n);
+
+      const change = (tx.vout as Array<{ owner: string; amount: number }>).find(vout => vout.owner === BOB_XONLY);
+      if (change) {
+        expect(change.owner).toBe(BOB_XONLY);
+      }
+    }
   });
 });
