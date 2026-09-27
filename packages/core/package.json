@@ -41,6 +41,10 @@
       "import": "./dist/exit.js",
       "types": "./dist/exit.d.ts"
     },
+    "./refund": {
+      "import": "./dist/refund.js",
+      "types": "./dist/refund.d.ts"
+    },
     "./vault": {
       "import": "./dist/vault.js",
       "types": "./dist/vault.d.ts"
