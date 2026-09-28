@@ -87,11 +87,15 @@ const URL = 'http://localhost:4444/';
   console.log('RAIL_EXPANDS:', (await pageA.locator('.truth-rail dl').count()) === 1 ? 'yes' : 'NO');
 
   // === 5. tap-to-refresh updates the timestamp ===
-  const before = await pageA.locator('.truth-updated').first().innerText();
-  await pageA.getByRole('button', { name: /Tap to refresh/ }).click();
-  await pageA.waitForTimeout(6000);
-  const after = await pageA.locator('.truth-updated').first().innerText();
-  console.log('REFRESH_UPDATES:', before !== after || after.includes('Updated') ? `yes (${before} -> ${after})` : 'NO');
+  const before = await pageA.locator('.truth-rail .truth-updated').innerText();
+  // both the custody split and Chain Truth have their own tap-to-refresh (#23)
+  await pageA.locator('.truth-rail .refresh').click();
+  let after = before;
+  for (let i = 0; i < 30 && after === before; i++) {
+    await pageA.waitForTimeout(1000);
+    after = await pageA.locator('.truth-rail .truth-updated').innerText();
+  }
+  console.log('REFRESH_UPDATES:', before !== after ? `yes (${before} -> ${after})` : `unchanged (${after})`);
 
   // === 6. register on the unfunded vault -> honest error + Retry (#24) ===
   await pageA.getByRole('tab', { name: 'Receive', exact: true }).click();
