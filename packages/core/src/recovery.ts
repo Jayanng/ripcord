@@ -37,6 +37,11 @@ export interface RecoverVaultsParams {
   gapLimit?: number;
   /** Hard cap on scanned indices (SDK default 100). */
   maxIndex?: number;
+  /**
+   * Progress callback for the recovery banner (Phase 10, #30). Fires after
+   * each CSV candidate scan completes with real counts - never invented.
+   */
+  onProgress?: (progress: { candidatesDone: number; candidatesTotal: number; vaultsFound: number }) => void;
 }
 
 /** Default CSV candidates: regtest fixture (2) + every daemon CSV tier. */
@@ -269,6 +274,7 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
   }
 }
 
+  let candidatesDone = 0;
   for (const csvBlocks of csvCandidates) {
     const discovered = await retryDaemonQuery(() =>
       vc.discoverVaults({
@@ -348,6 +354,10 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
 
       byVaultId.set(d.summary.vaultId, record);
     }
+
+    // Report after this candidate's discoveries are merged: real counts only.
+    candidatesDone += 1;
+    params.onProgress?.({ candidatesDone, candidatesTotal: csvCandidates.length, vaultsFound: byVaultId.size });
   }
 
   return [...byVaultId.values()];

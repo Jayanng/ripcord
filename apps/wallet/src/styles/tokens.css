@@ -2753,3 +2753,99 @@ details[open] .vtxo-chevron {
 @media (prefers-reduced-motion: reduce) {
   .send-receipt, .send-receipt-check, .skeleton-line { animation: none; }
 }
+
+
+/* ===== Phase 10: proof diagram, badges, security chip, recovery banner, dark mode ===== */
+.proof-badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.proof-badge {
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--confirmed) 35%, var(--line));
+  background: color-mix(in srgb, var(--confirmed) 8%, transparent);
+  color: var(--confirmed); font: 700 11px var(--font-sans); letter-spacing: .03em;
+  white-space: nowrap;
+}
+.proof-badge.muted {
+  border-color: var(--line); background: var(--bg-inset); color: var(--text-lo);
+}
+.proof-badge.warn {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger);
+}
+
+.proof-diagram { display: grid; gap: 10px; margin: 18px 0 0; }
+.proof-diagram-row { display: flex; align-items: stretch; flex-wrap: wrap; gap: 8px; }
+.proof-node {
+  display: grid; gap: 2px; min-width: 84px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg-inset); opacity: .65;
+}
+.proof-node.proved {
+  opacity: 1; border-color: color-mix(in srgb, var(--confirmed) 40%, var(--line));
+  background: color-mix(in srgb, var(--confirmed) 7%, var(--bg-inset));
+}
+.proof-node span { color: var(--text-lo); font: 650 10.5px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; }
+.proof-node strong { color: var(--text-hi); font: 650 12px var(--font-mono); }
+.proof-arrow { align-self: center; color: var(--text-lo); font-size: 15px; }
+.proof-export-row { display: flex; gap: 10px; margin: 16px 0 0; }
+
+.security-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--confirmed) 35%, var(--line));
+  background: color-mix(in srgb, var(--confirmed) 8%, transparent);
+  color: var(--confirmed); font: 700 11px var(--font-sans); letter-spacing: .03em;
+  white-space: nowrap; cursor: help;
+}
+.security-chip-dot {
+  width: 7px; height: 7px; border-radius: 999px; background: var(--confirmed);
+}
+.theme-toggle {
+  min-height: 34px; padding: 6px 14px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--bg-raised); color: var(--text);
+  cursor: pointer; font: 700 11.5px var(--font-sans); letter-spacing: .03em;
+}
+.theme-toggle:hover { border-color: var(--primary-border); color: var(--text-hi); }
+
+.recovery-banner {
+  display: grid; gap: 4px; margin: 14px 0 0; padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line));
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg-raised));
+}
+.recovery-banner strong { color: var(--text-hi); font: 750 14px var(--font-sans); }
+.recovery-banner span { color: var(--text-lo); font: 600 12.5px var(--font-mono); }
+
+/* ===== Dark theme: same tokens, second palette (Phase 10, #31) ===== */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-base: #0B1120;
+  --bg-raised: #111A2E;
+  --bg-overlay: #16213A;
+  --bg-inset: #0E1626;
+  --line-subtle: #1A2438;
+  --line: #24304A;
+  --line-strong: #33415E;
+  --text-hi: #F1F5F9;
+  --text: #CBD5E1;
+  --text-lo: #8494AD;
+  --primary: #FB923C;
+  --primary-hover: #FDBA74;
+  --primary-light: #2A1B10;
+  --primary-border: #7C4A22;
+  --primary-glow: 0 4px 18px 0 rgba(251, 146, 60, 0.30);
+  --confirmed: #34D399;
+  --pending: #FBBF24;
+  --danger: #F87171;
+  --info: #60A5FA;
+  --ripcord: #F87171;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 24px -2px rgba(0, 0, 0, 0.5), 0 2px 6px -1px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 14px 40px -4px rgba(0, 0, 0, 0.55), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+[data-theme='dark'] .skeleton-line {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.10) 25%, rgba(148, 163, 184, 0.20) 50%, rgba(148, 163, 184, 0.10) 75%);
+  background-size: 200% 100%;
+}
+[data-theme='dark'] .safety-ok { color: var(--confirmed); }
+[data-theme='dark'] .safety-warn { color: var(--pending); }
+[data-theme='dark'] .sentinel-alert h3 { color: var(--danger); }

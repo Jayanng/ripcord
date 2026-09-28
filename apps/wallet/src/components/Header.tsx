@@ -1,7 +1,31 @@
+import { useEffect, useState } from 'react';
 import type { AppTab } from './TabBar';
+
+type Theme = 'light' | 'dark';
+
+/** Phase 10 (#31): theme choice persists locally; applied to <html>. */
+function applyTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem('ripcord:theme', theme);
+  } catch {
+    // storage unavailable; theme stays for this session only
+  }
+}
 
 export function Header({ active, onChange }: { active: AppTab; onChange: (tab: AppTab) => void }) {
   const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity', 'docs'];
+  // Phase 10 (#31): dark mode on the existing token set.
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return localStorage.getItem('ripcord:theme') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   return <header className="topbar">
     <button className="brand brand-button" aria-label="Ripcord home" onClick={() => onChange('wallet')}>
       <span className="brand-mark" aria-hidden="true">
@@ -32,6 +56,23 @@ export function Header({ active, onChange }: { active: AppTab; onChange: (tab: A
       ))}
     </nav>
     <div className="topbar-actions">
+      {/* Phase 10 (#29): security chip - the custody posture at a glance */}
+      <span
+        className="security-chip"
+        title="Your mnemonic and keys live in this tab's memory only. Nothing key-shaped is written to storage or sent anywhere."
+      >
+        <span className="security-chip-dot" aria-hidden="true" />
+        Keys in memory only
+      </span>
+      {/* Phase 10 (#31): theme toggle */}
+      <button
+        type="button"
+        className="theme-toggle"
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        onClick={() => setTheme(current => (current === 'dark' ? 'light' : 'dark'))}
+      >
+        {theme === 'dark' ? 'Light' : 'Dark'}
+      </button>
       <a
         href="https://github.com/Jayanng/ripcord"
         target="_blank"

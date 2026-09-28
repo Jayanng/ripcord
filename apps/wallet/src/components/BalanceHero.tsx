@@ -12,7 +12,7 @@ export interface BalanceHeroProps {
 
 export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps = {}) {
   const balance = useBalance();
-  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded } = useWallet();
+  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded, receipts, balanceCrossCheck } = useWallet();
   const [refreshing, setRefreshing] = useState(false);
   // Phase 9 (#22): skeletons until the first VTXO snapshot lands - the honest
   // "still loading" signal. After that, real values (including zeros) show.
@@ -29,6 +29,24 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         <h2 id="balance-title">Balances stay separate</h2>
       </div>
       <Icon name="shield" />
+    </div>
+    {/* Phase 10 (#27): always-on proof badge - reserves + inclusion at a glance */}
+    <div className="proof-badge-row" aria-label="Proof status">
+      <span className={`proof-badge ${balanceCrossCheck?.matches === false ? 'warn' : ''}`} title="L1 reserves cross-checked against the live chain snapshot">
+        {balanceCrossCheck
+          ? balanceCrossCheck.chainReachable
+            ? balanceCrossCheck.matches
+              ? 'L1 Reserves Verified'
+              : 'Reserves Mismatch'
+            : 'Reserves Unchecked (chain unreachable)'
+          : 'Checking L1 Reserves'}
+      </span>
+      <span className={`proof-badge ${receipts.some(r => r.hat) ? '' : 'muted'}`} title="Cryptographic HAT proofs on record for your payments">
+        {receipts.filter(r => r.hat).length} of {receipts.length} Proofs On Record
+      </span>
+      <span className={`proof-badge ${receipts.some(r => r.rip?.hatInStateDiff) ? '' : 'muted'}`} title="HAT inclusion in the Verkle state diff">
+        {receipts.some(r => r.rip?.hatInStateDiff) ? 'Inclusion Proven' : 'Inclusion Not Yet Proven'}
+      </span>
     </div>
     {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the custody split */}
     <div className="custody-updated-row">

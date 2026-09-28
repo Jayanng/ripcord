@@ -23,6 +23,8 @@ export function RecoveryScreen() {
   const [details, setDetails] = useState<string[]>(LABELS.map(() => ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Phase 10 (#30): live recovery progress for the banner.
+  const [scanProgress, setScanProgress] = useState<{ candidatesDone: number; candidatesTotal: number; vaultsFound: number } | null>(null);
   const update = (step: number, state: RecoveryStepState, detail = '') => {
     setStates(current => current.map((item, i) => i === step ? state : item));
     setDetails(current => current.map((item, i) => i === step ? detail : item));
@@ -43,7 +45,15 @@ export function RecoveryScreen() {
       update(1, 'passed', `${quorum.threshold} of ${quorum.nodePubkeys.length} validators`);
       currentStep = 2; update(2, 'active');
       const { recoverVaults } = await import('@ripcord/core/recovery');
-      const vaults = await recoverVaults({ identity, quorum, baseUrl: wallet.daemonUrl, bitcoinRpcBaseUrl: wallet.baseUrl, knownCsvBlocks: [csv, 144, 432, 1008, 2016], startIndex: index });
+      const vaults = await recoverVaults({
+        identity,
+        quorum,
+        baseUrl: wallet.daemonUrl,
+        bitcoinRpcBaseUrl: wallet.baseUrl,
+        knownCsvBlocks: [csv, 144, 432, 1008, 2016],
+        startIndex: index,
+        onProgress: setScanProgress,
+      });
       if (vaults.length === 0) throw new Error('No registered vault matched this mnemonic, key index, and CSV candidates.');
       update(2, 'passed', `${vaults.length} registered vault${vaults.length === 1 ? '' : 's'} found`);
       currentStep = 3; update(3, 'active');
@@ -72,6 +82,16 @@ export function RecoveryScreen() {
       <input type="hidden" name="csvConfirmations" value={csv} />
       <button className="test-pull" disabled={busy}>{busy ? 'Recovering from live chain…' : 'Start live recovery'}</button>
     </form>
+    {busy && (
+      <div className="recovery-banner" role="status">
+        <strong>Rescanning vault parameter sets</strong>
+        <span>
+          {scanProgress
+            ? `${scanProgress.candidatesDone} of ${scanProgress.candidatesTotal} scanned · ${scanProgress.vaultsFound} vault${scanProgress.vaultsFound === 1 ? '' : 's'} found so far`
+            : 'Starting the live chain scan…'}
+        </span>
+      </div>
+    )}
     <RecoveryProgress steps={steps} />
     {states[5] === 'passed' && wallet.activeVault && <><dl className="recovery-evidence"><div><dt>Vault</dt><dd>{wallet.activeVault.address}</dd></div><div><dt>Funding</dt><dd>{wallet.activeVault.funding ? `${wallet.activeVault.funding.txid}:${wallet.activeVault.funding.vout}` : 'Not reported'}</dd></div><div><dt>VTXOs</dt><dd>{wallet.liveVtxos.length}</dd></div></dl><p className="flow-note">Historical proof receipts are restored only when the daemon exposes them or they were persisted locally. This recovery run does not fabricate missing receipts.</p></>}
     {error && <p className={isDaemonSlowError(error) ? 'flow-note' : 'inline-error'} role={isDaemonSlowError(error) ? 'status' : 'alert'}>{error}</p>}
