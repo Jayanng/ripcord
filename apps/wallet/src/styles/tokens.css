@@ -2509,3 +2509,65 @@ details[open] .vtxo-chevron {
 
 .vault-chip-add { border-style: dashed; color: var(--primary); }
 .vault-chip-add:hover { border-color: var(--primary); background: var(--primary-light); }
+
+
+/* ===== Phase 6: receive modes, payment requests, recipient memory ===== */
+.receive-mode-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.receive-mode-tab {
+  min-height: 40px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg-raised); color: var(--text-lo); cursor: pointer;
+  font: 650 12.5px var(--font-sans); letter-spacing: .01em;
+  transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.receive-mode-tab:hover { border-color: var(--primary-border); color: var(--text-hi); }
+.receive-mode-tab.active { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.receive-mode-guidance { margin: 0 0 14px; max-width: 56ch; }
+
+.payment-request-card, .register-deposit-card {
+  display: grid; gap: 10px; margin: 14px 0 0; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-inset);
+}
+.payment-request-header, .settlement-receive-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.payment-request-chip {
+  padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary); font: 650 11.5px var(--font-sans); white-space: nowrap;
+}
+.payment-request-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: center; }
+.payment-request-fields label { color: var(--text-lo); font: 600 12px var(--font-sans); }
+.payment-request-fields input {
+  min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg-raised); color: var(--text-hi); font: 500 13.5px var(--font-sans);
+}
+@media (max-width: 560px) { .payment-request-fields { grid-template-columns: 1fr; } }
+
+.send-safety-card {
+  margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line);
+  border-radius: var(--r-md); background: var(--bg-inset);
+}
+.send-safety-title { margin: 0 0 10px; color: var(--text-hi); font: 750 13px var(--font-sans); letter-spacing: .01em; }
+.safety-ok { color: #1a7f4b; }
+.safety-warn { color: #b45309; }
+
+.recipient-memory { display: grid; gap: 8px; margin: 12px 0 0; }
+.recipient-memory-label { color: var(--text-lo); font: 650 11px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; }
+.recipient-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.recipient-chip, .recipient-chip-fill {
+  min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg-raised); color: var(--text-hi); cursor: pointer;
+  font: 600 12px var(--font-mono); transition: border-color .15s ease, box-shadow .15s ease;
+}
+.recipient-chip:hover, .recipient-chip-fill:hover { border-color: var(--primary-border); box-shadow: var(--shadow-sm); }
+.recipient-chip.saved { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 4px; }
+.recipient-chip-fill { border: none; background: transparent; }
+.recipient-chip-remove {
+  width: 28px; height: 28px; border: none; border-radius: 999px; background: transparent;
+  color: var(--text-lo); cursor: pointer; font: 600 15px var(--font-sans);
+}
+.recipient-chip-remove:hover { color: var(--text-hi); background: color-mix(in srgb, var(--text-lo) 12%, transparent); }
+
+.save-recipient-row { display: flex; gap: 8px; margin: 12px 0 0; }
+.save-recipient-label {
+  flex: 1; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--bg-raised); color: var(--text-hi);
+  font: 500 13px var(--font-sans);
+}

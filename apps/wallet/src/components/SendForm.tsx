@@ -4,6 +4,16 @@ import { useBalance } from '../hooks/useBalance';
 import { formatSats, truncate, Icon } from './ui';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
 import { isUserAddress } from '@ripcord/core/types';
+import {
+  classifyAddress,
+  amountInWords,
+  loadRecentRecipients,
+  loadSavedAddresses,
+  recordRecipient,
+  saveAddress,
+  removeSavedAddress,
+  type RecipientEntry,
+} from '../lib/recipients';
 
 type Field = 'recipient' | 'amount' | 'form';
 
@@ -265,6 +275,8 @@ function SendReviewModal({
   const feeLabel = hasLiveFee
     ? `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (recommended)`
     : '1 sat (default)';
+  // FIX #14: pre-send safety card - network match, address type, amount in words.
+  const safety = classifyAddress(recipient);
 
   return (
     <div
@@ -317,6 +329,28 @@ function SendReviewModal({
             <strong>{formatSats(remainingSats)}</strong>
           </div>
 
+          <div className="send-safety-card" aria-label="Send safety check">
+            <p className="send-safety-title">Safety check</p>
+            <div className="send-summary" style={{ marginBottom: 0 }}>
+              <span>Network</span>
+              <strong className={safety.networkMatches ? 'safety-ok' : 'safety-warn'}>
+                {safety.networkMatches
+                  ? 'Regtest · matches this wallet'
+                  : `${safety.network === 'unknown' ? 'Unrecognized' : safety.network} · not this wallet's network`}
+              </strong>
+              <span>Address type</span>
+              <strong>{safety.addressType}</strong>
+              <span>Amount</span>
+              <strong>{amountInWords(amountSats)}</strong>
+            </div>
+            {!safety.networkMatches && (
+              <p className="inline-error" role="alert" style={{ marginTop: '10px' }}>
+                This address is not a regtest address. Sending will fail or reach a different network. Go back and check
+                the address.
+              </p>
+            )}
+          </div>
+
           <button
             className="test-pull"
             disabled={isPending}
@@ -355,6 +389,17 @@ export function SendForm() {
 
   // FIX #12: Scanner state
   const [showScanner, setShowScanner] = useState(false);
+
+  // FIX #14: Recent recipients + saved addresses (localStorage convenience data)
+  const [recent, setRecent] = useState<RecipientEntry[]>([]);
+  const [saved, setSaved] = useState<RecipientEntry[]>([]);
+  const [saveLabel, setSaveLabel] = useState('');
+  const [saveNote, setSaveNote] = useState('');
+
+  useEffect(() => {
+    setRecent(loadRecentRecipients());
+    setSaved(loadSavedAddresses());
+  }, []);
 
   // FIX #3: Live daemon fee estimates
   const [probedFee, setProbedFee] = useState<bigint | null>(null);
@@ -506,6 +551,8 @@ export function SendForm() {
               window: 0,
             });
             await wallet.saveReceipt(receipt);
+            recordRecipient(recipient);
+            setRecent(loadRecentRecipients());
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
           } finally {
             setBusy(false);
@@ -577,6 +624,90 @@ export function SendForm() {
             {error.message}
           </p>
         )}
+        {(recent.length > 0 || saved.length > 0) && (
+          <div className="recipient-memory" aria-label="Recent and saved recipients">
+            {recent.length > 0 && (
+              <>
+                <span className="recipient-memory-label">Recent</span>
+                <div className="recipient-chip-row">
+                  {recent.slice(0, 6).map(entry => (
+                    <button
+                      key={entry.address}
+                      type="button"
+                      className="recipient-chip"
+                      title={entry.address}
+                      onClick={() => {
+                        setRecipient(entry.address);
+                        if (error?.field === 'recipient') setError(null);
+                      }}
+                    >
+                      {entry.label ?? truncate(entry.address, 8, 6)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {saved.length > 0 && (
+              <>
+                <span className="recipient-memory-label">Saved</span>
+                <div className="recipient-chip-row">
+                  {saved.map(entry => (
+                    <span key={entry.address} className="recipient-chip saved">
+                      <button
+                        type="button"
+                        className="recipient-chip-fill"
+                        title={entry.address}
+                        onClick={() => {
+                          setRecipient(entry.address);
+                          if (error?.field === 'recipient') setError(null);
+                        }}
+                      >
+                        {entry.label ?? truncate(entry.address, 8, 6)}
+                      </button>
+                      <button
+                        type="button"
+                        className="recipient-chip-remove"
+                        aria-label={`Remove saved address ${entry.label ?? entry.address}`}
+                        onClick={() => {
+                          removeSavedAddress(entry.address);
+                          setSaved(loadSavedAddresses());
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        <div className="save-recipient-row">
+          <input
+            type="text"
+            className="save-recipient-label"
+            maxLength={40}
+            placeholder="Label for this address (optional)"
+            value={saveLabel}
+            onChange={event => setSaveLabel(event.target.value)}
+            aria-label="Label for saved address"
+          />
+          <button
+            type="button"
+            className="secondary-action-compact"
+            disabled={!isUserAddress(recipient.trim())}
+            onClick={() => {
+              saveAddress(recipient.trim(), saveLabel);
+              setSaved(loadSavedAddresses());
+              setSaveLabel('');
+              setSaveNote('Address saved on this device.');
+              window.setTimeout(() => setSaveNote(''), 3000);
+            }}
+          >
+            Save address
+          </button>
+        </div>
+        {saveNote && <p className="flow-note" role="status">{saveNote}</p>}
         <div className="amount-label-row">
           <label htmlFor="send-amount">Amount in sats</label>
           <div className="amount-spendable-hint">

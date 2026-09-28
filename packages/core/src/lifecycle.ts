@@ -505,6 +505,14 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
     }
 
     if (!deposit) {
+      // Register-only mode: amountSats 0 means "this vault was funded
+      // directly; register what is already on-chain". Never broadcast a new
+      // deposit in that mode even if the scan came up empty.
+      if (params.amountSats <= 0n) {
+        throw new Error(
+          'No deposit found on this vault address. Register-only mode (0 sats) never broadcasts: send BTC to the vault address first, then retry.',
+        );
+      }
       params.onProgress?.('depositing');
       let broadcast: DepositResult | null = null;
       if (params.explicitInput) {

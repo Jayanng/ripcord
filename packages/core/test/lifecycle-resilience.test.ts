@@ -391,4 +391,32 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
       expect(adopted.vaultId).toBe(ALICE_VAULT_ID);
     });
   });
+
+  describe('Register-only mode (0 sats) never broadcasts', () => {
+    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
+      // Virgin identity vault: never funded on-chain. Register-only mode must
+      // refuse to broadcast and say why (this is the direct-to-vault deposit
+      // registration path used by the Receive screen).
+      const virginVault = await createVault({
+        network: 'regtest',
+        nodePubkeys: quorum.nodePubkeys,
+        csvBlocks: 2,
+        userKeyDescriptor: virginIdentity.userKeyDescriptor,
+        threshold: quorum.threshold,
+      });
+      expect(virginVault.funding).toBeUndefined();
+      expect(virginVault.vaultIdHex).toBeFalsy();
+
+      await expect(
+        fundVaultLifecycle({
+          vault: virginVault,
+          mnemonic: VIRGIN_MNEMONIC,
+          bitcoinRpcBaseUrl: `${DAEMON_URL}/`,
+          daemonBaseUrl: DAEMON_URL,
+          amountSats: 0n,
+          timeoutMs: 20_000,
+        }),
+      ).rejects.toThrow(/register-only mode/i);
+    });
+  });
 });
