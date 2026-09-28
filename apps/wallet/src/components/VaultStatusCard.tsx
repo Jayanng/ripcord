@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useWallet } from '../context/WalletContext';
+import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { FaucetModal } from './FaucetModal';
-import { truncate } from './ui';
+import { truncate, formatSats } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -53,17 +53,61 @@ export function VaultStatusCard() {
         },
       });
       setFlow('complete');
-      await wallet.updateVault({
+      const fundedRecord = {
         ...activeVault,
         funding: { txid: result.deposit.txid, vout: result.deposit.vout, valueSats: result.deposit.amountSats },
         vaultIdHex: result.vaultId,
         registered: true,
-      });
+      };
+      await wallet.updateVault(fundedRecord);
+      // The record key transitions address:createdAt -> vaultIdHex on funding;
+      // keep the user's selection on the record they just funded.
+      wallet.selectVault(vaultRecordKey(fundedRecord));
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
       localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
     } catch (e) {
       const isSlow = isDaemonSlowError(e);
       setFlow(isSlow ? 'ready' : 'error');
+      setError(composeFlowErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Start another deposit round: derive a fresh vault record for the identity
+  // and select it so the existing funding flow funds THIS record. TAURUS vaults
+  // are per-deposit (vault_id = H(funding_txid || vout)), so each funded round
+  // becomes its own record in the switcher.
+  const addVaultRound = async () => {
+    if (!wallet.identity) return;
+    setBusy(true); setError('');
+    try {
+      const [{ createVault }, { getQuorum }] = await Promise.all([
+        import('@ripcord/core/vault'),
+        import('@ripcord/core/quorum'),
+      ]);
+      const quorum = await getQuorum(wallet.daemonUrl, {
+        allowInsecureHttp: wallet.daemonUrl.startsWith('http://127.0.0.1:') || wallet.daemonUrl.startsWith('http://localhost:'),
+      });
+      const derived = await createVault({
+        network: 'regtest',
+        nodePubkeys: quorum.nodePubkeys,
+        csvBlocks: wallet.activeVault?.csvBlocks ?? 2,
+        userKeyDescriptor: wallet.identity.userKeyDescriptor,
+        threshold: quorum.threshold,
+      });
+      const existing = wallet.vaults.find(v => v.address === derived.address);
+      if (existing) {
+        // TAURUS vaults are unique per quorum state: while the validator set is
+        // unchanged, a fresh derivation lands on the SAME vault (store merges by
+        // address). Say so honestly instead of silently doing nothing.
+        wallet.selectVault(vaultRecordKey(existing));
+        setError('This round derived the same vault as an existing record (vaults are unique per quorum state). Fund the selected vault, or change the vault key index in the setup form for a separate vault.');
+        return;
+      }
+      await wallet.addVault(derived);
+      wallet.selectVault(vaultRecordKey(derived));
+    } catch (e) {
       setError(composeFlowErrorMessage(e));
     } finally {
       setBusy(false);
@@ -177,6 +221,43 @@ export function VaultStatusCard() {
       <h2>Active TAURUS Vault Status</h2>
       <p>Your deterministic 5-of-7 TAURUS vault is bound to live validator consensus on Tachi regtest.</p>
     </div>
+    {wallet.identity && (
+      <div className="vault-switcher" role="tablist" aria-label="Select vault">
+        <p className="vault-switcher-totals">
+          {wallet.vaults.length} {wallet.vaults.length === 1 ? 'vault' : 'vaults'} · {formatSats(wallet.vaults.reduce((sum, v) => sum + (v.funding?.valueSats ?? 0n), 0n))} total on-chain
+        </p>
+        <div className="vault-chip-row">
+          {wallet.vaults.map((item, index) => {
+            const isActive = vaultRecordKey(item) === (wallet.activeVault ? vaultRecordKey(wallet.activeVault) : '');
+            return (
+              <button
+                key={vaultRecordKey(item)}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`vault-chip ${isActive ? 'active' : ''}`}
+                onClick={() => wallet.selectVault(vaultRecordKey(item))}
+                title={`${item.address}\nfunding ${item.funding ? item.funding.txid.slice(0, 16) : 'none'}`}
+              >
+                <span className="vault-chip-round">Vault {index + 1}</span>
+                <span className="vault-chip-amount">{item.funding ? formatSats(item.funding.valueSats ?? 0n) : 'unfunded'}</span>
+                <span className={`vault-chip-state ${item.registered ? 'ready' : ''}`}>{item.registered ? 'registered' : 'pending'}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="vault-chip vault-chip-add"
+            disabled={busy}
+            onClick={() => void addVaultRound()}
+            title="Derive a fresh vault record for the next deposit round"
+          >
+            <span className="vault-chip-round">New</span>
+            <span className="vault-chip-amount">+ Start another deposit round</span>
+          </button>
+        </div>
+      </div>
+    )}
     <div className="flow-success">
       <strong>{vaultReady || flow === 'complete' ? 'Vault ready' : busy ? 'Funding in progress' : 'Identity ready'}</strong>
       <dl>

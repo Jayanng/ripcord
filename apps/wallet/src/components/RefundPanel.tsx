@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useWallet } from '../context/WalletContext';
+import { useWallet, identityForVault } from '../context/WalletContext';
 import { useRefund, type RefundReadiness, type ClaimReadiness } from '../hooks/useRefund';
 import { composeFlowErrorMessage } from '@ripcord/core/lifecycle';
 import { describeDaemonFailure } from '@ripcord/core/net';
@@ -25,7 +25,10 @@ export function RefundPanel() {
   const refundValueRef = useRef<bigint>(0n);
 
   const vault = wallet.activeVault;
-  const identity = wallet.identity;
+  // Core enforces identity.userKeyDescriptor.index === vault.userKeyIndex for
+  // money operations, so act with the vault-matching identity (re-derived from
+  // the in-memory mnemonic when the vault lives at a different key index).
+  const identity = identityForVault(wallet.identity, wallet.activeVault);
 
   const describeError = (e: unknown) => composeFlowErrorMessage(e) || describeDaemonFailure(e);
 

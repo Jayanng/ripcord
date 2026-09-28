@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
 import { TxQueue } from '@ripcord/core';
+import { deriveIdentity } from '@ripcord/core/keys';
 import {
   vaultsForIdentity,
   type ExitReadiness,
@@ -57,6 +58,7 @@ interface WalletContextValue {
   exitReadiness: ExitReadiness | null;
   store: RipcordStore | null;
   txQueue: TxQueue;
+  selectVault: (vaultKey: string | null) => void;
   refresh: () => Promise<void>;
   setIdentity: (identity: Identity | null) => void;
   addVault: (vault: VaultRecord) => Promise<void>;
@@ -69,6 +71,23 @@ interface WalletContextValue {
 }
 
 export const walletTxQueue = new TxQueue();
+
+/** Stable per-record key: vaultIdHex is unique per funding outpoint. */
+export function vaultRecordKey(vault: VaultRecord): string {
+  return vault.vaultIdHex || `${vault.address}:${vault.createdAt}`;
+}
+
+/**
+ * The identity a vault's money operations must act with. Core requires
+ * identity.userKeyDescriptor.index === vault.userKeyIndex (refund.ts guard), so
+ * for a vault created at a different key index we re-derive the matching
+ * identity from the in-memory mnemonic. Pure derivation; nothing is stored.
+ */
+export function identityForVault(identity: Identity | null, vault: VaultRecord | null): Identity | null {
+  if (!identity || !vault) return identity;
+  if (identity.userKeyDescriptor.index === vault.userKeyIndex) return identity;
+  return deriveIdentity(identity.mnemonic, 'regtest', vault.userKeyIndex);
+}
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
@@ -109,13 +128,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [pendingCredits]);
 
   const vaults = useMemo(() => vaultsForIdentity(storedVaults, identity), [identity, storedVaults]);
+  // Explicit vault selection (Phase 5 multi-vault): the user's pick wins, the
+  // scored heuristic stays as the default when nothing is selected. Vault
+  // records are keyed by vaultIdHex (unique per funding outpoint - addresses
+  // can repeat across records for the same derived vault).
+  const [selectedVaultKey, setSelectedVaultKey] = useState<string | null>(null);
   const activeVault = useMemo(() => {
+    const selected = selectedVaultKey ? vaults.find(v => vaultRecordKey(v) === selectedVaultKey) : undefined;
+    if (selected) return selected;
     return [...vaults].sort((a, b) => {
       const aScore = (a.funding ? 4 : 0) + (a.registered ? 2 : 0) + (a.p2tr ? 1 : 0);
       const bScore = (b.funding ? 4 : 0) + (b.registered ? 2 : 0) + (b.p2tr ? 1 : 0);
       return bScore - aScore || b.createdAt - a.createdAt;
     })[0] ?? null;
-  }, [vaults]);
+  }, [vaults, selectedVaultKey]);
 
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet) setBootState('checking');
@@ -358,7 +384,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
     liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts,
-    activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
+    activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
   }), [activeVault, activity, addVault, balanceCrossCheck, bootState, exitReadiness, health, identity, indexerStatus,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, setExitReadiness, spentVtxos,

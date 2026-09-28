@@ -1,6 +1,6 @@
 import type { ExitReadiness, VaultRecord } from '@ripcord/core/types';
 import type { ExecuteExitParams } from '@ripcord/core/exit';
-import { useWallet } from '../context/WalletContext';
+import { useWallet, identityForVault } from '../context/WalletContext';
 
 export function useRipcord() {
   const wallet = useWallet();
@@ -14,16 +14,18 @@ export function useRipcord() {
     return result;
   };
   const assess = async (vault: VaultRecord): Promise<ExitReadiness> => {
-    if (!wallet.identity) throw new Error('Load an identity before testing the ripcord');
+    const identity = identityForVault(wallet.identity, vault);
+    if (!identity) throw new Error('Load an identity before testing the ripcord');
     const { assessExit } = await import('@ripcord/core/exit');
-    const result = await assessExit({ vault, identity: wallet.identity, baseUrl: wallet.baseUrl });
+    const result = await assessExit({ vault, identity, baseUrl: wallet.baseUrl });
     wallet.setExitReadiness(vault.address, result);
     return result;
   };
   const execute = async (vault: VaultRecord, signer: ExecuteExitParams['signer']) => {
-    if (!wallet.identity) throw new Error('Load an identity before pulling the ripcord');
+    const identity = identityForVault(wallet.identity, vault);
+    if (!identity) throw new Error('Load an identity before pulling the ripcord');
     const { executeExit } = await import('@ripcord/core/exit');
-    return executeExit({ vault, identity: wallet.identity, signer, destAddress: wallet.identity.l1Address, baseUrl: wallet.baseUrl });
+    return executeExit({ vault, identity, signer, destAddress: identity.l1Address, baseUrl: wallet.baseUrl });
   };
   return { readiness: wallet.exitReadiness, refreshMaturity, assess, execute };
 }

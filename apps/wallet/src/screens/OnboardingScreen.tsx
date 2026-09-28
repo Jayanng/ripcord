@@ -336,7 +336,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           </div>
         )}
         {/* Hidden from frontend but preserved in backend/logic */}
-        <input type="hidden" name="vaultKeyIndex" value={index} />
+        <label className="advanced-field"><span>Vault key index (advanced)</span><input type="number" min="0" step="1" inputMode="numeric" value={index} onChange={event => setIndex(Math.max(0, Math.floor(Number(event.target.value) || 0)))} /></label>
         <input type="hidden" name="csvConfirmations" value={csv} />
         <button className="test-pull" disabled={busy}>
           {busy ? 'Deriving and reading quorum…' : 'Create identity and vault'}

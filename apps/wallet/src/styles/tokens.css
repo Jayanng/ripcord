@@ -2484,3 +2484,28 @@ details[open] .vtxo-chevron {
 .exit-ring-copy strong { color: var(--text-hi); font-size: 14px; font-weight: 750; letter-spacing: -.01em; }
 .exit-ring-copy span { color: var(--text-lo); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exit-ring-cta { color: var(--primary); font: 700 12px var(--font-sans); white-space: nowrap; }
+
+/* ===== Phase 5: multi-vault switcher ===== */
+.vault-switcher { display: grid; gap: 10px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-inset); }
+.vault-switcher-totals { margin: 0; color: var(--text-lo); font: 600 12px var(--font-mono); letter-spacing: .02em; }
+.vault-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.vault-chip {
+  display: grid; gap: 2px; min-height: 44px; padding: 8px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg-raised); color: var(--text-hi); cursor: pointer;
+  text-align: left; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.vault-chip:hover { border-color: var(--primary-border); box-shadow: var(--shadow-sm); }
+.vault-chip.active { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.vault-chip-round { color: var(--text-lo); font: 700 10px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.vault-chip-amount { color: var(--text-hi); font: 700 13px var(--font-sans); }
+.vault-chip-state { color: var(--text-lo); font: 600 10px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; }
+.vault-chip-state.ready { color: var(--confirmed); }
+
+/* ===== Phase 5: advanced vault key index field ===== */
+.advanced-field { display: grid; gap: 4px; margin-top: 10px; }
+.advanced-field span { color: var(--text-lo); font: 600 11px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+.advanced-field input { max-width: 160px; }
+
+.vault-chip-add { border-style: dashed; color: var(--primary); }
+.vault-chip-add:hover { border-color: var(--primary); background: var(--primary-light); }
