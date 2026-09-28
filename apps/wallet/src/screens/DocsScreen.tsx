@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { CORE_VERSION } from '@ripcord/core';
 import { WhatYouDontManage } from '../components/WhatYouDontManage';
 
 function CodeBlock({ code, title = 'TypeScript' }: { code: string; title?: string }) {
@@ -166,11 +167,11 @@ export function DocsScreen() {
                 target="_blank"
                 rel="noreferrer"
                 className="pocket-package-badge"
-                title="View @ripcord/core v0.1.1 on npm"
+                title={`View @ripcord/core v${CORE_VERSION} on npm`}
               >
                 <span className="pocket-package-dot" aria-hidden="true" />
                 <span className="pocket-package-label">PACKAGE</span>
-                <span className="pocket-package-version">V0.1.1</span>
+                <span className="pocket-package-version">{`V${CORE_VERSION}`}</span>
               </a>
               <span className="pocket-eyebrow-sep">·</span>
               <span className="pocket-network-pill">TACHI REGTEST</span>

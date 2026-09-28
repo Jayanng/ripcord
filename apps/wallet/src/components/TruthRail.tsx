@@ -1,4 +1,5 @@
 import { useWallet } from '../context/WalletContext';
+import { formatSats } from './ui';
 
 export function TruthRail() {
   const { bootState, health, refresh, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts } = useWallet();
@@ -12,8 +13,8 @@ export function TruthRail() {
 
   const crossCheckLabel = balanceCrossCheck
     ? !balanceCrossCheck.chainReachable || balanceCrossCheck.matches === null
-      ? `snapshot ${balanceCrossCheck.snapshotSats.toString()} sats (chain unavailable)`
-      : `snapshot ${balanceCrossCheck.snapshotSats.toString()} sats vs chain ${balanceCrossCheck.chainBalanceSats.toString()} sats${balanceCrossCheck.matches ? ' (match)' : ' (mismatch)'}`
+      ? `snapshot ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`
+      : `snapshot ${formatSats(balanceCrossCheck.snapshotSats)} vs chain ${formatSats(balanceCrossCheck.chainBalanceSats)}${balanceCrossCheck.matches ? ' (match)' : ' (mismatch)'}`
     : 'Not checked';
 
   return <>
@@ -58,7 +59,7 @@ export function TruthRail() {
         {/* Scope 3: Balance cross-check (informational, never silently changes balance) */}
         <div>
           <dt>Balance Cross-Check</dt>
-          <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${balanceCrossCheck.snapshotSats.toString()} sats, Chain: ${balanceCrossCheck.chainBalanceSats.toString()} sats (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${balanceCrossCheck.snapshotSats.toString()} sats (chain unavailable)`) : undefined}>
+          <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)}, Chain: ${formatSats(balanceCrossCheck.chainBalanceSats)} (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`) : undefined}>
             {crossCheckLabel}
           </dd>
         </div>

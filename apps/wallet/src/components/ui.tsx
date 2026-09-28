@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export const formatSats = (value: bigint) => `${value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f')} sats`;
+export { formatSats } from '../lib/format';
 export const truncate = (value: string, start = 8, end = 6) => value.length > start + end ? `${value.slice(0, start)}…${value.slice(-end)}` : value;
 export const EXPLORER_BASE = 'https://explorer-regtest.tachibtc.com';
 export const explorerTxUrl = (txid: string) => `${EXPLORER_BASE}/tx/${txid}`;

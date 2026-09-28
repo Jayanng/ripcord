@@ -55,8 +55,19 @@ let cachedFixtures: ProofFixture[] | null = null;
 export function isTransportError(err: unknown): boolean {
   if (!err) return false;
   if (err instanceof Error && err.name === 'AssertionError') return false;
-  const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  return /timeout|timed?\s*out|502|503|504|fetch failed|AbortError|deadline|ECONNRESET|ECONNREFUSED|ENOTFOUND|UND_ERR/i.test(msg);
+  // Walk the cause chain: our RipcordError wrappers carry friendly text and
+  // keep the raw transport failure (e.g. "HTTP 502") in `cause` (observed live
+  // 2026-09-28: a wobble 502 surfaced as DAEMON_UNREACHABLE and slipped past
+  // the retry layer because only the friendly message was inspected).
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur instanceof Error && !seen.has(cur)) {
+    seen.add(cur);
+    const msg = `${cur.name}: ${cur.message}`;
+    if (/timeout|timed?\s*out|502|503|504|fetch failed|AbortError|deadline|ECONNRESET|ECONNREFUSED|ENOTFOUND|UND_ERR/i.test(msg)) return true;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
@@ -215,7 +226,7 @@ export async function ensureFixtureFunds(
   options: { faucetUrl?: string } = {},
 ): Promise<{ visibleSats: bigint; topUpAttempted: boolean; faucetMessage?: string }> {
   await syncWalletWithScan(userWallet, bitcoinRpcUrl);
-  const visibleSats = (userWallet.utxos ?? []).reduce((acc, u) => {
+  const visibleSats = (userWallet.utxos ?? []).reduce<bigint>((acc, u) => {
     const v = (u as { valueSats?: bigint }).valueSats;
     return acc + (typeof v === 'bigint' ? v : 0n);
   }, 0n);

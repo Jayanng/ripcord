@@ -24,7 +24,31 @@ export function RipcordPanel() {
   const run = async () => { if (!vault || !identity) return; setBusy(true); setError(''); try { await assess(vault); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } };
   const confirmations = readiness?.confirmations ?? 0;
   const csvBlocks = vault?.csvBlocks ?? 1;
-  const progressPercent = vault ? Math.min(100, Math.round((confirmations / csvBlocks) * 100)) : 0;
+  const confirmationLabel = (() => {
+    if (!vault?.funding || status === 'unfunded') {
+      return 'Not funded';
+    }
+    if (status === 'live') {
+      return 'Mature, ready to pull';
+    }
+    if (status === 'maturing') {
+      if (typeof readiness?.confirmations === 'number' && typeof vault?.csvBlocks === 'number') {
+        return `${readiness.confirmations} of ${vault.csvBlocks} confirmations`;
+      }
+      return 'Waiting for confirmations';
+    }
+    if (status === 'spent') {
+      return 'Spent';
+    }
+    return 'Not funded';
+  })();
+  const progressPercent = vault
+    ? status === 'live'
+      ? 100
+      : status === 'maturing' && typeof readiness?.confirmations === 'number' && typeof vault.csvBlocks === 'number' && vault.csvBlocks > 0
+        ? Math.min(100, Math.round((readiness.confirmations / vault.csvBlocks) * 100))
+        : 0
+    : 0;
   const statusBadge = status === 'live' ? 'LIVE · READY TO PULL' : status === 'maturing' ? 'MATURING · LOCKED' : status.toUpperCase();
 
   return <section id="ripcord" className="ripcord-panel" aria-labelledby="ripcord-title">
@@ -38,10 +62,10 @@ export function RipcordPanel() {
           {vault ? (
             <div className="timelock-progress-wrap">
               <div className="timelock-label">
-                <span>{confirmations} of {csvBlocks} confirmations</span>
+                <span>{confirmationLabel}</span>
                 <span className={`timelock-pct ${status === 'live' ? 'live' : ''}`}>{progressPercent}%</span>
               </div>
-              <div className="timelock-bar" role="progressbar" aria-valuenow={confirmations} aria-valuemin={0} aria-valuemax={csvBlocks}>
+              <div className="timelock-bar" role="progressbar" aria-valuenow={status === 'live' ? csvBlocks : status === 'unfunded' ? 0 : confirmations} aria-valuemin={0} aria-valuemax={csvBlocks}>
                 <div className={`timelock-fill ${status === 'live' ? 'live' : ''}`} style={{ width: `${progressPercent}%` }} />
               </div>
             </div>
