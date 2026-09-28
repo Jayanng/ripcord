@@ -12,6 +12,7 @@ import type {
   Identity,
 } from '../src/types.js';
 import { vaultsForIdentity } from '../src/types.js';
+import { serializeJson } from '../src/bytes.js';
 import { deriveIdentity } from '../src/keys.js';
 import { getQuorum } from '../src/quorum.js';
 import { createVault } from '../src/vault.js';
@@ -228,6 +229,26 @@ describe('MemoryStore', () => {
     expect(receipts).toHaveLength(1);
     expect(receipts[0].amountSats).toBe(500n);
     expect(typeof receipts[0].amountSats).toBe('bigint');
+  });
+
+  it('fromSnapshot drops a stale pre-funding incarnation regardless of array order', async () => {
+    // A snapshot written by older code could contain BOTH incarnations of one
+    // record (the pre-funding `address:createdAt` row and its funded
+    // successor). Loading must keep exactly one row per record, whichever
+    // order the two appear in.
+    const funded = makeVault(VAULT_A, 40000n); // has vaultIdHex
+    const stalePreFunding = {
+      ...funded,
+      vaultIdHex: '',
+      funding: undefined,
+    };
+    for (const rows of [[stalePreFunding, funded], [funded, stalePreFunding]]) {
+      const snapshot = serializeJson({ vaults: rows, receipts: [] });
+      const restored = MemoryStore.fromSnapshot(snapshot);
+      const vaults = await restored.getVaults();
+      expect(vaults).toHaveLength(1);
+      expect(vaults[0].vaultIdHex).toBe(funded.vaultIdHex);
+    }
   });
 
   it('returns defensive vault copies so callers cannot mutate stored state', async () => {

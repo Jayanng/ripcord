@@ -330,34 +330,88 @@ async function findExistingVaultFunding(
   return null;
 }
 
-async function findBroadcastVaultFunding(baseUrl: string, vault: VaultRecord, txid: string) {
+async function findBroadcastVaultFunding(
+  baseUrl: string,
+  vault: VaultRecord,
+  txid: string,
+  // Outpoints already claimed by other funding records at this address. The
+  // resume txid may belong to a sibling round (stale resume state), so the
+  // adoption must honor the same exclusion as the funding scan: adopting a
+  // claimed outpoint would give two records one funding identity.
+  excludeOutpoints: ReadonlySet<string> = new Set(),
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+) {
   if (!/^[0-9a-fA-F]{64}$/.test(txid)) return null;
-  try {
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: Date.now(),
-        method: 'getrawtransaction',
-        params: [txid, true],
-      }),
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
+  // Contract: return a deposit ONLY when the resumed tx provably pays this
+  // vault's script; return null ONLY when the chain definitively says the
+  // resumed tx is unknown (a dropped broadcast is safe to replace with a fresh
+  // deposit). Any indeterminate failure (HTTP error, network error, bad
+  // payload) MUST throw: falling through to a fresh broadcast there would
+  // double-deposit while the original tx is still in flight.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const backoff = async () => { if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1000)); };
+    let response: Response;
+    try {
+      response = await fetchImpl(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'getrawtransaction',
+          params: [txid, true],
+        }),
+      });
+    } catch (err) {
+      // Network-level failure: indeterminate, retry then throw.
+      await backoff();
+      if (attempt < 3) continue;
+      throw new Error(`Resumed deposit lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!response.ok) {
+      if ([502, 503, 504, 429].includes(response.status)) {
+        await backoff();
+        if (attempt < 3) continue;
+      }
+      throw new Error(`Bitcoin RPC HTTP ${response.status}`);
+    }
+    let payload: {
       result?: {
         txid: string;
         vout: Array<{ n: number; value: number; scriptPubKey: { hex: string } }>;
       };
-      error?: unknown;
+      error?: { code?: number; message?: string };
     };
-    if (payload.error || !payload.result) return null;
+    try {
+      payload = await response.json();
+    } catch {
+      // Malformed body (e.g. a proxy's HTML error page with status 200):
+      // indeterminate, retry then throw.
+      await backoff();
+      if (attempt < 3) continue;
+      throw new Error('Resumed deposit lookup failed: malformed RPC response');
+    }
+    if (payload.error || !payload.result) {
+      // getrawtransaction code -5 ("No such mempool or blockchain
+      // transaction") is a definitive answer: the resumed broadcast is gone
+      // (evicted or never relayed) and a fresh deposit is the correct recovery.
+      if (payload.error?.code === -5) return null;
+      const rpcMessage = payload.error?.message ?? 'malformed RPC response';
+      if (/warming|loading|try again|timeout/i.test(rpcMessage)) {
+        await backoff();
+        if (attempt < 3) continue;
+      }
+      throw new Error(`Resumed deposit lookup failed: ${rpcMessage}`);
+    }
     const expectedScript = vault.p2tr
       ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase()
       : '';
     const match = payload.result.vout?.find(
       v => v.scriptPubKey.hex.toLowerCase() === expectedScript
+        && !excludeOutpoints.has(`${payload.result!.txid.toLowerCase()}:${v.n}`)
     );
+    // The tx exists but does not pay this vault (stale/foreign resume state):
+    // definitively not this round's funding, so a fresh deposit is correct.
     if (!match) return null;
     return {
       txid: payload.result.txid as import('./types.js').DisplayTxid,
@@ -365,15 +419,21 @@ async function findBroadcastVaultFunding(baseUrl: string, vault: VaultRecord, tx
       amountSats: BigInt(Math.round(match.value * 1e8)),
       source: 'broadcast' as const,
     };
-  } catch {
-    return null;
   }
+  // Unreachable: the loop either returns or throws on its final attempt.
+  throw new Error('Resumed deposit lookup failed after retries');
 }
 
-async function waitForBitcoinConfirmation(baseUrl: string, txid: string, pollMs: number, onPoll?: (confirmations: number) => void): Promise<void> {
+async function waitForBitcoinConfirmation(
+  baseUrl: string,
+  txid: string,
+  pollMs: number,
+  onPoll?: (confirmations: number) => void,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+): Promise<void> {
   for (;;) {
     try {
-      const response = await fetch(baseUrl, {
+      const response = await fetchImpl(baseUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [txid, true] }),
@@ -482,12 +542,22 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
   const allowInsecureHttp = daemonUrl.protocol === 'http:' && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
 
   const claimed = new Set((params.claimedOutpoints ?? []).map(item => item.toLowerCase()));
+  // The flow's resolved deposit, visible to the code=17 catch below. Without
+  // it the catch could only see params.vault.funding, which is UNSET on a fresh
+  // funding round: the adoption would then run against an empty txid and the
+  // result would carry a fake `funding: { txid: '' }` binding that poisons
+  // every later scan (truthy funding short-circuits the on-chain lookup).
+  let resolvedDeposit: LifecycleDeposit | null = null;
+  const rememberDeposit = <T extends LifecycleDeposit | null>(d: T): T => {
+    resolvedDeposit = d;
+    return d;
+  };
   try {
     // FIX 2: If the local store already records the vaultId for this deposit, skip registration entirely!
     const decision = evaluateFundingStep({ vault: params.vault });
     if (!decision.shouldRegister && params.vault.vaultIdHex) {
       const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
-      const current = await vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: globalThis.fetch.bind(globalThis) });
+      const current = await vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) });
       const evidence = current.vtxos.find(item => !item.spent);
       let dep: LifecycleDeposit;
       if (params.vault.funding) {
@@ -510,15 +580,15 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       };
     }
 
-    let deposit: LifecycleDeposit | null = params.vault.funding
+    let deposit: LifecycleDeposit | null = rememberDeposit(params.vault.funding
       ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
-      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis), claimed);
+      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis), claimed));
 
     if (!deposit && params.existingDepositTxid) {
-      deposit = await findBroadcastVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.existingDepositTxid);
+      deposit = rememberDeposit(await findBroadcastVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.existingDepositTxid, claimed, params.fetchImpl ?? globalThis.fetch.bind(globalThis)));
       if (deposit) {
         params.onProgress?.('confirming-deposit');
-        await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
+        await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
       }
     }
 
@@ -556,7 +626,8 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
             params.bitcoinRpcBaseUrl,
             params.explicitInput.txid,
             params.confirmationPollMs ?? 5_000,
-            params.onConfirmationPoll
+            params.onConfirmationPoll,
+            params.fetchImpl ?? globalThis.fetch.bind(globalThis)
           );
           // Legacy deposit with confirmed UTXO selection
           params.onProgress?.('depositing');
@@ -579,9 +650,9 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       }
 
       params.onDepositBroadcast?.(broadcast);
-      deposit = { txid: broadcast.txid, vout: broadcast.vout, amountSats: broadcast.amountSats, source: 'broadcast' as const };
+      deposit = rememberDeposit({ txid: broadcast.txid, vout: broadcast.vout, amountSats: broadcast.amountSats, source: 'broadcast' as const });
       params.onProgress?.('confirming-deposit');
-      await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll);
+      await waitForBitcoinConfirmation(params.bitcoinRpcBaseUrl, deposit.txid, params.confirmationPollMs ?? 5_000, params.onConfirmationPoll, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
     }
 
     let registered: ListedVaultSummary | undefined;
@@ -651,9 +722,21 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
   } catch (error) {
     if (isCode17VaultExists(error)) {
       const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
-      const depTxid = (params.vault.funding?.txid ?? '') as import('./types.js').DisplayTxid;
+      // Prefer the deposit THIS flow actually resolved (fresh rounds have no
+      // params.vault.funding yet); fall back to the stored binding.
+      const known = resolvedDeposit
+        ?? (params.vault.funding
+          ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
+          : null);
+      if (!known) {
+        // The daemon says the vault exists but this flow never resolved which
+        // outpoint funds it. Reporting a fabricated empty binding would poison
+        // every later scan; surface the original error instead.
+        throw mapDaemonError(error);
+      }
+      const depTxid = known.txid;
       const fundingTxidBuf = Buffer.from(depTxid, 'hex').reverse();
-      const fundingVout = params.vault.funding?.vout ?? 0;
+      const fundingVout = known.vout;
       const adopted = await adoptVaultOnCode17({
         fundingTxid: fundingTxidBuf,
         fundingVout,
@@ -664,7 +747,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
         timeoutMs: params.timeoutMs,
       });
       return {
-        deposit: { txid: depTxid, vout: fundingVout, amountSats: params.vault.funding?.valueSats ?? 0n, source: 'recovered' },
+        deposit: { txid: depTxid, vout: fundingVout, amountSats: known.amountSats, source: 'recovered' },
         vtxoId: '',
         mintTxHash: '',
         mintEpoch: 0,

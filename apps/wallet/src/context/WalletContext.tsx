@@ -137,6 +137,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
   const [readinessRecord, setReadinessRecord] = useState<{ vaultKey: string; readiness: ExitReadiness } | null>(null);
+  // Audit 3 fix: state-refresh guard. runPreflight re-reads the store every 30s
+  // and REPLACES the in-memory lists. If that read started before a just-landed
+  // mutation (addVault / saveReceipt), the stale read would clobber the new
+  // record out of the UI and silently switch activeVault. Every mutation bumps
+  // this generation first; preflight only applies its read when no mutation
+  // landed while the read was in flight (the mutation handlers already applied
+  // the fresher state).
+  const stateGen = useRef(0);
   const indexerStatusRef = useRef(indexerStatus);
   const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
   useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
@@ -175,6 +183,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet) setBootState('checking');
     try {
+      // Capture the state generation BEFORE the store reads begin; if a
+      // mutation lands while the reads are in flight, its handler already
+      // applied fresher state and this stale read must not replace it.
+      const readGen = stateGen.current;
       const [nextHealth, nextVaults, nextReceipts, wtStatus, wtReceipts] = await Promise.all([
         import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
           allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL,
@@ -192,8 +204,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           : Promise.resolve([]),
       ]);
       setHealth(nextHealth);
-      setStoredVaults(nextVaults);
-      setReceipts(nextReceipts);
+      if (stateGen.current === readGen) {
+        setStoredVaults(nextVaults);
+        setReceipts(nextReceipts);
+      }
       setWatchtowerStatus(wtStatus ?? nextHealth.watchtower ?? null);
       setVaultBreachReceipts(wtReceipts);
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
@@ -255,6 +269,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const addVault = useCallback(async (vault: VaultRecord) => {
     if (!store) throw new Error('Public store is not ready');
+    // Invalidate any in-flight preflight store read (see stateGen above).
+    stateGen.current += 1;
     // Record-keyed merge (audit fix): funding records are unique per funding
     // outpoint and MAY share an address. Merging by address silently destroyed
     // sibling funding records (the real-world shape: N records, one address).
@@ -263,7 +279,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const merged: VaultRecord = existing ? {
       ...existing,
       ...vault,
-      funding: vault.funding ?? existing.funding,
+      // A funding binding with an EMPTY txid is a placeholder (a flow that knew
+      // the vaultId but not the outpoint), never real evidence. Treating it as
+      // absent keeps it from displacing a real binding, and heals rows already
+      // carrying one (the pre-audit code=17 catch wrote `funding: { txid: '' }`).
+      funding: vault.funding?.txid ? vault.funding : (existing.funding?.txid ? existing.funding : undefined),
       registered: vault.registered || existing.registered,
       registrationTxHash: vault.registrationTxHash ?? existing.registrationTxHash,
       createdAt: existing.createdAt,
@@ -282,6 +302,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const saveReceipt = useCallback(async (receipt: PaymentReceipt) => {
     if (!store) throw new Error('Public store is not ready');
+    // Invalidate any in-flight preflight store read (see stateGen above).
+    stateGen.current += 1;
     // DEFECT 1: Merge before persisting in store to never clobber richer receipts
     const merged = await saveReceiptMerged(store, receipt);
     setReceipts(current => dedupeReceiptList(current, merged));

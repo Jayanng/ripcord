@@ -105,6 +105,15 @@ export class MemoryStore implements RipcordStore {
       const stored = clonePublic(vault);
       store.vaults.set(vaultStoreKey(stored), stored);
     }
+    // Same transition rule as saveVault: a funded record must not coexist with
+    // its own pre-funding incarnation (a snapshot written by older code could
+    // contain both rows for one record). Applied after the inserts so the array
+    // order of the two incarnations cannot matter.
+    for (const stored of store.vaults.values()) {
+      if (stored.vaultIdHex) {
+        store.vaults.delete(preFundingStoreKey(stored));
+      }
+    }
     for (const receipt of data.receipts) {
       const stored = clonePublic({ ...receipt, txHash: receipt.txHash.toLowerCase() });
       store.receipts.set(stored.txHash, stored);
