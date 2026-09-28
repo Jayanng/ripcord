@@ -2571,3 +2571,53 @@ details[open] .vtxo-chevron {
   border-radius: var(--r-sm); background: var(--bg-raised); color: var(--text-hi);
   font: 500 13px var(--font-sans);
 }
+
+
+/* ===== Phase 7: watchtower sentinel ===== */
+.watchtower-panel {
+  display: grid; gap: 14px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--bg-raised);
+}
+.watchtower-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.watchtower-header h3 { margin: 2px 0 0; color: var(--text-hi); font: 750 17px var(--font-sans); letter-spacing: -.01em; }
+.watchtower-mode {
+  padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line);
+  color: var(--text-lo); font: 700 11px var(--font-mono); letter-spacing: .08em; white-space: nowrap;
+}
+.watchtower-mode.live { border-color: color-mix(in srgb, #1a7f4b 40%, var(--line)); color: #1a7f4b; }
+.watchtower-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px; margin: 0;
+}
+.watchtower-grid > div { display: grid; gap: 3px; }
+.watchtower-grid dt { color: var(--text-lo); font: 600 11.5px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; }
+.watchtower-grid dd { margin: 0; color: var(--text-hi); font: 650 14px var(--font-mono); }
+.watchtower-receipts { display: grid; gap: 10px; }
+.breach-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.breach-item {
+  display: grid; gap: 5px; padding: 12px 14px;
+  border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--r-sm);
+  background: var(--bg-inset);
+}
+.breach-item.breach-anomalous { border-left-color: #DC2626; }
+.breach-item.breach-stale { border-left-color: #b45309; }
+.breach-item.breach-legitimate { border-left-color: #1a7f4b; }
+.breach-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.breach-item-detail { color: var(--text-lo); font: 500 12.5px var(--font-mono); }
+.breach-chip {
+  padding: 3px 10px; border-radius: 999px; font: 700 11px var(--font-mono);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.breach-chip.breach-anomalous { background: color-mix(in srgb, #DC2626 14%, transparent); color: #DC2626; }
+.breach-chip.breach-stale { background: color-mix(in srgb, #b45309 14%, transparent); color: #b45309; }
+.breach-chip.breach-legitimate { background: color-mix(in srgb, #1a7f4b 14%, transparent); color: #1a7f4b; }
+
+.sentinel-alert {
+  display: grid; gap: 10px; padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, #DC2626 45%, var(--line));
+  border-radius: var(--r-lg); background: color-mix(in srgb, #DC2626 7%, var(--bg-raised));
+}
+.sentinel-alert-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sentinel-alert h3 { margin: 0; color: #b91c1c; font: 750 17px var(--font-sans); letter-spacing: -.01em; }
+.sentinel-alert-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }

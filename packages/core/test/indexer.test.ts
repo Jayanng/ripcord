@@ -8,6 +8,7 @@ import {
   type IndexerEvent,
   type IndexerTxEvent,
   type IndexerBlockEvent,
+  type IndexerBreachEvent,
   type IndexerStatus,
   deriveIdentity,
   getQuorum,
@@ -93,7 +94,7 @@ describe('mapVaultEvent (pure)', () => {
     expect(mapped!.epochClosed).toBe(99);
   });
 
-  it('returns null for validator and breach frames (out of scope)', () => {
+  it('returns null for validator frames (out of scope)', () => {
     const validator: VaultEvent = {
       event: 'validator', state: '', type: '', vaultAddress: '', txHash: '',
       height: 0, committed: false, vout: [],
@@ -101,17 +102,30 @@ describe('mapVaultEvent (pure)', () => {
       raw: {},
     };
     expect(mapVaultEvent(validator)).toBeNull();
+  });
+
+  it('maps a breach frame to vault:breach with classification and spend details', () => {
     const breach: VaultEvent = {
       event: 'breach', state: '', type: '', vaultAddress: '', txHash: '',
       height: 0, committed: false, vout: [],
       breach: {
-        vaultId: 'ff'.repeat(32), broadcastState: 0n, latestState: 0n,
-        classification: 'stale', spendTxid: '00'.repeat(32), spendVout: 0,
-        detectedHeight: 100, detectedAt: 0,
+        vaultId: 'ff'.repeat(32), broadcastState: 3n, latestState: 5n,
+        classification: 'stale', spendTxid: '00'.repeat(32), spendVout: 1,
+        detectedHeight: 100, detectedAt: 1730000000,
       },
       raw: {},
     };
-    expect(mapVaultEvent(breach)).toBeNull();
+    const mapped = mapVaultEvent(breach) as IndexerBreachEvent | null;
+    expect(mapped).not.toBeNull();
+    expect(mapped!.kind).toBe('vault:breach');
+    expect(mapped!.vaultId).toBe('ff'.repeat(32));
+    expect(mapped!.broadcastState).toBe(3);
+    expect(mapped!.latestState).toBe(5);
+    expect(mapped!.classification).toBe('stale');
+    expect(mapped!.spendTxid).toBe('00'.repeat(32));
+    expect(mapped!.spendVout).toBe(1);
+    expect(mapped!.detectedHeight).toBe(100);
+    expect(mapped!.detectedAt).toBe(1730000000);
   });
 });
 

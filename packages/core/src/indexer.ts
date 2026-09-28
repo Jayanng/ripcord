@@ -87,14 +87,32 @@ export interface IndexerBlockEvent {
   readonly receivedAt: number;
 }
 
+/**
+ * A `vault:breach` event pushed over the `vaultId` subscription: the
+ * watchtower observed an L1 spend of a vault's funding outpoint.
+ * `classification` is `legitimate` | `stale` | `anomalous` per the daemon.
+ */
+export interface IndexerBreachEvent {
+  readonly kind: 'vault:breach';
+  readonly vaultId: string;
+  readonly broadcastState: number;
+  readonly latestState: number;
+  readonly classification: string;
+  readonly spendTxid: string;
+  readonly spendVout: number;
+  readonly detectedHeight: number;
+  readonly detectedAt: number;
+  readonly receivedAt: number;
+}
+
 /** A typed event emitted by the indexer. */
-export type IndexerEvent = IndexerTxEvent | IndexerBlockEvent;
+export type IndexerEvent = IndexerTxEvent | IndexerBlockEvent | IndexerBreachEvent;
 
 /**
  * Map a decoded SDK `VaultEvent` to a typed `IndexerEvent`.
- * Returns null for `validator` and `breach` frames, which are out of scope
- * for the Phase 7 indexer (they are not silently coerced; the caller simply
- * does not receive them).
+ * Returns null for `validator` frames, which are out of scope
+ * (they are not silently coerced; the caller simply does not receive them).
+ * `breach` frames map to `vault:breach` events (watchtower breach receipts).
  */
 export function mapVaultEvent(raw: VaultEvent): IndexerEvent | null {
   if (raw.event === 'block' && raw.block) {
@@ -105,6 +123,21 @@ export function mapVaultEvent(raw: VaultEvent): IndexerEvent | null {
       appHash: raw.block.appHash,
       txCount: raw.block.txCount,
       ...(raw.block.epochClosed !== undefined ? { epochClosed: raw.block.epochClosed } : {}),
+      receivedAt: Date.now(),
+    };
+  }
+
+  if (raw.event === 'breach' && raw.breach) {
+    return {
+      kind: 'vault:breach',
+      vaultId: raw.breach.vaultId,
+      broadcastState: Number(raw.breach.broadcastState),
+      latestState: Number(raw.breach.latestState),
+      classification: raw.breach.classification,
+      spendTxid: raw.breach.spendTxid,
+      spendVout: raw.breach.spendVout,
+      detectedHeight: raw.breach.detectedHeight,
+      detectedAt: raw.breach.detectedAt,
       receivedAt: Date.now(),
     };
   }

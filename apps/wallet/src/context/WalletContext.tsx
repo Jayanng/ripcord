@@ -53,6 +53,9 @@ interface WalletContextValue {
   balanceCrossCheck: BalanceCrossCheckResult | null;
   watchtowerStatus: WatchtowerStatus | null;
   vaultBreachReceipts: WatchtowerBreachReceipt[];
+  /** Latest watchtower breach alert pushed over WS (Phase 7 sentinel). */
+  sentinelAlert: SentinelAlert | null;
+  dismissSentinel: () => void;
   activity: IndexerEvent[];
   indexerStatus: IndexerStatus;
   exitReadiness: ExitReadiness | null;
@@ -71,6 +74,14 @@ interface WalletContextValue {
 }
 
 export const walletTxQueue = new TxQueue();
+
+/** A watchtower breach alert surfaced by the WS sentinel (Phase 7). */
+export interface SentinelAlert {
+  readonly classification: string;
+  readonly spendTxid: string;
+  readonly detectedHeight: number;
+  readonly at: number;
+}
 
 /** Stable per-record key: vaultIdHex is unique per funding outpoint. */
 export function vaultRecordKey(vault: VaultRecord): string {
@@ -105,6 +116,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [balanceCrossCheck, setBalanceCrossCheck] = useState<BalanceCrossCheckResult | null>(null);
   const [watchtowerStatus, setWatchtowerStatus] = useState<WatchtowerStatus | null>(null);
   const [vaultBreachReceipts, setVaultBreachReceipts] = useState<WatchtowerBreachReceipt[]>([]);
+  const [sentinelAlert, setSentinelAlert] = useState<SentinelAlert | null>(null);
+  const dismissSentinel = useCallback(() => setSentinelAlert(null), []);
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
   const [readinessRecord, setReadinessRecord] = useState<{ vaultAddress: string; readiness: ExitReadiness } | null>(null);
@@ -262,16 +275,47 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       indexer = new VaultIndexer({
         url,
         address: identity.xOnly,
+        // Phase 7: watch this vault's address for lockups and its vaultId for
+        // watchtower breach receipts (push, not just polling).
+        ...(activeVault?.address ? { vault: activeVault.address } : {}),
+        ...(activeVault?.vaultIdHex ? { vaultId: activeVault.vaultIdHex } : {}),
         blocks: true,
         onEvent: event => {
+          if (event.kind === 'vault:breach') {
+            // Sentinel: a watchtower breach receipt arrived over WS. Merge it
+            // into the breach list (dedupe on spend txid) and alert.
+            setVaultBreachReceipts(current => {
+              const exists = current.some(r => r.spendTxid === event.spendTxid && r.vaultId === event.vaultId);
+              return exists ? current : [{
+                vaultId: event.vaultId,
+                broadcastState: event.broadcastState,
+                latestState: event.latestState,
+                classification: event.classification,
+                spendTxid: event.spendTxid,
+                spendVout: event.spendVout,
+                detectedHeight: event.detectedHeight,
+                detectedAt: event.detectedAt,
+              }, ...current];
+            });
+            setSentinelAlert({
+              classification: event.classification,
+              spendTxid: event.spendTxid,
+              detectedHeight: event.detectedHeight,
+              at: Date.now(),
+            });
+            return;
+          }
           if (event.kind === 'block:new' && event.txCount === 0) return;
 
           setActivity(current => {
-            const key = 'txHash' in event ? `tx:${event.txHash.toLowerCase()}:${event.kind}` : `block:${event.height}`;
-            const seen = current.some(item => {
-              const other = 'txHash' in item ? `tx:${item.txHash.toLowerCase()}:${item.kind}` : `block:${item.height}`;
-              return other === key;
-            });
+            const activityKey = (item: import('@ripcord/core/indexer').IndexerEvent) =>
+              'txHash' in item
+                ? `tx:${item.txHash.toLowerCase()}:${item.kind}`
+                : item.kind === 'block:new'
+                ? `block:${item.height}`
+                : `breach:${item.spendTxid}:${item.detectedHeight}`;
+            const key = activityKey(event);
+            const seen = current.some(item => activityKey(item) === key);
             return seen ? current : [event, ...current].slice(0, 200);
           });
 
@@ -333,7 +377,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       indexer.start();
     }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: describeDaemonFailure(error) }); });
     return () => { cancelled = true; indexer?.close(); };
-  }, [identity, saveReceipt]);
+  }, [identity, saveReceipt, activeVault?.address, activeVault?.vaultIdHex]);
 
   // VTXO visibility loader: full history via include_spent=true and locked VTXOs (Deliverable 4)
   useEffect(() => {
@@ -383,11 +427,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, exitReadiness, health, identity, indexerStatus,
-      liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, setExitReadiness, spentVtxos,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, dismissSentinel, exitReadiness, health, identity, indexerStatus,
+      liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

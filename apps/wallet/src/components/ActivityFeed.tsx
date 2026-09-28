@@ -100,7 +100,9 @@ export function ActivityFeed() {
               ? `block:${item.height}:${item.receivedAt}`
               : 'kind' in item && item.kind === 'vtxo:spent'
               ? `spent:${item.id}`
-              : 'kind' in item
+              : 'kind' in item && item.kind === 'vault:breach'
+              ? `breach:${item.spendTxid}:${item.detectedHeight}`
+              : 'kind' in item && 'txHash' in item
               ? `tx:${item.txHash.toLowerCase()}:${item.kind}`
               : `item:${index}`;
             return (

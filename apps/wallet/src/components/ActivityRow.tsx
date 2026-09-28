@@ -235,6 +235,38 @@ export function ActivityRow({
     );
   }
 
+  if (item.kind === 'vault:breach') {
+    return (
+      <article className="activity-row committed" style={{ borderLeft: '3px solid #DC2626' }}>
+        <div>
+          <div className="activity-title-group">
+            <strong>Watchtower breach</strong>
+            <span className="activity-tag l1">{item.classification}</span>
+          </div>
+          <a
+            className="tx-link"
+            href={explorerTxUrl(item.spendTxid)}
+            target="_blank"
+            rel="noreferrer"
+            title={`View L1 spend transaction ${item.spendTxid} on regtest explorer`}
+          >
+            {truncate(item.spendTxid, 14, 10)} ↗
+          </a>
+        </div>
+        <div>
+          <span>
+            Vault funding spent at L1 block {item.detectedHeight} · states {item.broadcastState}/{item.latestState}
+          </span>
+          <div className="activity-actions">
+            <a className="explorer-btn" href={explorerTxUrl(item.spendTxid)} target="_blank" rel="noreferrer">
+              Explorer ↗
+            </a>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   const txEvent = item;
   const ownedAmount = txEvent.vout
     .filter(out => ownerKeys.includes(out.owner.toLowerCase()))
