@@ -10,6 +10,7 @@ import {
 import { QuorumInfo, computeFingerprint } from './quorum.js';
 import { toUserKeyDescriptor } from './keys.js';
 import { toDisplayTxid } from './bytes.js';
+import { useProxyAwareTaurusRpc } from './deposit.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as btc from 'bitcoinjs-lib';
@@ -234,6 +235,7 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   // mnemonic, so a wiped client rebuilds the exact keys the vaults were
   // registered under. No wallet sync, discovery only derives keys and reads
   // daemon state; it never touches wallet UTXOs.
+  useProxyAwareTaurusRpc(bitcoinRpcBaseUrl);
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: bitcoinRpcBaseUrl });
   const aggregator = await agg.WalletAggregator.fromMnemonic(identity.mnemonic, {
     network: 'regtest',

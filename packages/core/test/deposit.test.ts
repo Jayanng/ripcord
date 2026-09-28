@@ -7,7 +7,7 @@ import {
   verifyDepositProofOfReserves,
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { syncWalletWithScan, ensureFixtureFunds } from './live-fixtures.js';
+import { syncWalletWithScan, ensureFixtureFunds, withTransportRetry } from './live-fixtures.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 
 const ALICE_MNEMONIC =
@@ -151,5 +151,30 @@ describe('deposit.ts', { timeout: 120000 }, () => {
 
       expect(verified).toBe(true);
     });
+  });
+
+  it('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', async () => {
+    // Regression for the 2026-09-28 production "Failed to fetch": the SDK's
+    // global rpcCall/getUtxos (taurus-wallet-aggregator chunk-V3QPXLNG.js:332/480)
+    // POST to network.rpc.jsonRpc, whose default is the ABSOLUTE daemon URL that
+    // browsers CORS-block (the daemon only CORS-enables GET /tachi_*).
+    // useProxyAwareTaurusRpc must redirect the shared REGTEST config and the SDK
+    // must honor that redirect at call time.
+    const { useProxyAwareTaurusRpc } = await import('../src/deposit.js');
+    const base = `${DAEMON}/`;
+    useProxyAwareTaurusRpc(base);
+    const regtest = agg.REGTEST as unknown as { rpc: { jsonRpc: string; rest: string } };
+    expect(regtest.rpc.jsonRpc).toBe(base);
+    expect(regtest.rpc.rest).toBe(base);
+    // Live call THROUGH the redirected endpoint. Node has no CORS, so this
+    // proves the config channel the browser fix depends on is real: if the SDK
+    // read any other URL, this call would not follow our redirect.
+    const utxos = await withTransportRetry(
+      () => agg.getUtxos(agg.REGTEST, aliceIdentity.userAddress),
+      { validate: (r: unknown) => { if (!Array.isArray(r)) throw new Error('getUtxos did not return an array'); } },
+    );
+    expect(Array.isArray(utxos)).toBe(true);
+    // restore the SDK default for any later tests in this process
+    useProxyAwareTaurusRpc(DAEMON);
   });
 });

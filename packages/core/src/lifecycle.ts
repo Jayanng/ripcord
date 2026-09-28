@@ -14,6 +14,13 @@ export function isDaemonSlowError(err: unknown): boolean {
   return /timeout|timed?\s*out|deadline|context deadline exceeded|502|slow or down/i.test(msg);
 }
 
+/**
+ * User-facing note for a hard network failure ("Failed to fetch"): plain words,
+ * says what to do, keeps the user's progress claim accurate (2026-09-28: a raw
+ * describeDaemonFailure wall of CORS diagnostics reached a real user's screen).
+ */
+const NETWORK_RETRY_NOTE = "The network didn't answer just now. Your progress is saved, try again in a moment.";
+
 export function composeFlowErrorMessage(err: unknown): string {
   if (isDaemonSlowError(err)) {
     return DAEMON_SLOW_NOTE;
@@ -21,6 +28,9 @@ export function composeFlowErrorMessage(err: unknown): string {
   const described = describeDaemonFailure(err);
   if (isDaemonSlowError(described)) {
     return DAEMON_SLOW_NOTE;
+  }
+  if (/^Failed to fetch\b/i.test(described)) {
+    return NETWORK_RETRY_NOTE;
   }
   return described.replace(/^Unknown error:\s*/i, '');
 }

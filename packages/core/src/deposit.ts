@@ -296,10 +296,32 @@ export interface DepositFromMnemonicParams {
 }
 
 /** Build the SDK wallet inside core, sync it against live Bitcoin RPC, then deposit. */
+/**
+ * Point the SDK's built-in regtest network endpoints at OUR rpc base URL.
+ *
+ * WHY (root-caused live 2026-09-28 from a production "Failed to fetch"): the
+ * aggregator's global helpers (rpcCall/getUtxos/broadcastTx in
+ * taurus-wallet-aggregator dist chunk-V3QPXLNG.js:332/480/527) POST to
+ * `network.rpc.jsonRpc` and IGNORE the per-call `rpc` client we inject. Their
+ * default is the ABSOLUTE daemon URL (TAURUS_REGTEST_RPC), and the daemon only
+ * CORS-enables GET /tachi_*, so in a browser those POSTs throw "Failed to
+ * fetch" (live-proven on production: identical POST to the absolute daemon URL
+ * threw "Failed to fetch" while the same-origin /rpc/ proxy resolved 200).
+ * REGTEST is an exported, unfrozen config whose rpc fields are read at CALL
+ * time, so redirecting it routes every SDK network call through the caller's
+ * proxy-aware base URL (see docs/DEPLOYMENT.md same-origin proxy contract).
+ */
+export function useProxyAwareTaurusRpc(baseUrl: string): void {
+  const rpc = (agg.REGTEST as unknown as { rpc: { jsonRpc: string; rest: string } }).rpc;
+  rpc.jsonRpc = baseUrl;
+  rpc.rest = baseUrl;
+}
+
 export async function depositFromMnemonic(params: DepositFromMnemonicParams): Promise<DepositResult> {
   // The aggregator stores the supplied fetch function and invokes it later as
   // a plain callback. Chromium requires Window.fetch to retain its receiver,
   // otherwise it throws "Illegal invocation" before any RPC request is sent.
+  useProxyAwareTaurusRpc(params.rpc.baseUrl);
   const boundFetch = globalThis.fetch.bind(globalThis);
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: params.rpc.baseUrl, fetchImpl: boundFetch });
   const aggregator = await agg.WalletAggregator.fromMnemonic(params.mnemonic, {
