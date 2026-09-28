@@ -3,10 +3,40 @@ import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
 import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
+import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
+
+type ActivityFilter = 'all' | 'transfers' | 'deposits' | 'blocks';
+
+/** Bucket an item for the filter tabs (Phase 8, #15). */
+function bucketOf(item: ActivityItem): Exclude<ActivityFilter, 'all'> {
+  if (!('kind' in item)) return 'transfers'; // payment receipt
+  if (item.kind === 'block:new') return 'blocks';
+  if (item.kind === 'tx:deposit' || item.kind === 'tx:faucet') return 'deposits';
+  if ((item.kind === 'tx:pending' || item.kind === 'tx:committed') && 'type' in item) {
+    return item.type === 'transfer' ? 'transfers' : 'deposits';
+  }
+  return 'transfers'; // vtxo:spent and vault:breach are money movement
+}
+
+/** Wall-clock timestamp where the item carries one; receipts carry none. */
+function timestampOf(item: ActivityItem): number | null {
+  if ('receivedAt' in item && typeof item.receivedAt === 'number') return item.receivedAt;
+  if ('createdAt' in item && typeof item.createdAt === 'number') return item.createdAt;
+  return null;
+}
+
+function dayLabelOf(item: ActivityItem): string {
+  const ts = timestampOf(item);
+  return ts
+    ? new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Undated';
+}
 
 export function ActivityFeed() {
   const { activity, receipts, indexerStatus, identity, activeVault, spentVtxos } = useActivity();
   const [selected, setSelected] = useState<PaymentReceipt | null>(null);
+  const [filter, setFilter] = useState<ActivityFilter>('all');
+  const [search, setSearch] = useState('');
 
   const receiptByHash = new Map(receipts.map(receipt => [receipt.txHash.toLowerCase(), receipt]));
 
@@ -70,6 +100,18 @@ export function ActivityFeed() {
   const items: ActivityItem[] = [...activity, ...dedupedReceipts, ...dedupedOnChain, ...spentItems];
   const ownerKeys = identity ? [identity.xOnly.toLowerCase(), identity.userKeyDescriptor.publicKey.toLowerCase()] : [];
 
+  // Phase 8 (#15): filter tabs + search over the evidence stream.
+  const query = search.trim().toLowerCase();
+  const filteredItems = items.filter(item => {
+    if (filter !== 'all' && bucketOf(item) !== filter) return false;
+    if (!query) return true;
+    const exported = toExportable(item);
+    return `${exported.kind} ${exported.reference} ${exported.detail} ${exported.amountSats}`.toLowerCase().includes(query);
+  });
+
+  const exportItems = () => filteredItems;
+  const exportStem = `ripcord-activity-${new Date().toISOString().slice(0, 10)}`;
+
   return (
     <section id="activity" className="instrument activity-card">
       <div className="section-heading">
@@ -90,9 +132,51 @@ export function ActivityFeed() {
           <span className={`connection ${indexerStatus.state}`}>Indexer {indexerStatus.state}</span>
         </div>
       </div>
-      {items.length ? (
+      <div className="activity-toolbar" role="search">
+        <div className="activity-filter-tabs" role="tablist" aria-label="Activity filter">
+          {([['all', 'All'], ['transfers', 'Transfers'], ['deposits', 'Deposits'], ['blocks', 'Blocks']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={filter === id}
+              className={`activity-filter-tab ${filter === id ? 'active' : ''}`}
+              onClick={() => setFilter(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="search"
+          className="activity-search-input"
+          placeholder="Search hashes, types, amounts"
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          aria-label="Search activity"
+        />
+        <div className="activity-export-row">
+          <button
+            type="button"
+            className="secondary-action-compact"
+            disabled={filteredItems.length === 0}
+            onClick={() => downloadText(`${exportStem}.csv`, activitiesToCsv(exportItems()), 'text/csv')}
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            className="secondary-action-compact"
+            disabled={filteredItems.length === 0}
+            onClick={() => downloadText(`${exportStem}.json`, activitiesToJson(exportItems()), 'application/json')}
+          >
+            Export JSON
+          </button>
+        </div>
+      </div>
+      {filteredItems.length ? (
         <div className="activity-list">
-          {items.map((item, index) => {
+          {filteredItems.map((item, index) => {
             const receipt = 'txHash' in item ? receiptByHash.get(item.txHash.toLowerCase()) : undefined;
             const key = 'epoch' in item
               ? `receipt:${item.txHash.toLowerCase()}`
@@ -105,22 +189,34 @@ export function ActivityFeed() {
               : 'kind' in item && 'txHash' in item
               ? `tx:${item.txHash.toLowerCase()}:${item.kind}`
               : `item:${index}`;
+            const day = dayLabelOf(item);
+            const previousDay = index > 0 ? dayLabelOf(filteredItems[index - 1]) : null;
             return (
-              <ActivityRow
-                key={key}
-                item={item}
-                receipt={receipt}
-                ownerKeys={ownerKeys}
-                onProof={setSelected}
-              />
+              <div key={key} className="activity-day-group">
+                {day !== previousDay && (
+                  <p className="activity-date-sep" role="separator">
+                    {day}
+                  </p>
+                )}
+                <ActivityRow
+                  item={item}
+                  receipt={receipt}
+                  ownerKeys={ownerKeys}
+                  onProof={setSelected}
+                />
+              </div>
             );
           })}
         </div>
       ) : (
         <div className="empty-state">
           <span className="empty-glyph">⌁</span>
-          <strong>No activity restored</strong>
-          <p>Pending events, committed transactions, and proof receipts will appear here.</p>
+          <strong>{items.length ? 'Nothing matches this filter' : 'No activity restored'}</strong>
+          <p>
+            {items.length
+              ? 'Clear the search or switch the filter tab to see the rest of the evidence stream.'
+              : 'Pending events, committed transactions, and proof receipts will appear here.'}
+          </p>
         </div>
       )}
       <ProofSheet receipt={selected} onClose={() => setSelected(null)} />

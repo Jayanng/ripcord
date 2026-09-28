@@ -12,6 +12,7 @@ export * from './deposit.js';
 export * from './register.js';
 export * from './recovery.js';
 export * from './coinselect.js';
+export * from './search.js';
 export * from './queue.js';
 export * from './payment.js';
 export * from './indexer.js';

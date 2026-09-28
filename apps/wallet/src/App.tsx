@@ -3,6 +3,7 @@ import { useWallet } from './context/WalletContext';
 import { Layout } from './components/Layout';
 import type { AppTab } from './components/TabBar';
 import { SetupGate } from './screens/SetupGate';
+import { SearchDrawer } from './components/SearchDrawer';
 import { WalletScreen } from './screens/WalletScreen';
 import { ExitScreen } from './screens/ExitScreen';
 import { ProofsScreen } from './screens/ProofsScreen';
@@ -35,6 +36,7 @@ export function App() {
   const showSetup = !wallet.identity;
 
   return <Layout tab={tab} onTabChange={handleTabChange}>
+    <SearchDrawer />
     {tab === 'docs' ? (
       <DocsScreen />
     ) : tab === 'activity' ? (

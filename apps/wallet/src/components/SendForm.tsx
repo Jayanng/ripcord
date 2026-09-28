@@ -553,6 +553,15 @@ export function SendForm() {
             await wallet.saveReceipt(receipt);
             recordRecipient(recipient);
             setRecent(loadRecentRecipients());
+            void import('../lib/toasts').then(({ pushToast }) =>
+              pushToast({
+                title: 'Send committed',
+                body: `${formatSats(BigInt(sats))} to ${truncate(recipient, 8, 6)} committed at epoch ${committed.epoch}.`,
+                href: `https://explorer-regtest.tachibtc.com/tx/${committed.txHash}`,
+                hrefLabel: 'View transaction ↗',
+                tone: 'success',
+              }),
+            );
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
           } finally {
             setBusy(false);

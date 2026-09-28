@@ -76,6 +76,10 @@
       "types": "./dist/indexer.d.ts",
       "import": "./dist/indexer.js"
     },
+    "./search": {
+      "types": "./dist/search.d.ts",
+      "import": "./dist/search.js"
+    },
     "./keys": {
       "types": "./dist/keys.d.ts",
       "import": "./dist/keys.js"
