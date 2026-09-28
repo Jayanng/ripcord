@@ -16,6 +16,13 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  // Phase 9 (#18): hide/reveal + 3-word backup challenge for generated phrases.
+  const [phraseHidden, setPhraseHidden] = useState(false);
+  const [generatedInSession, setGeneratedInSession] = useState(false);
+  const [challenge, setChallenge] = useState<Array<{ position: number; answer: string }>>([]);
+  const [challengeInput, setChallengeInput] = useState<string[]>(['', '', '']);
+  const challengePassed = challenge.length > 0 && challenge.every((entry, i) =>
+    challengeInput[i].trim().toLowerCase() === entry.answer.toLowerCase());
   const [faucet, setFaucet] = useState(false);
   const [flow, setFlow] = useState<FlowState>('ready');
   const savedDepositTxid = wallet.activeVault ? localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`) : null;
@@ -25,8 +32,17 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const vaultReady = Boolean((wallet.activeVault?.funding || wallet.activeVault?.vaultIdHex) && (wallet.activeVault?.registered || wallet.activeVault?.vaultIdHex));
 
   const generateNewMnemonic = () => {
-    setMnemonic(generateMnemonic(128));
+    const phrase = generateMnemonic(128);
+    setMnemonic(phrase);
     setError('');
+    setGeneratedInSession(true);
+    setPhraseHidden(false);
+    // 3-word verification challenge from the generated phrase itself.
+    const wordsIn = phrase.split(' ');
+    const positions = new Set<number>();
+    while (positions.size < 3) positions.add(Math.floor(Math.random() * wordsIn.length));
+    setChallenge([...positions].sort((a, b) => a - b).map(position => ({ position, answer: wordsIn[position] })));
+    setChallengeInput(['', '', '']);
   };
 
   const copyMnemonic = async () => {
@@ -307,7 +323,14 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         <label>12-word BIP-39 mnemonic
           <textarea
             value={mnemonic}
-            onChange={e => setMnemonic(e.target.value)}
+            onChange={e => {
+              setMnemonic(e.target.value);
+              // A hand-entered phrase proves possession; no challenge needed.
+              if (generatedInSession) {
+                setGeneratedInSession(false);
+                setChallenge([]);
+              }
+            }}
             autoComplete="off"
             spellCheck={false}
             required
@@ -326,22 +349,75 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           <small className="form-help">Write it down and keep it offline. Anyone with this phrase can control the wallet.</small>
         </label>
         {words.length === 12 && (
-          <div className="mnemonic-chip-grid" aria-label="Recovery phrase words">
-            {words.map((word, i) => (
-              <div key={i} className="mnemonic-chip">
-                <span className="chip-idx">{String(i + 1).padStart(2, '0')}</span>
-                <span className="chip-word">{word}</span>
-              </div>
-            ))}
+          <>
+            <div className="mnemonic-reveal-row">
+              <span className="address-label">Recovery phrase words</span>
+              <button type="button" className="secondary-action-compact" onClick={() => setPhraseHidden(hidden => !hidden)}>
+                {phraseHidden ? 'Reveal words' : 'Hide words'}
+              </button>
+            </div>
+            <div className="mnemonic-chip-grid" aria-label="Recovery phrase words">
+              {words.map((word, i) => (
+                <div key={i} className="mnemonic-chip">
+                  <span className="chip-idx">{String(i + 1).padStart(2, '0')}</span>
+                  <span className={`chip-word ${phraseHidden ? 'chip-word-hidden' : ''}`}>
+                    {phraseHidden ? '••••••' : word}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {challenge.length > 0 && (
+          <div className="backup-challenge" aria-label="Backup verification">
+            <p className="address-label">Backup check: confirm you wrote the phrase down</p>
+            <small className="form-help">
+              Fill in the missing words. This wallet cannot recover a lost phrase, so we verify the backup before funding.
+            </small>
+            <div className="backup-challenge-fields">
+              {challenge.map((entry, i) => (
+                <label key={entry.position} className="backup-challenge-field">
+                  <span>Word #{entry.position + 1}</span>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={challengeInput[i]}
+                    onChange={event => {
+                      const next = [...challengeInput];
+                      next[i] = event.target.value;
+                      setChallengeInput(next);
+                    }}
+                    aria-label={`Word number ${entry.position + 1}`}
+                  />
+                </label>
+              ))}
+            </div>
+            {challengePassed && <p className="flow-note" role="status">Backup verified. All three words match.</p>}
           </div>
         )}
         {/* Hidden from frontend but preserved in backend/logic */}
         <label className="advanced-field"><span>Vault key index (advanced)</span><input type="number" min="0" step="1" inputMode="numeric" value={index} onChange={event => setIndex(Math.max(0, Math.floor(Number(event.target.value) || 0)))} /></label>
-        <input type="hidden" name="csvConfirmations" value={csv} />
-        <button className="test-pull" disabled={busy}>
-          {busy ? 'Deriving and reading quorum…' : 'Create identity and vault'}
+        <label className="advanced-field">
+          <span>CSV timelock in blocks (advanced)</span>
+          <input type="number" min="1" step="1" inputMode="numeric" value={csv} onChange={event => setCsv(Math.max(1, Math.floor(Number(event.target.value) || 2)))} />
+        </label>
+        <small className="form-help">The CSV timelock sets how many blocks your unilateral exit must mature. Leave at 2 on regtest unless you know you need otherwise.</small>
+        <button className="test-pull" disabled={busy || (challenge.length > 0 && !challengePassed)}>
+          {busy
+            ? 'Deriving and reading quorum…'
+            : challenge.length > 0 && !challengePassed
+              ? 'Verify the backup check above to continue'
+              : 'Create identity and vault'}
         </button>
-        {error && <p className="inline-error" role="alert">{error}</p>}
+        {error && (
+          <div className="error-with-retry">
+            <p className="inline-error" role="alert">{error}</p>
+            <button type="button" className="secondary-action-compact" onClick={() => void create()}>
+              Retry
+            </button>
+          </div>
+        )}
       </form>
     )}
     {faucet && wallet.identity && (

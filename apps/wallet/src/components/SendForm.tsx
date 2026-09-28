@@ -766,9 +766,15 @@ export function SendForm() {
           </p>
         )}
         {result && (
-          <p className="flow-note" role="status">
-            {result}
-          </p>
+          <div className="send-receipt" role="status">
+            <div className="send-receipt-check" aria-hidden="true">
+              <Icon name="check" />
+            </div>
+            <div className="send-receipt-copy">
+              <strong>Send complete</strong>
+              <span>{result}</span>
+            </div>
+          </div>
         )}
       </form>
 

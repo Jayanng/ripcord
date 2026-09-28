@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useBalance } from '../hooks/useBalance';
 import { useWallet } from '../context/WalletContext';
 import { formatSats, Icon } from './ui';
+import { Skeleton } from './Skeleton';
 
 export interface BalanceHeroProps {
   onSend?: () => void;
@@ -10,7 +12,16 @@ export interface BalanceHeroProps {
 
 export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps = {}) {
   const balance = useBalance();
-  const { vaults } = useWallet();
+  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded } = useWallet();
+  const [refreshing, setRefreshing] = useState(false);
+  // Phase 9 (#22): skeletons until the first VTXO snapshot lands - the honest
+  // "still loading" signal. After that, real values (including zeros) show.
+  const firstLoad = !vtxoSnapshotLoaded;
+  const updatedAt = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString() : null;
+  const runRefresh = () => {
+    setRefreshing(true);
+    void Promise.resolve(refresh()).finally(() => setRefreshing(false));
+  };
   return <section id="balance" className="instrument balance-card" aria-labelledby="balance-title">
     <div className="section-heading">
       <div>
@@ -19,11 +30,18 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
       </div>
       <Icon name="shield" />
     </div>
+    {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the custody split */}
+    <div className="custody-updated-row">
+      <span className="truth-updated" role="status">{updatedAt ? `Updated ${updatedAt}` : 'Not checked yet'}</span>
+      <button type="button" className="secondary-action-compact" onClick={runRefresh} disabled={refreshing || bootState === 'checking'}>
+        {refreshing ? 'Refreshing…' : 'Tap to refresh'}
+      </button>
+    </div>
 
     {/* Off-chain spendable balance (snapshot-based source of spendable balance) */}
     <div className="balance-primary">
       <span>OFF-CHAIN · SPENDABLE NOW</span>
-      <strong>{formatSats(balance.offChainSats)}</strong>
+      {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>{formatSats(balance.offChainSats)}</strong>}
       <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : 'No VTXO snapshot loaded'}</small>
     </div>
 
@@ -51,7 +69,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
     <div className="balance-secondary">
       <div>
         <span>ON-CHAIN · IN TAURUS VAULTS</span>
-        <strong>{formatSats(balance.onChainSats)}</strong>
+        {firstLoad ? <Skeleton width="45%" height={18} radius={6} /> : <strong>{formatSats(balance.onChainSats)}</strong>}
       </div>
       <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
     </div>

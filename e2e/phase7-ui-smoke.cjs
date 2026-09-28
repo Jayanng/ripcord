@@ -39,6 +39,10 @@ const URL = 'http://localhost:4444/';
   console.log('SENTINEL_BANNER:', await page.locator('.sentinel-alert').count());
 
   // === 4. TruthRail watchtower summary still present ===
+  // Phase 9 makes the rail collapsible (collapsed by default at mobile widths):
+  // expand first so the summary rows are in the DOM snapshot.
+  await page.locator('.truth-toggle').click();
+  await page.waitForTimeout(400);
   const rail = await page.locator('.truth-rail').innerText();
   console.log('RAIL_HAS_WATCHTOWER:', rail.includes('Watchtower') ? 'yes' : 'NO');
   console.log('RAIL_HAS_RECEIPTS_ROW:', rail.includes('WT Receipts') ? 'yes' : 'NO');

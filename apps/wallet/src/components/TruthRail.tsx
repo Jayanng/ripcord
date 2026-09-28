@@ -1,8 +1,22 @@
+import { useEffect, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { formatSats } from './ui';
 
 export function TruthRail() {
-  const { bootState, health, refresh, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts } = useWallet();
+  const { bootState, health, refresh, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, lastRefreshedAt } = useWallet();
+  // Phase 9 (#19): compact sticky banner on mobile, expandable sheet.
+  const [expanded, setExpanded] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 560px)').matches) {
+      setExpanded(false);
+    }
+  }, []);
+  const updatedAt = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString() : null;
+  const runRefresh = () => {
+    setRefreshing(true);
+    void Promise.resolve(refresh()).finally(() => setRefreshing(false));
+  };
   const statusLabel = bootState === 'ready'
     ? 'All probes answered'
     : bootState === 'checking'
@@ -44,34 +58,46 @@ export function TruthRail() {
     )}
 
     <section className={`truth-rail ${bootState}`} aria-live="polite">
-      <div className="truth-heading">
+      <button
+        type="button"
+        className="truth-heading truth-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded(value => !value)}
+      >
         <span className="status-dot" />
         <div><span>CHAIN TRUTH</span><strong>{statusLabel}</strong></div>
-      </div>
-      <dl>
-        <div><dt>Chain</dt><dd>{health?.chainId || 'Not verified'}</dd></div>
-        <div><dt>Quorum</dt><dd>{health?.quorumSize ? `${health.quorumThreshold} of ${health.quorumSize}` : 'Not verified'}</dd></div>
-        <div><dt>L1 height</dt><dd>{health?.l1Height ?? 'Unavailable'}</dd></div>
-        <div><dt>Indexer</dt><dd>{`Indexer ${indexerStatus.state}`}</dd></div>
-        {/* Scope 5: Watchtower status in CHAIN TRUTH */}
-        <div><dt>Watchtower</dt><dd>{watchtowerStatus ? `${watchtowerStatus.mode} (L1: ${watchtowerStatus.lastScannedHeight})` : 'Not checked'}</dd></div>
-        <div><dt>WT Receipts</dt><dd>{watchtowerStatus ? `${watchtowerStatus.receiptCount} receipts` : 'Not checked'}</dd></div>
-        {/* Scope 3: Balance cross-check (informational, never silently changes balance) */}
-        <div>
-          <dt>Balance Cross-Check</dt>
-          <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)}, Chain: ${formatSats(balanceCrossCheck.chainBalanceSats)} (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`) : undefined}>
-            {crossCheckLabel}
-          </dd>
-        </div>
-      </dl>
+        <span className="truth-toggle-glyph" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+      </button>
+      {expanded && (
+        <dl>
+          <div><dt>Chain</dt><dd>{health?.chainId || 'Not verified'}</dd></div>
+          <div><dt>Quorum</dt><dd>{health?.quorumSize ? `${health.quorumThreshold} of ${health.quorumSize}` : 'Not verified'}</dd></div>
+          <div><dt>L1 height</dt><dd>{health?.l1Height ?? 'Unavailable'}</dd></div>
+          <div><dt>Indexer</dt><dd>{`Indexer ${indexerStatus.state}`}</dd></div>
+          {/* Scope 5: Watchtower status in CHAIN TRUTH */}
+          <div><dt>Watchtower</dt><dd>{watchtowerStatus ? `${watchtowerStatus.mode} (L1: ${watchtowerStatus.lastScannedHeight})` : 'Not checked'}</dd></div>
+          <div><dt>WT Receipts</dt><dd>{watchtowerStatus ? `${watchtowerStatus.receiptCount} receipts` : 'Not checked'}</dd></div>
+          {/* Scope 3: Balance cross-check (informational, never silently changes balance) */}
+          <div>
+            <dt>Balance Cross-Check</dt>
+            <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)}, Chain: ${formatSats(balanceCrossCheck.chainBalanceSats)} (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`) : undefined}>
+              {crossCheckLabel}
+            </dd>
+          </div>
+        </dl>
+      )}
       <div className="truth-actions">
+        {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh */}
+        <span className="truth-updated" role="status">
+          {updatedAt ? `Updated ${updatedAt}` : 'Not checked yet'}
+        </span>
         <button
           type="button"
           className="refresh"
-          onClick={() => void refresh()}
-          disabled={bootState === 'checking'}
+          onClick={runRefresh}
+          disabled={bootState === 'checking' || refreshing}
         >
-          {bootState === 'checking' ? 'Checking…' : 'Run preflight'}
+          {bootState === 'checking' || refreshing ? 'Checking…' : 'Tap to refresh'}
         </button>
       </div>
     </section>

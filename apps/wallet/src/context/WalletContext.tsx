@@ -56,6 +56,10 @@ interface WalletContextValue {
   /** Latest watchtower breach alert pushed over WS (Phase 7 sentinel). */
   sentinelAlert: SentinelAlert | null;
   dismissSentinel: () => void;
+  /** Wall-clock ms of the last completed preflight (Phase 9, #23). */
+  lastRefreshedAt: number | null;
+  /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
+  vtxoSnapshotLoaded: boolean;
   activity: IndexerEvent[];
   indexerStatus: IndexerStatus;
   exitReadiness: ExitReadiness | null;
@@ -118,6 +122,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [vaultBreachReceipts, setVaultBreachReceipts] = useState<WatchtowerBreachReceipt[]>([]);
   const [sentinelAlert, setSentinelAlert] = useState<SentinelAlert | null>(null);
   const dismissSentinel = useCallback(() => setSentinelAlert(null), []);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+  const [vtxoSnapshotLoaded, setVtxoSnapshotLoaded] = useState(false);
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
   const [readinessRecord, setReadinessRecord] = useState<{ vaultAddress: string; readiness: ExitReadiness } | null>(null);
@@ -181,6 +187,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setWatchtowerStatus(wtStatus ?? nextHealth.watchtower ?? null);
       setVaultBreachReceipts(wtReceipts);
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
+      setLastRefreshedAt(Date.now());
 
       // Balance cross-check (Deliverable 3)
       if (identity) {
@@ -204,7 +211,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         probeFailures: [{ probe: 'health', message }],
         unreachable: true,
       });
+
       if (!quiet) setBootState('unreachable');
+      setLastRefreshedAt(Date.now());
     }
   }, [store, activeVault?.vaultIdHex, identity, liveVtxos]);
 
@@ -420,17 +429,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       }
     };
-    void load();
+    void load().finally(() => {
+      // Phase 9 (#22): first snapshot has landed (or failed); skeletons end.
+      if (!cancelled) setVtxoSnapshotLoaded(true);
+    });
     const timer = setInterval(() => void load(), 5000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [identity, activeVault?.address]);
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, vtxoSnapshotLoaded,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, dismissSentinel, exitReadiness, health, identity, indexerStatus,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, dismissSentinel, exitReadiness, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

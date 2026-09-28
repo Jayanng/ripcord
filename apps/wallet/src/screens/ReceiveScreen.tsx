@@ -197,7 +197,14 @@ export function ReceiveScreen() {
           </small>
           {regBusy && regFlow && <p className="flow-note" role="status">Step: {regFlow}</p>}
           {regResult && <p className="flow-note" role="status">{regResult}</p>}
-          {regError && <p className="inline-error" role="alert">{regError}</p>}
+          {regError && (
+            <div className="error-with-retry">
+              <p className="inline-error" role="alert">{regError}</p>
+              <button type="button" className="secondary-action-compact" disabled={regBusy} onClick={() => void registerDirectDeposit()}>
+                {regBusy ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {mode === 'l1' && (

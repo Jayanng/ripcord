@@ -292,6 +292,14 @@ export function VaultStatusCard() {
       <p className={flow === 'error' && !isDaemonSlowError(error) ? 'inline-error' : 'flow-note'} role={flow === 'error' && !isDaemonSlowError(error) ? 'alert' : 'status'}>
         {error || statusText}
       </p>
+      {/* Phase 9 (#24): retry next to the error state */}
+      {flow === 'error' && error && (
+        <div className="error-with-retry">
+          <button type="button" className="secondary-action-compact" disabled={busy} onClick={() => void completeFunding()}>
+            {busy ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
       {pendingFaucetTxid && flow === 'ready' && (
         <a className="explorer-link" href={explorerUrl(pendingFaucetTxid)} target="_blank" rel="noreferrer">
           View faucet transaction on regtest explorer ↗

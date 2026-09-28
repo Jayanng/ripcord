@@ -2687,3 +2687,69 @@ details[open] .vtxo-chevron {
   background: transparent; color: var(--text-lo); cursor: pointer; font: 600 15px var(--font-sans);
 }
 .toast-dismiss:hover { color: var(--text-hi); background: color-mix(in srgb, var(--text-lo) 12%, transparent); }
+
+
+/* ===== Phase 9: onboarding UX, collapse, skeletons, refresh, receipt ===== */
+.mnemonic-reveal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 8px; }
+.chip-word-hidden { letter-spacing: .18em; color: var(--text-lo); }
+
+.backup-challenge {
+  display: grid; gap: 10px; margin: 14px 0 0; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-inset);
+}
+.backup-challenge-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.backup-challenge-field { display: grid; gap: 4px; }
+.backup-challenge-field span { color: var(--text-lo); font: 600 11.5px var(--font-sans); text-transform: uppercase; letter-spacing: .05em; }
+.backup-challenge-field input {
+  min-height: 40px; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--bg-raised); color: var(--text-hi);
+  font: 550 14px var(--font-mono);
+}
+
+.error-with-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 0; }
+.error-with-retry .inline-error { margin: 0; }
+
+.truth-toggle {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  background: none; border: none; cursor: pointer; text-align: left; padding: 0;
+}
+.truth-toggle-glyph { margin-left: auto; color: var(--text-lo); font-size: 13px; }
+.truth-updated { color: var(--text-lo); font: 600 11.5px var(--font-mono); letter-spacing: .02em; }
+.truth-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.custody-updated-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; }
+
+.skeleton-line {
+  display: inline-block; vertical-align: middle;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--text-lo) 12%, transparent) 25%, color-mix(in srgb, var(--text-lo) 22%, transparent) 50%, color-mix(in srgb, var(--text-lo) 12%, transparent) 75%);
+  background-size: 200% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.send-receipt {
+  display: flex; align-items: center; gap: 12px; margin: 14px 0 0; padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, #1a7f4b 40%, var(--line));
+  border-radius: var(--r-md); background: color-mix(in srgb, #1a7f4b 7%, var(--bg-inset));
+  animation: receipt-in .45s cubic-bezier(.2, .8, .25, 1) both;
+}
+.send-receipt-check {
+  width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 999px; background: color-mix(in srgb, #1a7f4b 16%, transparent); color: #1a7f4b;
+  animation: receipt-check-pop .45s .12s cubic-bezier(.2, .8, .25, 1) both;
+}
+.send-receipt-copy { display: grid; gap: 2px; min-width: 0; }
+.send-receipt-copy strong { color: var(--text-hi); font: 750 14px var(--font-sans); }
+.send-receipt-copy span { color: var(--text-lo); font: 500 12.5px var(--font-mono); overflow-wrap: anywhere; }
+@keyframes receipt-in {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes receipt-check-pop {
+  from { opacity: 0; transform: scale(.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-receipt, .send-receipt-check, .skeleton-line { animation: none; }
+}
