@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { generateMnemonic } from 'bip39';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
+import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { truncate } from '../components/ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
@@ -25,7 +26,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     challengeInput[i].trim().toLowerCase() === entry.answer.toLowerCase());
   const [faucet, setFaucet] = useState(false);
   const [flow, setFlow] = useState<FlowState>('ready');
-  const savedDepositTxid = wallet.activeVault ? localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`) : null;
+  const savedDepositTxid = readSavedDepositTxid(wallet.activeVault);
   const [depositTxid, setDepositTxid] = useState(() => savedDepositTxid ?? '');
   const [depositConfirmations, setDepositConfirmations] = useState(0);
   const pendingFaucetTxid = wallet.identity ? localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`) : null;
@@ -98,7 +99,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
       setFlow('complete');
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      clearSavedDepositTxid(activeVault);
       return;
     }
     setBusy(true);
@@ -107,7 +108,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     try {
       const { fundVaultLifecycle } = await import('@ripcord/core/lifecycle');
       setFlow('depositing');
-      const savedDeposit = localStorage.getItem(`ripcord:deposit:${activeVault.address}`);
+      const savedDeposit = readSavedDepositTxid(activeVault);
       const result = await fundVaultLifecycle({
         vault: activeVault,
         mnemonic: wallet.identity.mnemonic,
@@ -117,12 +118,13 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         feeRateSatVb: 2,
         explicitInput,
         existingDepositTxid: savedDeposit ?? undefined,
+        claimedOutpoints: wallet.claimedOutpointsFor(activeVault),
         onProgress: setFlow,
         onConfirmationPoll: setDepositConfirmations,
         onDepositBroadcast: deposit => {
           setDepositTxid(deposit.txid);
           setDepositConfirmations(0);
-          localStorage.setItem(`ripcord:deposit:${activeVault.address}`, deposit.txid);
+          writeSavedDepositTxid(activeVault, deposit.txid);
         },
       });
       setFlow('complete');
@@ -133,7 +135,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         registered: true,
       });
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      clearSavedDepositTxid(activeVault);
     } catch (e) {
       const isSlow = isDaemonSlowError(e);
       setFlow(isSlow ? 'ready' : 'error');
@@ -147,12 +149,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     if (!wallet.identity || !wallet.activeVault || busy || flow !== 'ready') return;
     if (wallet.activeVault.vaultIdHex && (wallet.activeVault.registered || wallet.activeVault.funding)) {
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${wallet.activeVault.address}`);
+      clearSavedDepositTxid(wallet.activeVault);
       setFlow('complete');
       return;
     }
     const savedFaucet = localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-    const savedDeposit = localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`);
+    const savedDeposit = readSavedDepositTxid(wallet.activeVault);
     if (!savedFaucet && !savedDeposit) return;
 
     let mounted = true;

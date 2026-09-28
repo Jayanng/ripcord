@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { IndexedDbStore, type RipcordStore } from '@ripcord/core/store';
+import { IndexedDbStore, vaultStoreKey, type RipcordStore } from '@ripcord/core/store';
 import { TxQueue } from '@ripcord/core';
 import { deriveIdentity } from '@ripcord/core/keys';
 import {
@@ -60,6 +60,12 @@ interface WalletContextValue {
   lastRefreshedAt: number | null;
   /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
   vtxoSnapshotLoaded: boolean;
+  /**
+   * Funding outpoints (`txid:vout`) claimed by OTHER records at the same
+   * address. Funding scans must exclude them (audit fix: sibling funding
+   * records share one address and must never adopt each other's outpoint).
+   */
+  claimedOutpointsFor: (vault: VaultRecord) => string[];
   activity: IndexerEvent[];
   indexerStatus: IndexerStatus;
   exitReadiness: ExitReadiness | null;
@@ -71,7 +77,7 @@ interface WalletContextValue {
   addVault: (vault: VaultRecord) => Promise<void>;
   updateVault: (vault: VaultRecord) => Promise<void>;
   saveReceipt: (receipt: PaymentReceipt) => Promise<void>;
-  setExitReadiness: (vaultAddress: string, readiness: ExitReadiness | null) => void;
+  setExitReadiness: (vaultKey: string, readiness: ExitReadiness | null) => void;
   recordActivity: (event: IndexerEvent) => void;
   setIndexerStatus: (status: IndexerStatus) => void;
   waitForIndexerReady: (timeoutMs?: number) => Promise<void>;
@@ -87,9 +93,13 @@ export interface SentinelAlert {
   readonly at: number;
 }
 
-/** Stable per-record key: vaultIdHex is unique per funding outpoint. */
+/**
+ * Stable per-record key: vaultIdHex is unique per funding outpoint.
+ * Delegates to the store's canonical vaultStoreKey so persistence and UI
+ * state can never disagree on record identity (audit fix).
+ */
 export function vaultRecordKey(vault: VaultRecord): string {
-  return vault.vaultIdHex || `${vault.address}:${vault.createdAt}`;
+  return vaultStoreKey(vault);
 }
 
 /**
@@ -126,7 +136,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [vtxoSnapshotLoaded, setVtxoSnapshotLoaded] = useState(false);
   const [activity, setActivity] = useState<IndexerEvent[]>([]);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus>({ state: 'closed', reason: 'No wallet address loaded' });
-  const [readinessRecord, setReadinessRecord] = useState<{ vaultAddress: string; readiness: ExitReadiness } | null>(null);
+  const [readinessRecord, setReadinessRecord] = useState<{ vaultKey: string; readiness: ExitReadiness } | null>(null);
   const indexerStatusRef = useRef(indexerStatus);
   const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
   useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
@@ -236,9 +246,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       indexerWaiters.current.push({ resolve, reject, timer });
     });
   }, []);
+  const claimedOutpointsFor = useCallback((vault: VaultRecord): string[] => {
+    const selfKey = vaultRecordKey(vault);
+    return storedVaults
+      .filter(item => item.funding && vaultRecordKey(item) !== selfKey && item.address === vault.address)
+      .map(item => `${item.funding!.txid.toLowerCase()}:${item.funding!.vout}`);
+  }, [storedVaults]);
+
   const addVault = useCallback(async (vault: VaultRecord) => {
     if (!store) throw new Error('Public store is not ready');
-    const existing = storedVaults.find(item => item.address === vault.address);
+    // Record-keyed merge (audit fix): funding records are unique per funding
+    // outpoint and MAY share an address. Merging by address silently destroyed
+    // sibling funding records (the real-world shape: N records, one address).
+    const key = vaultRecordKey(vault);
+    const existing = storedVaults.find(item => vaultRecordKey(item) === key);
     const merged: VaultRecord = existing ? {
       ...existing,
       ...vault,
@@ -248,7 +269,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       createdAt: existing.createdAt,
     } : vault;
     await store.saveVault(merged);
-    setStoredVaults(current => [merged, ...current.filter(item => item.address !== merged.address)]);
+    const mergedKey = vaultRecordKey(merged);
+    const preFundingKey = merged.vaultIdHex ? `${merged.address}:${merged.createdAt}` : null;
+    setStoredVaults(current => [merged, ...current.filter(item => {
+      const itemKey = vaultRecordKey(item);
+      // Drop only this record's own old incarnation (address:createdAt ->
+      // vaultIdHex transition). Sibling records at the same address survive.
+      return itemKey !== mergedKey && itemKey !== preFundingKey;
+    })]);
   }, [store, storedVaults]);
   const updateVault = addVault;
 
@@ -268,9 +296,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [store]);
 
-  const exitReadiness = readinessRecord && readinessRecord.vaultAddress === activeVault?.address ? readinessRecord.readiness : null;
-  const setExitReadiness = useCallback((vaultAddress: string, readiness: ExitReadiness | null) => {
-    setReadinessRecord(readiness ? { vaultAddress, readiness } : null);
+  // Audit fix: readiness is per funding outpoint (record), not per address -
+  // sibling records at one address mature independently.
+  const exitReadiness = readinessRecord && activeVault && readinessRecord.vaultKey === vaultRecordKey(activeVault) ? readinessRecord.readiness : null;
+  const setExitReadiness = useCallback((vaultKey: string, readiness: ExitReadiness | null) => {
+    setReadinessRecord(readiness ? { vaultKey, readiness } : null);
   }, []);
 
   useEffect(() => {
@@ -439,10 +469,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, vtxoSnapshotLoaded,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, dismissSentinel, exitReadiness, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

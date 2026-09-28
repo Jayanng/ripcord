@@ -89,6 +89,7 @@ export function ReceiveScreen() {
         bitcoinRpcBaseUrl: wallet.baseUrl,
         daemonBaseUrl: wallet.daemonUrl,
         amountSats: 0n, // register-only mode: never broadcasts
+        claimedOutpoints: wallet.claimedOutpointsFor(vault),
         onProgress: stage => setRegFlow(stage),
       });
       const fundedRecord = {

@@ -4,6 +4,7 @@ import { useActivity } from '../hooks/useActivity';
 import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
+import { readSavedDepositTxid } from '../lib/depositResume';
 
 type ActivityFilter = 'all' | 'transfers' | 'deposits' | 'blocks';
 
@@ -56,7 +57,7 @@ export function ActivityFeed() {
   }
 
   if (activeVault) {
-    const savedDeposit = localStorage.getItem(`ripcord:deposit:${activeVault.address}`);
+    const savedDeposit = readSavedDepositTxid(activeVault);
     if (savedDeposit && /^[0-9a-f]{64}$/i.test(savedDeposit) && savedDeposit.toLowerCase() !== activeVault.funding?.txid?.toLowerCase()) {
       onChainItems.push({
         kind: 'tx:deposit',

@@ -35,9 +35,11 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
       <span className={`proof-badge ${balanceCrossCheck?.matches === false ? 'warn' : ''}`} title="L1 reserves cross-checked against the live chain snapshot">
         {balanceCrossCheck
           ? balanceCrossCheck.chainReachable
-            ? balanceCrossCheck.matches
+            ? balanceCrossCheck.matches === true
               ? 'L1 Reserves Verified'
-              : 'Reserves Mismatch'
+              : balanceCrossCheck.matches === false
+                ? 'Reserves Mismatch'
+                : 'Reserves Indeterminate'
             : 'Reserves Unchecked (chain unreachable)'
           : 'Checking L1 Reserves'}
       </span>

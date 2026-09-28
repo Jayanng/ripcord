@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useWallet } from '../context/WalletContext';
+import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { useRipcord } from '../hooks/useRipcord';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
@@ -11,7 +11,7 @@ export function RipcordPanel() {
   const { activeVault: vault, identity, setExitReadiness } = useWallet(); const { readiness, refreshMaturity, assess, execute } = useRipcord(); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [broadcastTxid, setBroadcastTxid] = useState('');
   const status = readiness?.status ?? (vault?.funding ? 'maturing' : 'unfunded');
   useEffect(() => {
-    if (!vault?.funding) { if (vault) setExitReadiness(vault.address, null); return; }
+    if (!vault?.funding) { if (vault) setExitReadiness(vaultRecordKey(vault), null); return; }
     let cancelled = false;
     const refresh = async () => {
       try { await refreshMaturity(vault); }

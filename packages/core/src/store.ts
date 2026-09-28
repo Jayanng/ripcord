@@ -18,6 +18,21 @@
 import type { VaultRecord, PaymentReceipt } from './types.js';
 import { serializeJson, deserializeJson } from './bytes.js';
 
+/**
+ * Canonical vault record key: the funding identity (`vaultIdHex`, unique per
+ * funding outpoint) when funded, else `address:createdAt` for a derived
+ * record. Multiple funding records MAY share one address (they are distinct
+ * vault ids), so the store must never key by address alone.
+ */
+export function vaultStoreKey(vault: VaultRecord): string {
+  return vault.vaultIdHex || `${vault.address}:${vault.createdAt}`;
+}
+
+/** The key a record had BEFORE funding assigned it a vault id. */
+function preFundingStoreKey(vault: VaultRecord): string {
+  return `${vault.address}:${vault.createdAt}`;
+}
+
 /** Persistence contract: public data only, never secret keys. */
 export interface RipcordStore {
   getVaults(): Promise<VaultRecord[]>;
@@ -48,7 +63,14 @@ export class MemoryStore implements RipcordStore {
 
   async saveVault(vault: VaultRecord): Promise<void> {
     const stored = clonePublic(vault);
-    this.vaults.set(stored.address, stored);
+    const key = vaultStoreKey(stored);
+    // A record that just gained its vaultId changes keys (address:createdAt ->
+    // vaultIdHex). Drop the pre-funding row so the same record cannot appear
+    // twice after funding.
+    if (stored.vaultIdHex) {
+      this.vaults.delete(preFundingStoreKey(stored));
+    }
+    this.vaults.set(key, stored);
   }
 
   async getReceipts(): Promise<PaymentReceipt[]> {
@@ -81,7 +103,7 @@ export class MemoryStore implements RipcordStore {
     const data = deserializeJson<{ vaults: VaultRecord[]; receipts: PaymentReceipt[] }>(json);
     for (const vault of data.vaults) {
       const stored = clonePublic(vault);
-      store.vaults.set(stored.address, stored);
+      store.vaults.set(vaultStoreKey(stored), stored);
     }
     for (const receipt of data.receipts) {
       const stored = clonePublic({ ...receipt, txHash: receipt.txHash.toLowerCase() });
@@ -103,8 +125,11 @@ interface IdbRequestLike {
 }
 
 interface IdbObjectStoreLike {
-  put(value: unknown): IdbRequestLike;
+  /** Out-of-line keys pass `key`; keyPath stores omit it. */
+  put(value: unknown, key?: string): IdbRequestLike;
+  get(key: string): IdbRequestLike;
   getAll(): IdbRequestLike;
+  delete(key: string): IdbRequestLike;
   clear(): IdbRequestLike;
 }
 
@@ -118,6 +143,7 @@ interface IdbTransactionLike {
 interface IdbDatabaseLike {
   readonly objectStoreNames: { contains(name: string): boolean };
   createObjectStore(name: string, options?: { keyPath?: string }): IdbObjectStoreLike;
+  deleteObjectStore(name: string): void;
   transaction(storeNames: string | string[], mode: string): IdbTransactionLike;
   close(): void;
   onversionchange: (() => void) | null;
@@ -125,6 +151,7 @@ interface IdbDatabaseLike {
 
 interface IdbOpenDbRequestLike {
   readonly result: IdbDatabaseLike;
+  readonly transaction: IdbTransactionLike | null;
   onupgradeneeded: ((event: unknown) => void) | null;
   onsuccess: ((event: unknown) => void) | null;
   onerror: ((event: unknown) => void) | null;
@@ -136,7 +163,10 @@ interface IdbFactoryLike {
 
 const VAULT_STORE = 'vaults';
 const RECEIPT_STORE = 'receipts';
-const DB_VERSION = 1;
+// v2: vault rows re-keyed by funding identity (vaultStoreKey) instead of
+// address. v1 keyed by `address`, which collapsed sibling funding records
+// sharing one address into a single row (silent record loss).
+const DB_VERSION = 2;
 
 function resolveIdbFactory(): IdbFactoryLike {
   const g = globalThis as unknown as { indexedDB?: IdbFactoryLike };
@@ -169,8 +199,26 @@ export class IndexedDbStore implements RipcordStore {
       const req = this.factory.open(this.dbName, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
+        const versionTx = req.transaction;
         if (!db.objectStoreNames.contains(VAULT_STORE)) {
-          db.createObjectStore(VAULT_STORE, { keyPath: 'address' });
+          // Out-of-line keys under vaultStoreKey(record): funding identity,
+          // never the address (siblings may share one).
+          db.createObjectStore(VAULT_STORE);
+        } else if (versionTx) {
+          // v1 -> v2 migration: the old store keyed by `address` (in-line).
+          // Re-key every row by funding identity, keeping all rows: two rows
+          // that shared an address can only exist in v1 if they arrived in the
+          // same getAll batch, and both must survive.
+          const oldStore = versionTx.objectStore(VAULT_STORE);
+          const getAll = oldStore.getAll();
+          getAll.onsuccess = () => {
+            const rows = (getAll.result as VaultRecord[]) ?? [];
+            db.deleteObjectStore(VAULT_STORE);
+            const fresh = db.createObjectStore(VAULT_STORE);
+            for (const row of rows) {
+              fresh.put(row, vaultStoreKey(row));
+            }
+          };
         }
         if (!db.objectStoreNames.contains(RECEIPT_STORE)) {
           db.createObjectStore(RECEIPT_STORE, { keyPath: 'txHash' });
@@ -194,7 +242,20 @@ export class IndexedDbStore implements RipcordStore {
   }
 
   async saveVault(vault: VaultRecord): Promise<void> {
-    await this.withReconnect(db => this.write(db, VAULT_STORE, vault));
+    const key = vaultStoreKey(vault);
+    const preFundingKey = vault.vaultIdHex ? preFundingStoreKey(vault) : null;
+    await this.withReconnect(db => new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(VAULT_STORE, 'readwrite');
+      const store = tx.objectStore(VAULT_STORE);
+      if (preFundingKey && preFundingKey !== key) {
+        // Same record's pre-funding incarnation must not survive funding.
+        store.delete(preFundingKey);
+      }
+      store.put(vault, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(toError(tx, `${VAULT_STORE} put`));
+      tx.onabort = () => reject(new Error(`IndexedDB ${VAULT_STORE} transaction aborted`));
+    }));
   }
 
   async getReceipts(): Promise<PaymentReceipt[]> {

@@ -85,21 +85,27 @@ export interface AddressClassification {
 
 /** Classify a recipient address for the pre-send safety card. */
 export function classifyAddress(address: string): AddressClassification {
-  const value = address.trim().toLowerCase();
+  const raw = address.trim();
+  const value = raw.toLowerCase();
+  // Base58 is case-sensitive: validate the raw form against the real
+  // base58 alphabet (excludes 0, O, I, l). Legacy prefixes are unambiguous.
+  const isBase58 = /^[1-9A-HJ-NP-Za-km-z]{26,35}$/.test(raw);
   const network: AddressClassification['network'] = value.startsWith('bcrt1')
     ? 'regtest'
     : value.startsWith('tb1')
       ? 'testnet'
       : value.startsWith('bc1')
         ? 'mainnet'
-        : /^[mn2][a-km-z1-9]{25,34}$/.test(value) || /^[23][a-km-z1-9]{25,34}$/.test(value)
-          ? 'unknown'
-          : 'unknown';
+        : isBase58 && /^[mn2]/.test(value)
+          ? 'testnet' // legacy testnet/regtest prefixes (base58 cannot separate the two)
+          : isBase58 && /^[13]/.test(value)
+            ? 'mainnet'
+            : 'unknown';
   const addressType: AddressClassification['addressType'] = /^bcrt1p|^tb1p|^bc1p/.test(value)
     ? 'Taproot (bech32m)'
     : /^bcrt1q|^tb1q|^bc1q/.test(value)
       ? 'SegWit v0 (bech32)'
-      : /^[mn23][a-km-z1-9]{25,34}$/.test(value)
+      : isBase58
         ? 'Legacy'
         : 'Unknown';
   return { network, networkMatches: network === 'regtest', addressType };
@@ -118,22 +124,28 @@ function underThousand(n: number): string {
   return rest === 0 ? `${ONES[Math.floor(n / 100)]} hundred` : `${ONES[Math.floor(n / 100)]} hundred ${underThousand(rest)}`;
 }
 
-/** Exact integer sats in plain English words: 40000 -> "forty thousand sats". */
+/**
+ * Exact integer sats in plain English words: 40000 -> "forty thousand sats".
+ * Three-digit grouping with scale names handles the full safe-integer range
+ * (audit fix: the first version mis-chunked values >= 1e12).
+ */
 export function amountInWords(value: bigint | number): string {
   let n = typeof value === 'bigint' ? Number(value) : Math.trunc(value);
   if (!Number.isFinite(n) || n < 0) return `${value} sats`;
   if (n === 0) return 'zero sats';
-  const scales: Array<[number, string]> = [[1_000_000_000, 'billion'], [1_000_000, 'million'], [1_000, 'thousand']];
-  const parts: string[] = [];
-  for (const [size, name] of scales) {
-    const count = Math.floor(n / size);
-    if (count > 0) {
-      parts.push(`${underThousand(count)} ${name}`);
-      n -= count * size;
-    }
+  const scales = ['', 'thousand', 'million', 'billion', 'trillion', 'quadrillion'];
+  const groups: Array<{ digits: number; scale: string }> = [];
+  for (let i = 0; n > 0 && i < scales.length; i++) {
+    groups.push({ digits: n % 1000, scale: scales[i] });
+    n = Math.floor(n / 1000);
   }
-  if (n > 0 || parts.length === 0) parts.push(underThousand(n));
-  return `${parts.join(' ')} sats`;
+  if (n > 0) return `${value} sats`; // beyond quadrillion: show the raw number
+  const parts = groups
+    .filter(group => group.digits > 0)
+    .reverse()
+    .map(group => (group.scale ? `${underThousand(group.digits)} ${group.scale}` : underThousand(group.digits)));
+  const words = parts.join(' ');
+  return words === 'one' ? 'one sat' : `${words} sats`;
 }
 
 /** Sats to an exact BTC decimal string (no float math): 123456789 -> "1.23456789". */

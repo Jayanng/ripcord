@@ -132,6 +132,13 @@ export interface FundVaultLifecycleParams {
   confirmationPollMs?: number;
   explicitInput?: import('./types.js').ExplicitSpendableInput;
   existingDepositTxid?: string;
+  /**
+   * Outpoints (`txid:vout`, lowercase txid) already claimed by other funding
+   * records at this vault address. Sibling records may share one address, so
+   * the funding scan must skip them (audit fix: a second round must never
+   * adopt a sibling's funding).
+   */
+  claimedOutpoints?: ReadonlyArray<string>;
   onProgress?: (stage: 'depositing' | 'confirming-deposit' | 'minting' | 'registering') => void;
   onDepositBroadcast?: (deposit: DepositResult) => void;
   onConfirmationPoll?: (confirmations: number) => void;
@@ -177,6 +184,8 @@ export interface RecoverVaultLifecycleStateParams {
   daemonBaseUrl: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Outpoints claimed by sibling funding records at the same address (audit fix). */
+  claimedOutpoints?: ReadonlyArray<string>;
 }
 
 /** Restore an existing vault's public funding and registration evidence without broadcasting. */
@@ -194,6 +203,7 @@ export async function recoverVaultLifecycleState(
         params.bitcoinRpcBaseUrl,
         params.vault,
         params.fetchImpl ?? globalThis.fetch.bind(globalThis),
+        new Set((params.claimedOutpoints ?? []).map(item => item.toLowerCase())),
       );
   if (!deposit) return params.vault;
 
@@ -285,6 +295,10 @@ async function findExistingVaultFunding(
   baseUrl: string,
   vault: VaultRecord,
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+  // Outpoints already claimed by sibling funding records at this address.
+  // Sibling vault records MAY share one address (one per funding outpoint), so
+  // the scan must never adopt another record's funding.
+  excludeOutpoints: ReadonlySet<string> = new Set(),
 ) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -299,7 +313,10 @@ async function findExistingVaultFunding(
       const payload = await response.json() as { result?: { unspents?: Array<{ txid: string; vout: number; scriptPubKey: string; amount: number }> }; error?: { message?: string } };
       if (payload.error) throw new Error(payload.error.message ?? 'Vault UTXO scan failed');
       const expectedScript = vault.p2tr ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase() : '';
-      const found = payload.result?.unspents?.find(item => item.scriptPubKey.toLowerCase() === expectedScript);
+      const found = payload.result?.unspents?.find(item =>
+        item.scriptPubKey.toLowerCase() === expectedScript
+        && !excludeOutpoints.has(`${item.txid.toLowerCase()}:${item.vout}`),
+      );
       if (!found || !/^[0-9a-f]{64}$/i.test(found.txid)) return null;
       return { txid: found.txid as import('./types.js').DisplayTxid, vout: found.vout, amountSats: BigInt(Math.round(found.amount * 1e8)), source: 'recovered' as const };
     } catch (err) {
@@ -464,6 +481,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
   const daemonUrl = new URL(params.daemonBaseUrl);
   const allowInsecureHttp = daemonUrl.protocol === 'http:' && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
 
+  const claimed = new Set((params.claimedOutpoints ?? []).map(item => item.toLowerCase()));
   try {
     // FIX 2: If the local store already records the vaultId for this deposit, skip registration entirely!
     const decision = evaluateFundingStep({ vault: params.vault });
@@ -475,7 +493,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
       if (params.vault.funding) {
         dep = { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' };
       } else {
-        const found = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
+        const found = await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis), claimed);
         dep = found ?? {
           txid: '' as import('./types.js').DisplayTxid,
           vout: 0,
@@ -494,7 +512,7 @@ export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Prom
 
     let deposit: LifecycleDeposit | null = params.vault.funding
       ? { txid: params.vault.funding.txid, vout: params.vault.funding.vout, amountSats: params.vault.funding.valueSats, source: 'recovered' as const }
-      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis));
+      : await findExistingVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.fetchImpl ?? globalThis.fetch.bind(globalThis), claimed);
 
     if (!deposit && params.existingDepositTxid) {
       deposit = await findBroadcastVaultFunding(params.bitcoinRpcBaseUrl, params.vault, params.existingDepositTxid);

@@ -104,7 +104,7 @@ describe('MemoryStore', () => {
     expect(receipts[0].amountSats).toBe(500n);
   });
 
-  it('upserts a vault by address (no duplicate rows)', async () => {
+  it('upserts by funding identity: same vaultIdHex, one row', async () => {
     const store = new MemoryStore();
     await store.saveVault(makeVault(VAULT_A, 40000n));
     await store.saveVault(makeVault(VAULT_A, 39999n));
@@ -112,6 +112,55 @@ describe('MemoryStore', () => {
     const vaults = await store.getVaults();
     expect(vaults).toHaveLength(1);
     expect(vaults[0].funding!.valueSats).toBe(39999n);
+  });
+
+  it('keeps sibling funding records that share one address (real wallet shape)', async () => {
+    const store = new MemoryStore();
+    const round1 = makeVault(VAULT_A, 40000n);
+    const round2 = { ...makeVault(VAULT_A, 40000n), vaultIdHex: 'cd'.repeat(32) };
+    const round3 = { ...makeVault(VAULT_A, 39999n), vaultIdHex: 'ef'.repeat(32) };
+
+    await store.saveVault(round1);
+    await store.saveVault(round2);
+    await store.saveVault(round3);
+
+    const vaults = await store.getVaults();
+    expect(vaults).toHaveLength(3);
+    expect(new Set(vaults.map(v => v.vaultIdHex)).size).toBe(3);
+    // all three share the address - that is the point
+    expect(vaults.every(v => v.address === VAULT_A)).toBe(true);
+  });
+
+  it('funding transition (address:createdAt -> vaultIdHex) leaves one row', async () => {
+    const store = new MemoryStore();
+    // Derived, unfunded record: vaultIdHex '' -> keyed address:createdAt.
+    const derived = { ...makeVault(VAULT_A, 0n), vaultIdHex: '', funding: undefined };
+    await store.saveVault(derived);
+    expect(await store.getVaults()).toHaveLength(1);
+
+    // Funding assigns the vault id: same record under a new key.
+    const funded = { ...derived, vaultIdHex: 'ab'.repeat(32), funding: { txid: '11'.repeat(32) as import('../src/types.js').DisplayTxid, vout: 0, valueSats: 40000n } };
+    await store.saveVault(funded);
+
+    const vaults = await store.getVaults();
+    expect(vaults).toHaveLength(1);
+    expect(vaults[0].vaultIdHex).toBe('ab'.repeat(32));
+    expect(vaults[0].funding!.valueSats).toBe(40000n);
+  });
+
+  it('a sibling funded record at the same address survives the transition', async () => {
+    const store = new MemoryStore();
+    const sibling = { ...makeVault(VAULT_A, 39999n), vaultIdHex: 'cd'.repeat(32) };
+    const derived = { ...makeVault(VAULT_A, 0n), vaultIdHex: '', funding: undefined, createdAt: 1700000001000 };
+    await store.saveVault(sibling);
+    await store.saveVault(derived);
+
+    const funded = { ...derived, vaultIdHex: 'ab'.repeat(32), funding: { txid: '11'.repeat(32) as import('../src/types.js').DisplayTxid, vout: 0, valueSats: 40000n } };
+    await store.saveVault(funded);
+
+    const vaults = await store.getVaults();
+    expect(vaults).toHaveLength(2);
+    expect(new Set(vaults.map(v => v.vaultIdHex))).toEqual(new Set(['cd'.repeat(32), 'ab'.repeat(32)]));
   });
 
   it('normalizes receipt txHash case so a re-save cannot duplicate', async () => {

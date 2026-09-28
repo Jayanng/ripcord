@@ -1,6 +1,6 @@
 import type { ExitReadiness, VaultRecord } from '@ripcord/core/types';
 import type { ExecuteExitParams } from '@ripcord/core/exit';
-import { useWallet, identityForVault } from '../context/WalletContext';
+import { useWallet, identityForVault, vaultRecordKey } from '../context/WalletContext';
 
 export function useRipcord() {
   const wallet = useWallet();
@@ -10,7 +10,7 @@ export function useRipcord() {
     const result = wallet.exitReadiness?.dryRun && (liveResult.status === 'live' || liveResult.status === 'maturing')
       ? { ...liveResult, dryRun: wallet.exitReadiness.dryRun }
       : liveResult;
-    wallet.setExitReadiness(vault.address, result);
+    wallet.setExitReadiness(vaultRecordKey(vault), result);
     return result;
   };
   const assess = async (vault: VaultRecord): Promise<ExitReadiness> => {
@@ -18,7 +18,7 @@ export function useRipcord() {
     if (!identity) throw new Error('Load an identity before testing the ripcord');
     const { assessExit } = await import('@ripcord/core/exit');
     const result = await assessExit({ vault, identity, baseUrl: wallet.baseUrl });
-    wallet.setExitReadiness(vault.address, result);
+    wallet.setExitReadiness(vaultRecordKey(vault), result);
     return result;
   };
   const execute = async (vault: VaultRecord, signer: ExecuteExitParams['signer']) => {

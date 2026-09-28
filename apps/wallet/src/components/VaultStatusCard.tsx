@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
+import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
 import { truncate, formatSats } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
@@ -13,7 +14,7 @@ export function VaultStatusCard() {
   const [error, setError] = useState('');
   const [faucet, setFaucet] = useState(false);
   const [flow, setFlow] = useState<FlowState>('ready');
-  const savedDepositTxid = wallet.activeVault ? localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`) : null;
+  const savedDepositTxid = readSavedDepositTxid(wallet.activeVault);
   const [depositTxid, setDepositTxid] = useState(() => savedDepositTxid ?? '');
   const [depositConfirmations, setDepositConfirmations] = useState(0);
   const pendingFaucetTxid = wallet.identity ? localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`) : null;
@@ -25,7 +26,7 @@ export function VaultStatusCard() {
     if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
       setFlow('complete');
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      clearSavedDepositTxid(activeVault);
       return;
     }
     setBusy(true);
@@ -34,7 +35,7 @@ export function VaultStatusCard() {
     try {
       const { fundVaultLifecycle } = await import('@ripcord/core/lifecycle');
       setFlow('depositing');
-      const savedDeposit = localStorage.getItem(`ripcord:deposit:${activeVault.address}`);
+      const savedDeposit = readSavedDepositTxid(activeVault);
       const result = await fundVaultLifecycle({
         vault: activeVault,
         mnemonic: wallet.identity.mnemonic,
@@ -44,12 +45,13 @@ export function VaultStatusCard() {
         feeRateSatVb: 2,
         explicitInput,
         existingDepositTxid: savedDeposit ?? undefined,
+        claimedOutpoints: wallet.claimedOutpointsFor(activeVault),
         onProgress: setFlow,
         onConfirmationPoll: setDepositConfirmations,
         onDepositBroadcast: deposit => {
           setDepositTxid(deposit.txid);
           setDepositConfirmations(0);
-          localStorage.setItem(`ripcord:deposit:${activeVault.address}`, deposit.txid);
+          writeSavedDepositTxid(activeVault, deposit.txid);
         },
       });
       setFlow('complete');
@@ -64,7 +66,7 @@ export function VaultStatusCard() {
       // keep the user's selection on the record they just funded.
       wallet.selectVault(vaultRecordKey(fundedRecord));
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${activeVault.address}`);
+      clearSavedDepositTxid(activeVault);
     } catch (e) {
       const isSlow = isDaemonSlowError(e);
       setFlow(isSlow ? 'ready' : 'error');
@@ -96,13 +98,14 @@ export function VaultStatusCard() {
         userKeyDescriptor: wallet.identity.userKeyDescriptor,
         threshold: quorum.threshold,
       });
-      const existing = wallet.vaults.find(v => v.address === derived.address);
-      if (existing) {
-        // TAURUS vaults are unique per quorum state: while the validator set is
-        // unchanged, a fresh derivation lands on the SAME vault (store merges by
-        // address). Say so honestly instead of silently doing nothing.
-        wallet.selectVault(vaultRecordKey(existing));
-        setError('This round derived the same vault as an existing record (vaults are unique per quorum state). Fund the selected vault, or change the vault key index in the setup form for a separate vault.');
+      // Audit fix: the SAME address legitimately carries one record per funding
+      // round (vault_id = H(funding outpoint)). A funded sibling is a previous
+      // round - the new derived record IS the next round. Only a still-PENDING
+      // (unfunded) record at this address means the round was already started.
+      const pending = wallet.vaults.find(v => v.address === derived.address && !v.vaultIdHex);
+      if (pending) {
+        wallet.selectVault(vaultRecordKey(pending));
+        setError('A deposit round at this vault is already waiting for funding. Fund the selected round first, then start the next one.');
         return;
       }
       await wallet.addVault(derived);
@@ -118,12 +121,12 @@ export function VaultStatusCard() {
     if (!wallet.identity || !wallet.activeVault || busy || flow !== 'ready') return;
     if (wallet.activeVault.vaultIdHex && (wallet.activeVault.registered || wallet.activeVault.funding)) {
       localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-      localStorage.removeItem(`ripcord:deposit:${wallet.activeVault.address}`);
+      clearSavedDepositTxid(wallet.activeVault);
       setFlow('complete');
       return;
     }
     const savedFaucet = localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`);
-    const savedDeposit = localStorage.getItem(`ripcord:deposit:${wallet.activeVault.address}`);
+    const savedDeposit = readSavedDepositTxid(wallet.activeVault);
     if (!savedFaucet && !savedDeposit) return;
 
     let mounted = true;
