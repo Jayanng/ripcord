@@ -981,6 +981,15 @@ h3 {
 .receive-address-compact { display: block; padding: 10px 12px; overflow-wrap: anywhere; background: #FFFFFF; color: var(--text-hi); font: 12px/1.4 var(--font-mono); border-radius: var(--r-sm); border: 1px solid var(--line); }
 .send-summary { display: grid; grid-template-columns: 1fr auto; gap: 10px 14px; padding: 16px; background: #F8FAFC; border: 1px solid var(--line); border-radius: 12px; color: var(--text-lo); font-size: 13px; }
 .send-summary strong { color: var(--text-hi); font: 700 12px var(--font-mono); }
+.recipient-input-row { display: flex; gap: 8px; align-items: center; }
+.recipient-input-row input { flex: 1; }
+.scan-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: #FFFFFF; color: var(--text-hi); font: 700 13px var(--font-sans); cursor: pointer; white-space: nowrap; transition: all .15s ease; }
+.scan-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+.scan-btn:disabled { opacity: .5; cursor: not-allowed; }
+.scanner-viewfinder { position: relative; width: 100%; aspect-ratio: 1; max-width: 320px; margin: 0 auto 16px; border-radius: 16px; overflow: hidden; background: #0F172A; display: grid; place-items: center; }
+.scanner-video { width: 100%; height: 100%; object-fit: cover; }
+.copy-inline-btn { padding: 3px 8px; font: 700 11px var(--font-mono); border: 1px solid var(--line); border-radius: 6px; background: #FFFFFF; color: var(--text-lo); cursor: pointer; transition: all .15s ease; }
+.copy-inline-btn:hover { border-color: var(--primary); color: var(--primary); }
 
 .qr-code { display: block; width: min(220px, 70vw); height: auto; margin: 0 auto 20px; border: 10px solid #FFFFFF; border-radius: 16px; box-shadow: var(--shadow-md); }
 .qr-loading { display: grid; width: min(220px, 70vw); aspect-ratio: 1; place-items: center; margin: 0 auto 20px; background: #F1F5F9; border-radius: 16px; color: var(--text-lo); }
