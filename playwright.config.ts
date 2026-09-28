@@ -7,5 +7,5 @@ export default defineConfig({
   fullyParallel: false,
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: process.env.RIPCORD_WALLET_URL ?? 'http://127.0.0.1:4173', trace: 'retain-on-failure', ...devices['Desktop Chrome'] },
-  webServer: process.env.RIPCORD_WALLET_URL ? undefined : { command: 'npm.cmd run dev --workspace=apps/wallet -- --host 127.0.0.1 --port 4173', url: 'http://127.0.0.1:4173', reuseExistingServer: true, timeout: 120_000 },
+  webServer: process.env.RIPCORD_WALLET_URL ? undefined : { command: `${process.platform === 'win32' ? 'npm.cmd' : 'npm'} run dev --workspace=apps/wallet -- --host 127.0.0.1 --port 4173`, url: 'http://127.0.0.1:4173', reuseExistingServer: true, timeout: 120_000 },
 });

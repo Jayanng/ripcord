@@ -33,6 +33,9 @@ const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL
 
 type BootState = 'checking' | 'ready' | 'degraded' | 'unreachable';
 
+import type { VtxoRecordItem } from '../lib/provenance';
+export type { VtxoRecordItem };
+
 interface WalletContextValue {
   baseUrl: string;
   daemonUrl: string;
@@ -42,9 +45,9 @@ interface WalletContextValue {
   vaults: VaultRecord[];
   activeVault: VaultRecord | null;
   receipts: PaymentReceipt[];
-  liveVtxos: { id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number }[];
-  spentVtxos: { id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number; owner?: string }[];
-  lockedVtxos: { id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number; vaultAddress?: string }[];
+  liveVtxos: VtxoRecordItem[];
+  spentVtxos: VtxoRecordItem[];
+  lockedVtxos: VtxoRecordItem[];
   pendingIncomingSats: bigint;
   balanceCrossCheck: BalanceCrossCheckResult | null;
   watchtowerStatus: WatchtowerStatus | null;
@@ -76,9 +79,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [storedVaults, setStoredVaults] = useState<VaultRecord[]>([]);
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
-  const [liveVtxos, setLiveVtxos] = useState<{ id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number }[]>([]);
-  const [spentVtxos, setSpentVtxos] = useState<{ id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number; owner?: string }[]>([]);
-  const [lockedVtxos, setLockedVtxos] = useState<{ id: string; amountSats: bigint; spent: boolean; locked: boolean; height?: number; vaultAddress?: string }[]>([]);
+  const [liveVtxos, setLiveVtxos] = useState<VtxoRecordItem[]>([]);
+  const [spentVtxos, setSpentVtxos] = useState<VtxoRecordItem[]>([]);
+  const [lockedVtxos, setLockedVtxos] = useState<VtxoRecordItem[]>([]);
   const [pendingCredits, setPendingCredits] = useState<Map<string, { amountSats: bigint; addedAt: number }>>(new Map());
   const [balanceCrossCheck, setBalanceCrossCheck] = useState<BalanceCrossCheckResult | null>(null);
   const [watchtowerStatus, setWatchtowerStatus] = useState<WatchtowerStatus | null>(null);

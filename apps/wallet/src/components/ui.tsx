@@ -6,7 +6,7 @@ export const EXPLORER_BASE = 'https://explorer-regtest.tachibtc.com';
 export const explorerTxUrl = (txid: string) => `${EXPLORER_BASE}/tx/${txid}`;
 export const explorerBlockUrl = (heightOrHash: string | number) => `${EXPLORER_BASE}/block/${heightOrHash}`;
 
-export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activity' | 'ripcord' | 'shield' | 'close' | 'wallet' | 'exit' | 'proofs' | 'docs' }) {
+export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activity' | 'ripcord' | 'shield' | 'close' | 'wallet' | 'exit' | 'proofs' | 'docs' | 'copy' | 'check' }) {
   const paths: Record<typeof name, ReactNode> = {
     wallet: <><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></>,
     balance: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M16 10h5v4h-5a2 2 0 0 1 0-4Z"/></>,
@@ -19,6 +19,8 @@ export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activit
     ripcord: <><path d="M12 3v8M8 7l4 4 4-4"/><path d="M5 14h14v6H5z"/></>,
     shield: <><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></>,
     close: <><path d="m6 6 12 12M18 6 6 18"/></>,
+    copy: <><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></>,
+    check: <><path d="M20 6 9 17l-5-5"/></>,
   };
   return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }

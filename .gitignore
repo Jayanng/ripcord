@@ -31,3 +31,4 @@ evidence/
 .env.*
 !.env.example
 *.tgz
+e2e/*.png
