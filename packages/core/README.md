@@ -45,6 +45,15 @@ Never log or persist a mnemonic or signing key. The example requires the mnemoni
 
 The package exports the root API and focused subpaths for `types`, `bytes`, `net`, `store`, `health`, `exit`, `refund`, `vault`, `deposit`, `lifecycle`, `payment`, `coinselect`, `queue`, `proofs`, `quorum`, `recovery`, `indexer`, `keys`, `register`, and `errors`.
 
+## Releases
+
+- **0.2.0** (2026-09-28) — current release, published to npm. Money-path
+  hardening: resume-path money contract, `code=17` binding truth, refresh-race
+  fix, record-keyed vault storage, sibling-safe funding scans, key-state fixes.
+  Ships alongside the RIPCORD wallet phases 1-10 (send, vaults, exit console,
+  receive, watchtower, search, polish, trust). Source: tag `v0.2.0`.
+- **0.1.1**, **0.1.0** — earlier experimental releases.
+
 ## Verified environment
 
 - Network: `tachi-regtest-1`
