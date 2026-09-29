@@ -390,12 +390,12 @@ export function DocsScreen() {
                      [Leaf A]            [Leaf B]
                  Cooperative Path     Unilateral Exit Path
                  ────────────────     ────────────────────
-                 5-of-7 Validator     <user_pubkey> CHECKSIGVERIFY
-                 Schnorr Quorum       <csv_blocks> CHECKSEQUENCEVERIFY`}
+                 5-of-7 Validator     <csv_blocks> OP_CHECKSEQUENCEVERIFY
+                 Schnorr Quorum       OP_DROP <user_pubkey> CHECKSIG`}
             </div>
             <ul>
               <li><strong>Leaf A (Cooperative Consensus Path):</strong> Requires valid Schnorr signatures from at least 5 of the 7 registered Tachi consensus validators. This path coordinates atomic off-chain VTXO minting and batch settlements.</li>
-              <li><strong>Leaf B (Unilateral Exit Path):</strong> Requires a valid Schnorr signature from the user's sovereign public key plus relative timelock verification: <code>&lt;user_xonly_pubkey&gt; OP_CHECKSIGVERIFY &lt;csv_blocks&gt; OP_CHECKSEQUENCEVERIFY</code>.</li>
+              <li><strong>Leaf B (Unilateral Exit Path):</strong> Requires a valid Schnorr signature from the user's sovereign public key after the relative timelock matures. The real leaf (live-verified from the wallet's tapscript inspector) is <code>OP_2 OP_NOP3 OP_DROP &lt;user_xonly_pubkey&gt; OP_CHECKSIG</code>, where <code>OP_NOP3</code> is <code>OP_CHECKSEQUENCEVERIFY</code>: the CSV timelock first, then the user's signature.</li>
             </ul>
           </>
         );

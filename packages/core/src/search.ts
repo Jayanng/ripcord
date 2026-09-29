@@ -35,6 +35,8 @@ export interface ChainSearchTxResult {
   readonly type: string;
   readonly state: string;
   readonly height: number;
+  /** Commitment epoch. The daemon reports `epoch` (not `height`) on tx hits. */
+  readonly epoch: number;
   readonly raw: Record<string, unknown>;
 }
 
@@ -110,6 +112,7 @@ function decodeResult(type: string, payload: unknown): ChainSearchResult {
       type: asString(record.type ?? record.Type),
       state: asString(record.state ?? record.State),
       height: asNumber(record.height ?? record.Height),
+      epoch: asNumber(record.epoch ?? record.Epoch),
       raw: record,
     };
   }

@@ -178,7 +178,7 @@ export function SearchDrawer() {
                   </div>
                   <div>
                     <dt>Height</dt>
-                    <dd>{result.height || 'Pending'}</dd>
+                    <dd>{result.height > 0 ? result.height : result.epoch > 0 ? `Epoch ${result.epoch}` : result.state === 'committed' ? 'Committed (height not reported)' : 'Pending'}</dd>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <dt>Tx hash</dt>

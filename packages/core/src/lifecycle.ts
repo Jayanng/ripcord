@@ -536,8 +536,42 @@ export function computeFundingSteps(params: {
   ];
 }
 
+/**
+ * Single-flight registry for funding runs.
+ *
+ * AUDIT FIX (2026-09-29, live-observed): concurrent resume triggers (repeated
+ * "Check funding status" clicks racing the same confirmation window) each ran
+ * the full pipeline. The mint guard below (an unspent VTXO of `mintAmount`) is
+ * check-then-act, so N concurrent runs all observed "no VTXO yet" and minted N
+ * credits for ONE deposit outpoint. Observed on regtest: 3 deposit-mints of
+ * 39,999 sats against a single 40,000-sat funding outpoint (119,996 sats of
+ * off-chain credit vs 40,000 sats of L1 backing). Callers that join an
+ * in-flight run now share its result instead of starting a duplicate run.
+ */
+const activeFundingRuns = new Map<string, Promise<FundVaultLifecycleResult>>();
+
+function fundingRunKey(vault: { address: string; userKeyIndex: number; vaultIdHex: string }): string {
+  return `${vault.address}:${vault.userKeyIndex}:${vault.vaultIdHex}`;
+}
+
+/** Number of funding runs currently in flight (for tests and diagnostics). */
+export function activeFundingRunCount(): number {
+  return activeFundingRuns.size;
+}
+
 /** Live deposit → L1 confirmation → VTXO mint → vault registration. */
 export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Promise<FundVaultLifecycleResult> {
+  const key = fundingRunKey(params.vault);
+  const inFlight = activeFundingRuns.get(key);
+  if (inFlight) return inFlight;
+  const run = fundVaultLifecycleRun(params).finally(() => {
+    activeFundingRuns.delete(key);
+  });
+  activeFundingRuns.set(key, run);
+  return run;
+}
+
+async function fundVaultLifecycleRun(params: FundVaultLifecycleParams): Promise<FundVaultLifecycleResult> {
   const daemonUrl = new URL(params.daemonBaseUrl);
   const allowInsecureHttp = daemonUrl.protocol === 'http:' && (daemonUrl.hostname === '127.0.0.1' || daemonUrl.hostname === 'localhost' || daemonUrl.hostname === '::1');
 

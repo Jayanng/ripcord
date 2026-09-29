@@ -322,7 +322,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // sibling records at one address mature independently.
   const exitReadiness = readinessRecord && activeVault && readinessRecord.vaultKey === vaultRecordKey(activeVault) ? readinessRecord.readiness : null;
   const setExitReadiness = useCallback((vaultKey: string, readiness: ExitReadiness | null) => {
-    setReadinessRecord(readiness ? { vaultKey, readiness } : null);
+    setReadinessRecord(prev => {
+      if (!readiness) return null;
+      // AUDIT FIX (2026-09-29): never let a refresh silently drop a computed
+      // dry-run report. If a caller writes a dry-run-less result for the same
+      // vault while the exit is still open, keep the existing dryRun attached.
+      if (!readiness.dryRun && prev?.vaultKey === vaultKey && prev.readiness.dryRun
+        && (readiness.status === 'live' || readiness.status === 'maturing')) {
+        return { vaultKey, readiness: { ...readiness, dryRun: prev.readiness.dryRun } };
+      }
+      return { vaultKey, readiness };
+    });
   }, []);
 
   useEffect(() => {

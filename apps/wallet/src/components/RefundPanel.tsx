@@ -117,11 +117,11 @@ export function RefundPanel() {
       <dl className="ripcord-facts">
         <div>
           <dt>Refund value</dt>
-          <dd>{refundReadiness?.userValueSats !== undefined ? formatSats(refundReadiness.userValueSats) : 'Assess to see the live amount'}</dd>
+          <dd>{refundReadiness?.userValueSats !== undefined ? formatSats(refundReadiness.userValueSats) : refundReadiness ? (refundReadiness.status === 'ready' ? 'Not reported' : 'Nothing to refund') : 'Assess to see the live amount'}</dd>
         </div>
         <div>
           <dt>Network fee</dt>
-          <dd>{refundReadiness?.feeSats !== undefined ? `${formatSats(refundReadiness.feeSats)}` : 'Shown after assessment'}</dd>
+          <dd>{refundReadiness?.feeSats !== undefined ? `${formatSats(refundReadiness.feeSats)}` : refundReadiness ? (refundReadiness.status === 'ready' ? 'Not reported' : 'n/a') : 'Shown after assessment'}</dd>
         </div>
         <div>
           <dt>Payout address</dt>
@@ -142,6 +142,10 @@ export function RefundPanel() {
           </dd>
         </div>
       </dl>
+
+      {refundReadiness?.reason && (
+        <p className="flow-note" role="status">{refundReadiness.reason}</p>
+      )}
 
       <div className="ripcord-actions">
         <button className="test-pull" disabled={!vault || !identity || phase === 'assessing' || phase === 'broadcasting' || phase === 'claiming'} onClick={() => void assess()}>
