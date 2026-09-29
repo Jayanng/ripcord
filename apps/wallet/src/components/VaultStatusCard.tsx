@@ -20,6 +20,20 @@ export function VaultStatusCard() {
   const pendingFaucetTxid = wallet.identity ? localStorage.getItem(`ripcord:faucet:${wallet.identity.l1Address}`) : null;
   const vaultReady = Boolean((wallet.activeVault?.funding || wallet.activeVault?.vaultIdHex) && (wallet.activeVault?.registered || wallet.activeVault?.vaultIdHex));
 
+  // AUDIT FIX (2026-09-29): the flow state machine is component-level and did
+  // not reset on vault switch. After a funded vault drove `flow` to 'complete',
+  // selecting a fresh unfunded round kept painting "Vault ready" with a fully
+  // ticked checklist and NO funding buttons - the round was unfundable from the
+  // UI. Reset per-record state whenever the active vault record changes.
+  const activeVaultKey = wallet.activeVault ? vaultRecordKey(wallet.activeVault) : '';
+  useEffect(() => {
+    setFlow('ready');
+    setError('');
+    setDepositConfirmations(0);
+    setDepositTxid(readSavedDepositTxid(wallet.activeVault) ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeVaultKey]);
+
   const completeFunding = async (explicitInput?: import('@ripcord/core/types').ExplicitSpendableInput) => {
     if (!wallet.identity || !wallet.activeVault) return;
     const activeVault = wallet.activeVault;
