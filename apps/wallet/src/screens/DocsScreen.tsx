@@ -194,7 +194,7 @@ export function DocsScreen() {
               Integrate self-custodial Bitcoin operations across the Tachi and TAURUS ecosystem via deterministic 5-of-7 Taproot vaults, spendable VTXOs, cryptographic inclusion proofs, and sovereign unilateral exits.
             </p>
             <p>
-              RIPCORD is a verification-first custody architecture where every balance and settlement claim names its authoritative cryptographic source. Cooperative transfers offer instant, zero-fee off-chain settlement, while the on-chain Tapscript exit leaf guarantees that users can always reclaim their exact Bitcoin on L1 after the configured timelock expires without third-party permission.
+              RIPCORD is a verification-first custody architecture where every balance and settlement claim names its authoritative cryptographic source. Cooperative transfers offer instant off-chain settlement for a minimal protocol fee (1 sat minimum, no L1 mining fees), while the on-chain Tapscript exit leaf guarantees that users can always reclaim their exact Bitcoin on L1 after the configured timelock expires without third-party permission.
             </p>
 
             <PocketCallout title="Choose your integration path">
@@ -238,7 +238,7 @@ export function DocsScreen() {
             </div>
 
             <p className="pocket-meta-footer">
-              The platform ships with 252+ automated test assertions, ephemeral memory-only keys, per-transfer reservation locks, and real-time transaction confirmation streaming.
+              The platform ships with 385 automated tests (379 passing live, 6 env-gated), ephemeral memory-only keys, per-transfer reservation locks, and real-time transaction confirmation streaming.
             </p>
             <p className="pocket-meta-footer">
               New to RIPCORD? Start with Quick Start, then read how deterministic vaults operate before executing write transactions.
@@ -350,10 +350,13 @@ export function DocsScreen() {
             <p className="pocket-eyebrow">GETTING STARTED</p>
             <h1 className="pocket-title">Installation & Workspace Setup</h1>
             <p className="pocket-lede">Install @ripcord/core into your Node.js or browser project, or run the full wallet monorepo locally.</p>
+            <p>
+              The package ships as ESM TypeScript (<code>"type": "module"</code>) with first-class type declarations and requires Node.js 18+ on the server, or a modern bundler (Vite, webpack, esbuild) in the browser. The full monorepo requires Node.js 20+.
+            </p>
             <div className="docs-link-cards">
               <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" className="docs-external-card">
                 <span className="docs-external-title">npm: @ripcord/core</span>
-                <span className="docs-external-sub">Verified TypeScript core package v0.1.1</span>
+                <span className="docs-external-sub">Verified TypeScript core package v0.2.0</span>
               </a>
               <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" className="docs-external-card">
                 <span className="docs-external-title">GitHub: Jayanng/ripcord</span>
@@ -362,8 +365,11 @@ export function DocsScreen() {
             </div>
             <CodeBlock title="Package Manager" code={`npm install @ripcord/core\n# or\npnpm add @ripcord/core\n# or\nyarn add @ripcord/core`} />
             <h3>Running the Wallet Locally</h3>
-            <p>Clone the official repository from GitHub, install dependencies, and start the local development server:</p>
+            <p>Clone the official repository from GitHub, install dependencies, build, and start the local development server:</p>
             <CodeBlock title="Terminal Commands" code={`git clone https://github.com/Jayanng/ripcord.git\ncd ripcord\nnpm install\nnpm run build\nnpm run dev`} />
+            <p>
+              <code>npm run build</code> compiles the workspace packages, including <code>@ripcord/core</code> (the wallet consumes its compiled output), so keep it before <code>npm run dev</code>. The dev server then serves the wallet at <code>http://localhost:4173</code> and proxies <code>/health</code>, <code>/tachi</code>, <code>/rpc</code>, and <code>/faucet</code> to the live Tachi regtest services, so no API keys or extra configuration are needed.
+            </p>
           </>
         );
       case 'taproot':
@@ -452,7 +458,7 @@ export function DocsScreen() {
             <h1 className="pocket-title">VTXO Coin Selection & Reservation Locks</h1>
             <p className="pocket-lede">How RIPCORD selects inputs, isolates change outputs, and prevents concurrent double-spends.</p>
             <ul>
-              <li><strong>Greedy Coin Selection:</strong> Selects the smallest optimal set of spendable VTXOs to satisfy the target payment amount.</li>
+              <li><strong>Greedy Largest-First Selection:</strong> Deterministically picks spendable VTXOs largest-first to cover the amount plus fee, skipping spent, locked, or locally reserved inputs.</li>
               <li><strong>Local Spend Reservation:</strong> Temporarily locks selected inputs in memory to prevent concurrent payments from double-spending the same note.</li>
               <li><strong>Single-Writer Queue:</strong> Serializes outbound payments to enforce strict state nonce progression.</li>
               <li><strong>Change Output Isolation:</strong> Change returns strictly to the sender's own user key descriptor, never into the shared validator pool.</li>
@@ -470,7 +476,7 @@ export function DocsScreen() {
                 <div className="journey-step-num">01</div>
                 <div className="journey-body">
                   <h4>Ephemeral Key Generation & Identity Derivation</h4>
-                  <p>User generates a standard 128-bit BIP-39 mnemonic (12 words). Ripcord derives root keys in RAM at path <code>m/84'/0'/0'/0/index</code>.</p>
+                  <p>User generates a standard 128-bit BIP-39 mnemonic (12 words). Ripcord derives root keys in RAM at path <code>m/84'/1'/0'/0/index</code> (BIP-84 scheme, regtest coin type 1').</p>
                 </div>
               </div>
               <div className="journey-card">
@@ -569,7 +575,7 @@ export function DocsScreen() {
             <p className="pocket-lede">Eliminate user uncertainty before executing an on-chain broadcast through simulated witness construction.</p>
             <ul>
               <li>Builds the exact Bitcoin L1 witness transaction.</li>
-              <li>Satisfies the Tapscript leaf with a dummy Schnorr signature.</li>
+              <li>Signs the Tapscript leaf with the user's own key locally (the exact final witness), so the reported vsize is the real spend size.</li>
               <li>Computes virtual size (vsize) and sequence number (<code>nSequence = csvBlocks</code>).</li>
               <li>Computes the deterministic transaction hash (txid) without broadcasting anything.</li>
             </ul>
@@ -594,7 +600,7 @@ export function DocsScreen() {
             <h1 className="pocket-title">Non-Negotiable Protocol Invariants</h1>
             <p className="pocket-lede">Five foundational rules enforced across both the SDK and wallet UI to guarantee fund security.</p>
             <dl className="docs-facts">
-              <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys remain strictly in volatile JavaScript heap memory. Only public addresses and transaction hashes are stored in IndexedDB.</dd></div>
+              <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys remain strictly in volatile JavaScript heap memory. Only public metadata (addresses, public keys, vault records, transaction hashes) is stored in IndexedDB.</dd></div>
               <div><dt>2. Change Isolation</dt><dd>Payment change always returns to the sender's own user key descriptor, never into the shared vault pool script.</dd></div>
               <div><dt>3. Zero Mocks</dt><dd>Every balance, confirmation, proof check, and exit assessment is executed against live Tachi regtest and Bitcoin RPC outputs. The wallet refuses to fabricate mock receipts.</dd></div>
               <div><dt>4. Script Binding</dt><dd>Funding outputs are verified against Bitcoin RPC via exact scriptPubKey matching. No unverified deposit is ever reported as confirmed custody.</dd></div>
@@ -611,15 +617,15 @@ export function DocsScreen() {
             <div className="docs-link-cards">
               <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" className="docs-external-card">
                 <span className="docs-external-title">npm Package</span>
-                <span className="docs-external-sub">npmjs.com/package/@ripcord/core (v0.1.1)</span>
+                <span className="docs-external-sub">npmjs.com/package/@ripcord/core (v0.2.0)</span>
               </a>
               <a href="https://github.com/Jayanng/ripcord/tree/main/packages/core" target="_blank" rel="noreferrer" className="docs-external-card">
                 <span className="docs-external-title">Package Source</span>
                 <span className="docs-external-sub">github.com/Jayanng/ripcord/tree/main/packages/core</span>
               </a>
-              <a href="https://github.com/Jayanng/ripcord/releases/tag/v0.1.1" target="_blank" rel="noreferrer" className="docs-external-card">
+              <a href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0" target="_blank" rel="noreferrer" className="docs-external-card">
                 <span className="docs-external-title">GitHub Release</span>
-                <span className="docs-external-sub">v0.1.1 release tag</span>
+                <span className="docs-external-sub">v0.2.0 release tag</span>
               </a>
             </div>
             <CodeBlock title="Installation via npm" code="npm install @ripcord/core" />
@@ -635,7 +641,7 @@ export function DocsScreen() {
             <h3>Example 1: Key Derivation & Quorum Discovery</h3>
             <CodeBlock title="TypeScript" code={`import { deriveIdentity, getQuorumWithCache } from '@ripcord/core';\n\nconst mnemonic = process.env.RIPCORD_MNEMONIC!;\nconst identity = deriveIdentity(mnemonic, 'regtest', 0);\nconsole.log('User P2TR Address:', identity.userAddress);\n\nconst quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');\nconsole.log(\`Quorum: \${quorum.threshold} of \${quorum.nodePubkeys.length} validators\`);`} />
             <h3>Example 2: Deterministic Vault Derivation</h3>
-            <CodeBlock title="TypeScript" code={`import { createVault, recoverVaultLifecycleState } from '@ripcord/core';\n\nconst vault = await createVault({\n  network: 'regtest',\n  nodePubkeys: quorum.nodePubkeys,\n  csvBlocks: 2,\n  userKeyDescriptor: identity.userKeyDescriptor,\n  threshold: quorum.threshold,\n});\nconsole.log('Vault Taproot Address:', vault.address);`} />
+            <CodeBlock title="TypeScript" code={`import { createVault } from '@ripcord/core';\n\nconst vault = await createVault({\n  network: 'regtest',\n  nodePubkeys: quorum.nodePubkeys,\n  csvBlocks: 2,\n  userKeyDescriptor: identity.userKeyDescriptor,\n  threshold: quorum.threshold,\n});\nconsole.log('Vault Taproot Address:', vault.address);`} />
             <h3>Example 3: VTXO Transfer</h3>
             <CodeBlock title="TypeScript" code={`import { createVtxoPayment, makeSigner } from '@ripcord/core';\n\nconst signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex);\nconst receipt = await createVtxoPayment({\n  vault,\n  senderXOnly: identity.xOnly,\n  recipientAddress: 'bcrt1p...',\n  amountSats: 50_000n,\n  baseUrl: 'https://rpc-regtest.tachibtc.com',\n  signer,\n});\nconsole.log('TxHash:', receipt.txHash);`} />
           </>
@@ -653,13 +659,26 @@ export function DocsScreen() {
                 </thead>
                 <tbody>
                   <tr><td><code>@ripcord/core/keys</code></td><td>BIP-39 mnemonic validation, BIP-84 key derivation, and Schnorr signing adapters.</td></tr>
-                  <tr><td><code>@ripcord/core/quorum</code></td><td>Consensus quorum discovery, validation, caching, and quorum fingerprinting.</td></tr>
+                  <tr><td><code>@ripcord/core/quorum</code></td><td>Consensus quorum discovery, validation, caching, and threshold-aware quorum fingerprinting.</td></tr>
                   <tr><td><code>@ripcord/core/vault</code></td><td>Taproot vault derivation, NUMS internal key, and script tree compilation.</td></tr>
-                  <tr><td><code>@ripcord/core/payment</code></td><td>VTXO coin selection, payment building, change routing, and reservation locks.</td></tr>
-                  <tr><td><code>@ripcord/core/exit</code></td><td>BIP68 maturity evaluation, test-pull dry runs, and unilateral exit execution.</td></tr>
-                  <tr><td><code>@ripcord/core/recovery</code></td><td>Multi-candidate CSV scanning, script matching, and cold-start browser restore.</td></tr>
+                  <tr><td><code>@ripcord/core/deposit</code></td><td>L1 funding detection and scriptPubKey-verified deposit binding.</td></tr>
+                  <tr><td><code>@ripcord/core/register</code></td><td>Vault registration against the Tachi daemon.</td></tr>
+                  <tr><td><code>@ripcord/core/payment</code></td><td>VTXO payment building, change routing, and reservation-aware transfers.</td></tr>
+                  <tr><td><code>@ripcord/core/coinselect</code></td><td>Deterministic largest-first VTXO coin selection.</td></tr>
+                  <tr><td><code>@ripcord/core/queue</code></td><td>Single-writer FIFO transaction queue preventing VTXO double-spend collisions.</td></tr>
                   <tr><td><code>@ripcord/core/indexer</code></td><td>WebSocket indexer client for real-time transaction and block updates.</td></tr>
+                  <tr><td><code>@ripcord/core/proofs</code></td><td>HAT and RIP proof fetchers with HAT-in-RIP inclusion linking.</td></tr>
+                  <tr><td><code>@ripcord/core/exit</code></td><td>BIP68 maturity evaluation, test-pull dry runs, and unilateral exit execution.</td></tr>
+                  <tr><td><code>@ripcord/core/refund</code></td><td>Cooperative refund and to_local recovery flows.</td></tr>
+                  <tr><td><code>@ripcord/core/recovery</code></td><td>Multi-candidate CSV scanning, script matching, and cold-start browser restore.</td></tr>
+                  <tr><td><code>@ripcord/core/lifecycle</code></td><td>End-to-end vault lifecycle helpers, including mnemonic-based recovery.</td></tr>
+                  <tr><td><code>@ripcord/core/search</code></td><td>In-wallet protocol search against the daemon's search endpoint.</td></tr>
+                  <tr><td><code>@ripcord/core/health</code></td><td>Fee estimates and daemon health probes.</td></tr>
+                  <tr><td><code>@ripcord/core/net</code></td><td>Daemon URL joining and fetch-failure diagnosis.</td></tr>
                   <tr><td><code>@ripcord/core/store</code></td><td>Public metadata persistence adapters for Memory and IndexedDB.</td></tr>
+                  <tr><td><code>@ripcord/core/errors</code></td><td>RipcordError and the RipcordCode error taxonomy.</td></tr>
+                  <tr><td><code>@ripcord/core/bytes</code></td><td>Hex/byte helpers, including txid internal-vs-display order conversion.</td></tr>
+                  <tr><td><code>@ripcord/core/types</code></td><td>Shared domain types: VaultRecord, receipts, and the forward-compatible SatVM interfaces.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -777,8 +796,8 @@ const callParams: SatVmCallParams = {
               <div><dt>Bitcoin Faucet</dt><dd><a href="https://faucet.tachibtc.com" target="_blank" rel="noreferrer">https://faucet.tachibtc.com</a></dd></div>
               <div><dt>Block Explorer</dt><dd><a href="https://explorer-regtest.tachibtc.com" target="_blank" rel="noreferrer">https://explorer-regtest.tachibtc.com</a></dd></div>
               <div><dt>GitHub Repository</dt><dd><a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer">github.com/Jayanng/ripcord</a></dd></div>
-              <div><dt>Core Package (npm)</dt><dd><a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer">npmjs.com/package/@ripcord/core (v0.1.1)</a></dd></div>
-              <div><dt>GitHub Release</dt><dd><a href="https://github.com/Jayanng/ripcord/releases/tag/v0.1.1" target="_blank" rel="noreferrer">Release v0.1.1</a></dd></div>
+              <div><dt>Core Package (npm)</dt><dd><a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer">npmjs.com/package/@ripcord/core (v0.2.0)</a></dd></div>
+              <div><dt>GitHub Release</dt><dd><a href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0" target="_blank" rel="noreferrer">Release v0.2.0</a></dd></div>
               <div><dt>BIP Standards</dt><dd>BIP-39 (Mnemonic), BIP-84 (Derivation), BIP-340/341/342 (Taproot), BIP-68 (CSV)</dd></div>
             </dl>
           </>
@@ -860,17 +879,17 @@ const callParams: SatVmCallParams = {
               <span>npm: @ripcord/core</span>
             </a>
             <a
-              href="https://github.com/Jayanng/ripcord/releases/tag/v0.1.1"
+              href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0"
               target="_blank"
               rel="noreferrer"
               className="pocket-sidebar-link"
-              title="Release v0.1.1"
+              title="Release v0.2.0"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2.5 9l5 5 7-7V2.5H10L2.5 9z"/>
                 <circle cx="12" cy="4" r="1" fill="currentColor"/>
               </svg>
-              <span>Release v0.1.1</span>
+              <span>Release v0.2.0</span>
             </a>
           </div>
         </aside>
