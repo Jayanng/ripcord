@@ -334,9 +334,19 @@ function parseSuffixDiff(value: unknown, index: number): RipSuffixDiff {
       `suffixDiffs[${index}].suffix must be an integer in 0..255, got ${suffix}`,
     );
   }
+  // State-diff suffixes can be insertions or bare touches: the daemon then
+  // sends null/absent values (real regtest self-proof payload, 2026-09-30).
+  // Carry those as empty strings instead of rejecting the whole proof.
+  const rawCurrent = row.currentValue;
+  const currentValue =
+    typeof rawCurrent === 'string'
+      ? rawCurrent
+      : rawCurrent === null || rawCurrent === undefined
+        ? ''
+        : asString(rawCurrent, `suffixDiffs[${index}].currentValue`);
   const parsed: RipSuffixDiff = {
     suffix,
-    currentValue: asString(row.currentValue, `suffixDiffs[${index}].currentValue`),
+    currentValue,
   };
   if (typeof row.newValue === 'string') {
     return { ...parsed, newValue: row.newValue };
@@ -589,8 +599,14 @@ export function verifyHatInRip(hat: HatProof, rip: RipProof): HatRipLink {
 
   for (const diff of rip.stateDiff) {
     for (const suffixDiff of diff.suffixDiffs) {
-      const got = normalizeProofHex(suffixDiff.currentValue);
-      if (got !== want) continue;
+      // Match against both the previous and the new value: an insertion has no
+      // currentValue and the HAT lands in newValue (or both may be null for a
+      // bare touch in a self-proof).
+      const matchedValue = [suffixDiff.currentValue, suffixDiff.newValue].find(
+        (v): v is string =>
+          typeof v === 'string' && v.length > 0 && normalizeProofHex(v) === want,
+      );
+      if (!matchedValue) continue;
 
       const stemHex = normalizeProofHex(diff.stem);
       const suffixByte = suffixDiff.suffix.toString(16).padStart(2, '0');
@@ -608,7 +624,7 @@ export function verifyHatInRip(hat: HatProof, rip: RipProof): HatRipLink {
         verified,
         stem: diff.stem,
         suffix: suffixDiff.suffix,
-        matchedValue: suffixDiff.currentValue,
+        matchedValue,
         keyIdentityHolds,
         reason,
       };

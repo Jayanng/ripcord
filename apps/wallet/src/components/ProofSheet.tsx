@@ -26,17 +26,29 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
     setFetchError(null);
     try {
       const { buildPaymentReceipt } = await import('@ripcord/core');
-      const fetched = await buildPaymentReceipt({
-        txHash: live.txHash,
-        epoch: live.epoch,
-        code: live.code,
-        fromXOnly: live.fromXOnly,
-        toXOnly: live.toXOnly,
-        amountSats: live.amountSats,
-        feeSats: live.feeSats,
-        baseUrl: daemonUrl,
-        window: 0,
-      });
+      // The regtest daemon wobbles (502s / upstream timeouts) transiently;
+      // one retry makes the tap reliable without masking real failures.
+      let fetched;
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2 && !fetched; attempt += 1) {
+        try {
+          fetched = await buildPaymentReceipt({
+            txHash: live.txHash,
+            epoch: live.epoch,
+            code: live.code,
+            fromXOnly: live.fromXOnly,
+            toXOnly: live.toXOnly,
+            amountSats: live.amountSats,
+            feeSats: live.feeSats,
+            baseUrl: daemonUrl,
+            window: 0,
+          });
+        } catch (cause) {
+          lastError = cause;
+          if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+      if (!fetched) throw lastError;
       const merged: PaymentReceipt = {
         ...live,
         ...(fetched.hat ? { hat: fetched.hat } : {}),
