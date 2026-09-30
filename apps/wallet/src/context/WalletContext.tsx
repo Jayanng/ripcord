@@ -119,7 +119,16 @@ export function identityForVault(identity: Identity | null, vault: VaultRecord |
 const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [store, setStore] = useState<RipcordStore | null>(null);
+  const [store, setStore] = useState<RipcordStore | null>(() => {
+    if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
+      try {
+        return new IndexedDbStore({ dbName: 'ripcord-public-v1' });
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
   const [health, setHealth] = useState<PreflightResult | null>(null);
   const [bootState, setBootState] = useState<BootState>('checking');
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -151,7 +160,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
   useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
 
-  useEffect(() => { setStore(new IndexedDbStore({ dbName: 'ripcord-public-v1' })); }, []);
+  useEffect(() => {
+    if (!store && typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
+      try {
+        setStore(new IndexedDbStore({ dbName: 'ripcord-public-v1' }));
+      } catch {
+        // ignore
+      }
+    }
+  }, [store]);
 
   // Compute pending incoming sats total with a 10-minute drop policy
   const pendingIncomingSats = useMemo(() => {
@@ -166,7 +183,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return sum;
   }, [pendingCredits]);
 
-  const vaults = useMemo(() => vaultsForIdentity(storedVaults, identity), [identity, storedVaults]);
+  const vaults = useMemo(() => (identity ? vaultsForIdentity(storedVaults, identity) : storedVaults), [identity, storedVaults]);
   const hasVault = vaults.length > 0;
   // Explicit vault selection (Phase 5 multi-vault): the user's pick wins, the
   // scored heuristic stays as the default when nothing is selected. Vault
@@ -190,13 +207,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // mutation lands while the reads are in flight, its handler already
       // applied fresher state and this stale read must not replace it.
       const readGen = stateGen.current;
-      const [nextHealth, nextVaults, nextReceipts, wtStatus, wtReceipts] = await Promise.all([
+
+      // Read local store first so stored vaults are restored immediately and independently of daemon health.
+      const currentStore = store ?? (typeof window !== 'undefined' && typeof indexedDB !== 'undefined' ? new IndexedDbStore({ dbName: 'ripcord-public-v1' }) : null);
+      if (currentStore) {
+        try {
+          const [nextVaults, nextReceipts] = await Promise.all([
+            currentStore.getVaults(),
+            currentStore.getReceipts(),
+          ]);
+          if (stateGen.current === readGen) {
+            setStoredVaults(nextVaults);
+            setReceipts(nextReceipts);
+          }
+        } catch (storeError) {
+          console.error('Failed to read from local store:', storeError);
+        }
+      }
+
+      const [nextHealth, wtStatus, wtReceipts] = await Promise.all([
         import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
           allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL,
           bitcoinRpcBaseUrl: BITCOIN_RPC_BASE,
         })),
-        store?.getVaults() ?? Promise.resolve([]),
-        store?.getReceipts() ?? Promise.resolve([]),
         import('@ripcord/core/health').then(({ fetchWatchtowerStatus }) =>
           fetchWatchtowerStatus(DEFAULT_DAEMON, { allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL })
         ).catch(() => null),
@@ -207,10 +240,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           : Promise.resolve([]),
       ]);
       setHealth(nextHealth);
-      if (stateGen.current === readGen) {
-        setStoredVaults(nextVaults);
-        setReceipts(nextReceipts);
-      }
       setWatchtowerStatus(wtStatus ?? nextHealth.watchtower ?? null);
       setVaultBreachReceipts(wtReceipts);
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
