@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useWallet } from './context/WalletContext';
 import { Layout } from './components/Layout';
 import type { AppTab } from './components/TabBar';
@@ -7,11 +7,12 @@ import { WalletScreen } from './screens/WalletScreen';
 import { ExitScreen } from './screens/ExitScreen';
 import { ProofsScreen } from './screens/ProofsScreen';
 import { ActivityScreen } from './screens/ActivityScreen';
-import { Skeleton } from './components/Skeleton';
+import { WalletSkeleton } from './components/Skeleton';
 
 export function App() {
   const wallet = useWallet();
   const [tab, setTab] = useState<AppTab>('wallet');
+  const [, startTransition] = useTransition();
   const isBooting = wallet.bootState === 'checking';
 
   useEffect(() => {
@@ -85,7 +86,9 @@ export function App() {
       window.location.hash = '#/create';
       return;
     }
-    setTab(nextTab);
+    startTransition(() => {
+      setTab(nextTab);
+    });
     window.location.hash = `#/${nextTab}`;
   };
 
@@ -94,13 +97,7 @@ export function App() {
   return (
     <Layout tab={tab} onTabChange={handleTabChange} navVisible={navVisible}>
       {isBooting ? (
-        <section className="flow-screen" aria-busy="true" aria-label="Loading wallet">
-          <div style={{ display: 'grid', gap: '20px', padding: '24px 0' }}>
-            <Skeleton width="35%" height={32} radius={8} />
-            <Skeleton width="100%" height={120} radius={12} />
-            <Skeleton width="100%" height={80} radius={12} />
-          </div>
-        </section>
+        <WalletSkeleton />
       ) : navVisible ? (
         tab === 'activity' ? (
           <ActivityScreen />

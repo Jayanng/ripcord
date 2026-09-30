@@ -109,6 +109,8 @@ button:focus-visible, a:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
+  min-width: 44px;
   font-size: 16px;
   font-weight: 800;
   color: var(--text-hi);
@@ -133,10 +135,15 @@ button:focus-visible, a:focus-visible {
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-lo);
-  padding: 8px 14px;
+  padding: 10px 16px;
   border-radius: var(--r-full);
   transition: color 0.15s ease, background-color 0.15s ease;
 }
@@ -155,12 +162,15 @@ button:focus-visible, a:focus-visible {
 .btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
   background: var(--primary);
   color: #FFFFFF;
   font-size: 14px;
   font-weight: 700;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: var(--r-full);
   box-shadow: var(--shadow-sm);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -175,12 +185,15 @@ button:focus-visible, a:focus-visible {
 .btn-secondary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
   background: #FFFFFF;
   color: var(--text-hi);
   font-size: 14px;
   font-weight: 700;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: var(--r-full);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
@@ -564,6 +577,12 @@ button:focus-visible, a:focus-visible {
 }
 
 .footer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-lo);
@@ -684,10 +703,12 @@ button:focus-visible, a:focus-visible {
 }
 
 .pocket-nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   width: 100%;
   text-align: left;
-  padding: 7px 12px;
+  padding: 10px 14px;
   border-radius: var(--r-sm);
   font-size: 13.5px;
   font-weight: 550;
@@ -718,8 +739,9 @@ button:focus-visible, a:focus-visible {
 .pocket-sidebar-link {
   display: flex;
   align-items: center;
+  min-height: 44px;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 10px 12px;
   border-radius: var(--r-sm);
   font-size: 12.5px;
   font-weight: 600;
@@ -1254,13 +1276,23 @@ button:focus-visible, a:focus-visible {
   }
 
   .nav-link {
-    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 12px;
     font-size: 13px;
   }
 
   .btn-primary, .btn-secondary {
-    padding: 8px 14px;
-    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 18px;
+    font-size: 13.5px;
   }
 
   .hero {

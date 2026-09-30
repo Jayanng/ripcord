@@ -11,9 +11,109 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/ripcord-mark.svg" type="image/svg+xml" />
     <title>Ripcord · Regtest wallet</title>
+    <style>
+      :root {
+        --bg-base: #FAFAF8;
+        --line: #E2E4E9;
+        --line-subtle: #F0F2F6;
+        --primary: #F36633;
+      }
+      body {
+        margin: 0;
+        background-color: #FAFAF8;
+        font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      }
+      .boot-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 66px;
+        padding: 0 24px;
+        border-bottom: 1px solid #E2E4E9;
+        background: rgba(255, 255, 255, 0.94);
+      }
+      .boot-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 850;
+        color: #0F172A;
+        letter-spacing: .06em;
+      }
+      .boot-dashboard {
+        width: min(100% - 40px, 1080px);
+        margin: 0 auto;
+        padding: 48px 0;
+        display: grid;
+        gap: 20px;
+      }
+      .boot-card {
+        border: 1px solid #E2E4E9;
+        border-radius: 18px;
+        background: #FFFFFF;
+        box-shadow: 0 6px 24px -2px rgba(15, 23, 42, 0.07);
+        overflow: hidden;
+      }
+      .boot-line {
+        background: linear-gradient(90deg, #F0F2F6 25%, #E2E4E9 50%, #F0F2F6 75%);
+        background-size: 200% 100%;
+        animation: boot-shimmer 1.8s infinite;
+        border-radius: 6px;
+      }
+      @keyframes boot-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <header class="boot-topbar" aria-label="Loading wallet">
+        <div class="boot-brand">
+          <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M26 6C26 9.5 23 11 18 11.5" stroke="#EA580C" stroke-width="2.75" stroke-linecap="round"/>
+            <rect x="15" y="10" width="6" height="3" rx="1.5" fill="#0F172A"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M11 15C8.5 15 6 18 6.5 24C7 29.5 12 32 18 32C24 32 29 29.5 29.5 24C30 18 27.5 15 25 15C22 15 21 16.5 18 16.5C15 16.5 14 15 11 15ZM12.5 19.5C14.5 19.5 15.5 21 18 21C20.5 21 21.5 19.5 23.5 19.5C24.5 19.5 25.5 21 25 24C24.5 26.5 21.5 27.5 18 27.5C14.5 27.5 11.5 26.5 11 24C10.5 21 11.5 19.5 12.5 19.5Z" fill="#EA580C"/>
+          </svg>
+          <span>RIPCORD</span>
+        </div>
+        <div class="boot-line" style="width: 140px; height: 32px; border-radius: 9999px;"></div>
+      </header>
+      <main class="boot-dashboard" aria-busy="true" aria-label="Loading wallet">
+        <div class="boot-card">
+          <div style="padding: 22px 24px; border-bottom: 1px solid #F0F2F6; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="display: grid; gap: 8px;">
+              <div class="boot-line" style="width: 120px; height: 12px;"></div>
+              <div class="boot-line" style="width: 160px; height: 22px;"></div>
+              <div class="boot-line" style="width: 220px; height: 14px;"></div>
+            </div>
+            <div class="boot-line" style="width: 28px; height: 28px; border-radius: 50%;"></div>
+          </div>
+          <div style="padding: 34px 28px; display: grid; gap: 12px;">
+            <div class="boot-line" style="width: 140px; height: 11px;"></div>
+            <div class="boot-line" style="width: 220px; height: 42px; border-radius: 8px;"></div>
+            <div class="boot-line" style="width: 180px; height: 14px;"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 18px 24px; border-top: 1px solid #F0F2F6; background: #FAFCFE;">
+            <div class="boot-line" style="height: 46px; border-radius: 12px;"></div>
+            <div class="boot-line" style="height: 46px; border-radius: 12px;"></div>
+            <div class="boot-line" style="height: 46px; border-radius: 12px;"></div>
+          </div>
+        </div>
+        <div class="boot-card" style="padding: 28px;">
+          <div style="display: grid; gap: 8px; margin-bottom: 20px;">
+            <div class="boot-line" style="width: 140px; height: 12px;"></div>
+            <div class="boot-line" style="width: 200px; height: 22px;"></div>
+            <div class="boot-line" style="width: 280px; height: 14px;"></div>
+          </div>
+          <div class="boot-line" style="width: 100%; height: 60px; border-radius: 12px;"></div>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

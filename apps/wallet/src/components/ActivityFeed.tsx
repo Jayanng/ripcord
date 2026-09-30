@@ -5,6 +5,7 @@ import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetA
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
+import { Skeleton } from './Skeleton';
 
 type ActivityFilter = 'all' | 'transfers' | 'deposits' | 'blocks';
 
@@ -34,7 +35,7 @@ function dayLabelOf(item: ActivityItem): string {
 }
 
 export function ActivityFeed() {
-  const { activity, receipts, indexerStatus, identity, activeVault, spentVtxos } = useActivity();
+  const { activity, receipts, indexerStatus, identity, activeVault, spentVtxos, vtxoSnapshotLoaded } = useActivity();
   const [selected, setSelected] = useState<PaymentReceipt | null>(null);
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [search, setSearch] = useState('');
@@ -112,6 +113,29 @@ export function ActivityFeed() {
 
   const exportItems = () => filteredItems;
   const exportStem = `ripcord-activity-${new Date().toISOString().slice(0, 10)}`;
+  if (!vtxoSnapshotLoaded) {
+    return (
+      <section id="activity" className="instrument activity-card" aria-busy="true" aria-label="Loading activity">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Live evidence stream</p>
+            <h2>Activity</h2>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Skeleton width={120} height={24} radius={999} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gap: '16px', padding: '24px' }}>
+          <Skeleton width="100%" height={42} radius={8} />
+          <div style={{ display: 'grid', gap: '10px', marginTop: '8px' }}>
+            <Skeleton width="100%" height={68} radius={12} />
+            <Skeleton width="100%" height={68} radius={12} />
+            <Skeleton width="100%" height={68} radius={12} />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="activity" className="instrument activity-card">
@@ -212,11 +236,11 @@ export function ActivityFeed() {
       ) : (
         <div className="empty-state">
           <span className="empty-glyph">⌁</span>
-          <strong>{items.length ? 'Nothing matches this filter' : 'No activity restored'}</strong>
+          <strong>{items.length ? 'Nothing matches this filter' : 'No activity yet'}</strong>
           <p>
             {items.length
               ? 'Clear the search or switch the filter tab to see the rest of the evidence stream.'
-              : 'Pending events, committed transactions, and proof receipts will appear here.'}
+              : 'No activity yet. Your transfers and deposits will appear here.'}
           </p>
         </div>
       )}

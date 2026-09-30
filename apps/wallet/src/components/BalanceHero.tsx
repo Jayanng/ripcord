@@ -29,7 +29,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
       <div>
         <p className="eyebrow">TAURUS Custody Split</p>
         <h2 id="balance-title">Your balance</h2>
-        <p className="balance-subtitle">Balances stay separate</p>
+        <p className="balance-subtitle">Vault and spending balances are tracked separately.</p>
       </div>
       <Icon name="shield" />
     </div>
@@ -51,43 +51,100 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
       </span>
     </div>
 
-    {/* Off-chain spendable balance (snapshot-based source of spendable balance) */}
-    <div className="balance-primary">
-      <span>OFF-CHAIN · SPENDABLE NOW</span>
-      {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>{formatSats(balance.offChainSats)}</strong>}
-      <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : 'No VTXO snapshot loaded'}</small>
-    </div>
+    {balance.offChainSats === 0n && balance.pendingIncomingSats === 0n && balance.lockedSats === 0n && balance.onChainSats === 0n ? (
+      <>
+        {/* Fix 2 & 3: Friendly one-line zero state plus funding call-to-action near top */}
+        <div className="balance-primary">
+          <span>SPENDABLE BALANCE</span>
+          {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>0 sats</strong>}
+          <small className="balance-friendly-helper">Nothing here yet. Fund your wallet to get started.</small>
+          {onReceive && (
+            <div style={{ marginTop: '14px' }}>
+              <button type="button" className="test-pull balance-fund-cta" onClick={onReceive}>
+                <Icon name="receive" />
+                <span>Fund your wallet</span>
+              </button>
+            </div>
+          )}
+        </div>
 
-    {/* Pending incoming credits (Scope 2) */}
-    <div className="balance-secondary balance-pending">
-      <div>
-        <span>PENDING INCOMING · NOT COMMITTED</span>
-        <strong style={balance.pendingIncomingSats > 0n ? { color: 'var(--pending)' } : undefined}>
-          {balance.pendingIncomingSats > 0n ? `+${formatSats(balance.pendingIncomingSats)}` : '0 sats'}
-        </strong>
-      </div>
-      {balance.pendingIncomingSats > 0n && <small>Awaiting block commit</small>}
-    </div>
+        {/* Fix 3: Collapse the four technical rows behind expandable details control */}
+        <details className="balance-details-drawer">
+          <summary className="balance-details-summary" aria-label="Toggle Balance details">
+            <span>Balance details</span>
+            <span className="balance-details-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div className="balance-details-rows">
+            <div className="balance-secondary">
+              <div>
+                <span>OFF-CHAIN · SPENDABLE NOW</span>
+                <strong>{formatSats(balance.offChainSats)}</strong>
+              </div>
+              <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : '0 VTXOs'}</small>
+            </div>
+            <div className="balance-secondary balance-pending">
+              <div>
+                <span>PENDING INCOMING · NOT COMMITTED</span>
+                <strong>0 sats</strong>
+              </div>
+            </div>
+            <div className="balance-secondary balance-locked">
+              <div>
+                <span>LOCKED · IN COOPERATIVE ESCROW</span>
+                <strong>0 sats</strong>
+              </div>
+            </div>
+            <div className="balance-secondary">
+              <div>
+                <span>ON-CHAIN · IN TAURUS VAULTS</span>
+                <strong>0 sats</strong>
+              </div>
+              <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
+            </div>
+          </div>
+        </details>
+      </>
+    ) : (
+      <>
+        {/* Off-chain spendable balance (snapshot-based source of spendable balance) */}
+        <div className="balance-primary">
+          <span>OFF-CHAIN · SPENDABLE NOW</span>
+          {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>{formatSats(balance.offChainSats)}</strong>}
+          <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : 'Nothing here yet. Fund your wallet to get started.'}</small>
+        </div>
 
-    {/* Locked VTXOs (Scope 4) - locked is NOT spendable */}
-    <div className="balance-secondary balance-locked">
-      <div>
-        <span>LOCKED · IN COOPERATIVE ESCROW</span>
-        <strong>{formatSats(balance.lockedSats)}</strong>
-      </div>
-      {balance.lockedCount > 0 && (
-        <small>{balance.lockedCount} locked VTXO{balance.lockedCount === 1 ? '' : 's'}</small>
-      )}
-    </div>
+        {/* Pending incoming credits (Scope 2) */}
+        <div className="balance-secondary balance-pending">
+          <div>
+            <span>PENDING INCOMING · NOT COMMITTED</span>
+            <strong style={balance.pendingIncomingSats > 0n ? { color: 'var(--pending)' } : undefined}>
+              {balance.pendingIncomingSats > 0n ? `+${formatSats(balance.pendingIncomingSats)}` : '0 sats'}
+            </strong>
+          </div>
+          {balance.pendingIncomingSats > 0n && <small>Awaiting block commit</small>}
+        </div>
 
-    {/* On-chain vault funding */}
-    <div className="balance-secondary">
-      <div>
-        <span>ON-CHAIN · IN TAURUS VAULTS</span>
-        {firstLoad ? <Skeleton width="45%" height={18} radius={6} /> : <strong>{formatSats(balance.onChainSats)}</strong>}
-      </div>
-      <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
-    </div>
+        {/* Locked VTXOs (Scope 4) - locked is NOT spendable */}
+        <div className="balance-secondary balance-locked">
+          <div>
+            <span>LOCKED · IN COOPERATIVE ESCROW</span>
+            <strong>{formatSats(balance.lockedSats)}</strong>
+          </div>
+          {balance.lockedCount > 0 && (
+            <small>{balance.lockedCount} locked VTXO{balance.lockedCount === 1 ? '' : 's'}</small>
+          )}
+        </div>
+
+        {/* On-chain vault funding */}
+        <div className="balance-secondary">
+          <div>
+            <span>ON-CHAIN · IN TAURUS VAULTS</span>
+            {firstLoad ? <Skeleton width="45%" height={18} radius={6} /> : <strong>{formatSats(balance.onChainSats)}</strong>}
+          </div>
+          <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
+        </div>
+      </>
+    )}
 
     {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the balance block */}
     <div className="custody-updated-row">

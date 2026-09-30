@@ -63,6 +63,34 @@ function ripcordHtmlPlugin(): Plugin {
           fs.copyFileSync(indexHtml, appHtml);
           // 2. Place the standalone landing page at dist/index.html
           fs.copyFileSync(landingHtml, indexHtml);
+
+          // 3. Inject modulepreload/prefetch for app bundle assets into landing and docs
+          try {
+            const appContent = fs.readFileSync(appHtml, 'utf-8');
+            const assetMatches = appContent.match(/<(?:script type="module"|link rel="(?:modulepreload|stylesheet)")[^>]+>/g) || [];
+            if (assetMatches.length > 0) {
+              const prefetchTags = assetMatches.map(tag => {
+                const srcMatch = tag.match(/(?:src|href)="([^"]+)"/);
+                if (!srcMatch) return '';
+                const url = srcMatch[1];
+                if (url.endsWith('.css')) {
+                  return `<link rel="prefetch" href="${url}" as="style">`;
+                }
+                return `<link rel="modulepreload" href="${url}">`;
+              }).filter(Boolean).join('\n    ');
+
+              const docsHtml = resolve(distDir, 'docs/index.html');
+              for (const targetPath of [indexHtml, docsHtml]) {
+                if (fs.existsSync(targetPath)) {
+                  let content = fs.readFileSync(targetPath, 'utf-8');
+                  content = content.replace('</head>', `    ${prefetchTags}\n</head>`);
+                  fs.writeFileSync(targetPath, content, 'utf-8');
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Failed to inject prefetch links:', e);
+          }
         }
         if (fs.existsSync(vercelJsonSrc)) {
           fs.copyFileSync(vercelJsonSrc, vercelJsonDest);

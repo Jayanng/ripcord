@@ -92,8 +92,10 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; 
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  min-height: 44px;
+  min-width: 44px;
   gap: 10px;
   color: var(--text-hi);
   text-decoration: none;
@@ -103,7 +105,16 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; 
   font-family: var(--font-sans);
 }
 
-.brand-button { padding: 0; border: 0; background: transparent; cursor: pointer; }
+.brand-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
 .brand-mark {
   display: flex;
   align-items: center;
@@ -132,7 +143,7 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; 
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
+  min-height: 44px;
   min-width: 78px;
   padding: 0 16px;
   border: 0;
@@ -190,8 +201,10 @@ summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; 
 .topbar-github-link {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 9999px;
   border: 1px solid #E2E8F0;
   background: #FFFFFF;
@@ -296,7 +309,8 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0 20px;
   border: 1.5px solid var(--line-strong);
   border-radius: 9999px;
@@ -325,8 +339,9 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 0 12px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: 9999px;
   background: #FFFFFF;
@@ -344,7 +359,11 @@ h3 {
 }
 
 .refresh {
-  min-height: 40px;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: fit-content;
   padding: 0 18px;
   border: 1.5px solid var(--line);
@@ -901,7 +920,14 @@ h3 {
 .chip-word { color: var(--text-hi); font: 700 13px var(--font-mono); }
 
 .flow-actions { display: grid; gap: 10px; }
-.explorer-link { color: var(--primary); font: 700 12px var(--font-mono); text-decoration: none; }
+.explorer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--primary);
+  font: 700 12px var(--font-mono);
+  text-decoration: none;
+}
 .explorer-link:hover { text-decoration: underline; }
 
 .flow-success > strong { color: var(--confirmed); }
@@ -1237,7 +1263,7 @@ h3 {
 .sheet-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: end; justify-content: end; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); }
 .proof-sheet { width: 100%; max-height: 88vh; overflow-y: auto; border-top: 1px solid var(--line-strong); border-radius: 20px 20px 0 0; background: #FFFFFF; box-shadow: 0 -20px 60px rgba(15, 23, 42, 0.2); }
 .proof-sheet header { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; border-bottom: 1px solid var(--line); background: #FFFFFF; }
-.proof-sheet header button { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 9999px; background: #F8FAFC; color: var(--text-hi); cursor: pointer; }
+.proof-sheet header button { display: grid; width: 44px; height: 44px; min-width: 44px; min-height: 44px; place-items: center; border: 1px solid var(--line); border-radius: 9999px; background: #F8FAFC; color: var(--text-hi); cursor: pointer; }
 .proof-chain { padding: 12px 24px 24px; }
 .proof-step { position: relative; display: grid; gap: 5px; padding: 18px 0 18px 30px; border-bottom: 1px solid var(--line-subtle); }
 .proof-step::before { position: absolute; top: 22px; left: 1px; width: 11px; height: 11px; border: 2px solid #FFFFFF; border-radius: 50%; background: var(--confirmed); box-shadow: 0 0 0 2px var(--confirmed); content: ""; }
@@ -2534,7 +2560,7 @@ details[open] .vtxo-chevron {
 /* ===== Phase 6: receive modes, payment requests, recipient memory ===== */
 .receive-mode-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .receive-mode-tab {
-  min-height: 40px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+  min-height: 44px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--bg-raised); color: var(--text-lo); cursor: pointer;
   font: 650 12.5px var(--font-sans); letter-spacing: .01em;
   transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
@@ -2669,14 +2695,14 @@ details[open] .vtxo-chevron {
 }
 .activity-filter-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .activity-filter-tab {
-  min-height: 38px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
+  min-height: 44px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--bg-raised); color: var(--text-lo); cursor: pointer;
   font: 650 12.5px var(--font-sans); transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
 }
 .activity-filter-tab:hover { border-color: var(--primary-border); color: var(--text-hi); }
 .activity-filter-tab.active { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .activity-search-input {
-  min-height: 42px; padding: 9px 14px; border: 1px solid var(--line);
+  min-height: 44px; padding: 10px 14px; border: 1px solid var(--line);
   border-radius: var(--r-sm); background: var(--bg-raised); color: var(--text-hi);
   font: 500 13.5px var(--font-sans);
 }
@@ -2835,11 +2861,102 @@ details[open] .vtxo-chevron {
   width: 7px; height: 7px; border-radius: 999px; background: var(--confirmed);
 }
 .theme-toggle {
-  min-height: 34px; padding: 6px 14px; border: 1px solid var(--line);
-  border-radius: 999px; background: var(--bg-raised); color: var(--text);
-  cursor: pointer; font: 700 11.5px var(--font-sans); letter-spacing: .03em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font: 700 11.5px var(--font-sans);
+  letter-spacing: .03em;
 }
 .theme-toggle:hover { border-color: var(--primary-border); color: var(--text-hi); }
+
+/* Back to wallet control */
+.back-to-wallet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  background: var(--bg-raised);
+  color: var(--primary);
+  font: 750 13px var(--font-sans);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: all .15s ease;
+}
+
+.back-to-wallet-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
+  color: var(--primary-hover);
+  transform: translateX(-2px);
+}
+
+/* Balance details drawer (zero wall collapse) */
+.balance-details-drawer {
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-inset);
+}
+
+.balance-details-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 12px 28px;
+  cursor: pointer;
+  font: 700 12px var(--font-sans);
+  color: var(--text-lo);
+  list-style: none;
+  user-select: none;
+  transition: color .15s ease;
+}
+
+.balance-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.balance-details-summary:hover {
+  color: var(--text-hi);
+}
+
+.balance-details-chevron {
+  font-size: 13px;
+  transition: transform .2s ease;
+}
+
+details[open] .balance-details-chevron {
+  transform: rotate(180deg);
+}
+
+.balance-details-rows .balance-secondary {
+  border-top: 1px solid var(--line-subtle);
+}
+
+.balance-friendly-helper {
+  color: var(--text-lo);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.balance-fund-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 22px;
+}
 
 .recovery-banner {
   display: grid; gap: 4px; margin: 14px 0 0; padding: 14px 18px;

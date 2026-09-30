@@ -41,7 +41,7 @@ const MODE_COPY: Record<ReceiveMode, { eyebrow: string; title: string; guidance:
   },
 };
 
-export function ReceiveScreen() {
+export function ReceiveScreen({ onBack }: { onBack?: () => void } = {}) {
   const wallet = useWallet();
   const { identity, indexerStatus, activeVault } = wallet;
   const [copyState, setCopyState] = useState('');
@@ -116,6 +116,16 @@ export function ReceiveScreen() {
   const modeCopy = MODE_COPY[mode];
 
   return <section className="flow-screen receive-screen">
+    {onBack && (
+      <button
+        type="button"
+        className="back-to-wallet-btn"
+        onClick={onBack}
+        aria-label="Back to wallet"
+      >
+        ← Back to wallet
+      </button>
+    )}
     <div className="flow-heading">
       <p className="eyebrow">{modeCopy.eyebrow}</p>
       <h2>{modeCopy.title}</h2>

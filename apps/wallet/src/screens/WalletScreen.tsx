@@ -1,58 +1,47 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BalanceScreen } from './BalanceScreen';
 import { SendScreen } from './SendScreen';
 import { ReceiveScreen } from './ReceiveScreen';
-import { Icon } from '../components/ui';
 
-export type WalletSubTab = 'balance' | 'send' | 'receive';
+export type WalletSubView = 'balance' | 'send' | 'receive';
+
+function readSubViewFromHash(): WalletSubView {
+  const hash = window.location.hash.toLowerCase().replace('#/', '').replace('#', '');
+  if (hash === 'send') return 'send';
+  if (hash === 'receive') return 'receive';
+  return 'balance';
+}
 
 export function WalletScreen({ onExit }: { onExit?: () => void }) {
-  const [subTab, setSubTab] = useState<WalletSubTab>('balance');
+  const [subView, setSubView] = useState<WalletSubView>(() => readSubViewFromHash());
 
-  return <section className="wallet-section">
-    <div className="subnav" role="tablist" aria-label="Wallet sections">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={subTab === 'balance'}
-        className={`subnav-btn ${subTab === 'balance' ? 'active' : ''}`}
-        onClick={() => setSubTab('balance')}
-      >
-        <Icon name="balance" />
-        <span>Balance</span>
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={subTab === 'send'}
-        className={`subnav-btn ${subTab === 'send' ? 'active' : ''}`}
-        onClick={() => setSubTab('send')}
-      >
-        <Icon name="send" />
-        <span>Send</span>
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={subTab === 'receive'}
-        className={`subnav-btn ${subTab === 'receive' ? 'active' : ''}`}
-        onClick={() => setSubTab('receive')}
-      >
-        <Icon name="receive" />
-        <span>Receive</span>
-      </button>
-    </div>
+  useEffect(() => {
+    const handleHash = () => {
+      setSubView(readSubViewFromHash());
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
-    {subTab === 'send' ? (
-      <SendScreen />
-    ) : subTab === 'receive' ? (
-      <ReceiveScreen />
-    ) : (
-      <BalanceScreen
-        onSend={() => setSubTab('send')}
-        onReceive={() => setSubTab('receive')}
-        onExit={onExit}
-      />
-    )}
-  </section>;
+  const navigateTo = (view: WalletSubView) => {
+    setSubView(view);
+    window.location.hash = view === 'balance' ? '#/wallet' : `#/${view}`;
+  };
+
+  return (
+    <section className="wallet-section">
+      {subView === 'send' ? (
+        <SendScreen onBack={() => navigateTo('balance')} />
+      ) : subView === 'receive' ? (
+        <ReceiveScreen onBack={() => navigateTo('balance')} />
+      ) : (
+        <BalanceScreen
+          onSend={() => navigateTo('send')}
+          onReceive={() => navigateTo('receive')}
+          onExit={onExit}
+        />
+      )}
+    </section>
+  );
 }
