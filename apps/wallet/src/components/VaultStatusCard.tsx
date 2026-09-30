@@ -280,7 +280,21 @@ export function VaultStatusCard() {
         <div>
           <dt>Vault ID</dt>
           <dd title={wallet.activeVault?.vaultIdHex || undefined}>
-            {wallet.activeVault?.vaultIdHex ? truncate(wallet.activeVault.vaultIdHex, 14, 10) : 'Pending funding'}
+            {wallet.activeVault?.vaultIdHex ? (
+              truncate(wallet.activeVault.vaultIdHex, 14, 10)
+            ) : (
+              <span className="pending-funding-area">
+                <span>Pending funding</span>
+                <button
+                  type="button"
+                  className="test-pull vault-funding-cta"
+                  disabled={busy}
+                  onClick={() => setFaucet(true)}
+                >
+                  {pendingFaucetTxid ? 'Check funding status' : 'Request test funds'}
+                </button>
+              </span>
+            )}
           </dd>
         </div>
         <div>
@@ -341,9 +355,6 @@ export function VaultStatusCard() {
       )}
       {!vaultReady && flow !== 'complete' && (
         <div className="flow-actions">
-          <button className="test-pull" disabled={busy} onClick={() => setFaucet(true)}>
-            {pendingFaucetTxid ? 'Check funding status' : 'Request test funds'}
-          </button>
           <button className="secondary-action" disabled={busy} onClick={() => void completeFunding()}>
             I already have confirmed funds
           </button>

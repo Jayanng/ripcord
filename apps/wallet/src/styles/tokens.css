@@ -500,6 +500,12 @@ h3 {
   color: var(--primary);
 }
 
+.balance-subtitle {
+  margin: 4px 0 0;
+  color: var(--text-lo);
+  font: 450 13px/1.4 var(--font-sans);
+}
+
 .local-chip {
   padding: 6px 10px;
   border: 1px solid var(--line);
@@ -903,6 +909,20 @@ h3 {
 .flow-success dl div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
 .flow-success dt { color: var(--text-lo); font-size: 12px; }
 .flow-success dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text-hi); font: 12px var(--font-mono); }
+
+.pending-funding-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pending-funding-area .test-pull {
+  min-height: 28px;
+  padding: 0 12px;
+  font: 750 11px var(--font-mono);
+  box-shadow: 0 2px 6px 0 rgba(234, 88, 12, 0.28);
+}
 
 .funding-progress { display: grid; gap: 8px; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #FAFCFE; list-style: none; }
 .funding-progress li { display: flex; align-items: center; gap: 10px; color: var(--text-lo); font-size: 13px; }
@@ -2716,7 +2736,15 @@ details[open] .vtxo-chevron {
 .truth-toggle-glyph { margin-left: auto; color: var(--text-lo); font-size: 13px; }
 .truth-updated { color: var(--text-lo); font: 600 11.5px var(--font-mono); letter-spacing: .02em; }
 .truth-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.custody-updated-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; }
+.custody-updated-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 28px;
+  border-top: 1px solid var(--line-subtle);
+  background: #F8FAFC;
+}
 
 .skeleton-line {
   display: inline-block; vertical-align: middle;
@@ -2756,7 +2784,14 @@ details[open] .vtxo-chevron {
 
 
 /* ===== Phase 10: proof diagram, badges, security chip, recovery banner, dark mode ===== */
-.proof-badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.proof-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line-subtle);
+  background: #FAFCFE;
+}
 .proof-badge {
   padding: 5px 12px; border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--confirmed) 35%, var(--line));

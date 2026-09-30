@@ -22,11 +22,14 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
     setRefreshing(true);
     void Promise.resolve(refresh()).finally(() => setRefreshing(false));
   };
+  const proofCount = receipts.filter(r => r.hat).length;
+
   return <section id="balance" className="instrument balance-card" aria-labelledby="balance-title">
     <div className="section-heading">
       <div>
         <p className="eyebrow">TAURUS Custody Split</p>
-        <h2 id="balance-title">Balances stay separate</h2>
+        <h2 id="balance-title">Your balance</h2>
+        <p className="balance-subtitle">Balances stay separate</p>
       </div>
       <Icon name="shield" />
     </div>
@@ -43,19 +46,9 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
             : 'Reserves Unchecked (chain unreachable)'
           : 'Checking L1 Reserves'}
       </span>
-      <span className={`proof-badge ${receipts.some(r => r.hat) ? '' : 'muted'}`} title="Cryptographic HAT proofs on record for your payments">
-        {receipts.filter(r => r.hat).length} of {receipts.length} Proofs On Record
+      <span className={`proof-badge ${proofCount > 0 ? '' : 'muted'}`} title="Cryptographic HAT proofs on record for your payments">
+        {proofCount > 0 ? `${proofCount} proof${proofCount === 1 ? '' : 's'} on record` : 'No proofs on record yet'}
       </span>
-      <span className={`proof-badge ${receipts.some(r => r.rip?.hatInStateDiff) ? '' : 'muted'}`} title="HAT inclusion in the Verkle state diff">
-        {receipts.some(r => r.rip?.hatInStateDiff) ? 'Inclusion Proven' : 'Inclusion Not Yet Proven'}
-      </span>
-    </div>
-    {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the custody split */}
-    <div className="custody-updated-row">
-      <span className="truth-updated" role="status">{updatedAt ? `Updated ${updatedAt}` : 'Not checked yet'}</span>
-      <button type="button" className="secondary-action-compact" onClick={runRefresh} disabled={refreshing || bootState === 'checking'}>
-        {refreshing ? 'Refreshing…' : 'Tap to refresh'}
-      </button>
     </div>
 
     {/* Off-chain spendable balance (snapshot-based source of spendable balance) */}
@@ -73,7 +66,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
           {balance.pendingIncomingSats > 0n ? `+${formatSats(balance.pendingIncomingSats)}` : '0 sats'}
         </strong>
       </div>
-      <small>{balance.pendingIncomingSats > 0n ? 'Awaiting block commit' : 'No incoming pending'}</small>
+      {balance.pendingIncomingSats > 0n && <small>Awaiting block commit</small>}
     </div>
 
     {/* Locked VTXOs (Scope 4) - locked is NOT spendable */}
@@ -82,7 +75,9 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         <span>LOCKED · IN COOPERATIVE ESCROW</span>
         <strong>{formatSats(balance.lockedSats)}</strong>
       </div>
-      <small>{balance.lockedCount > 0 ? `${balance.lockedCount} locked VTXO${balance.lockedCount === 1 ? '' : 's'}` : '0 locked VTXOs'}</small>
+      {balance.lockedCount > 0 && (
+        <small>{balance.lockedCount} locked VTXO{balance.lockedCount === 1 ? '' : 's'}</small>
+      )}
     </div>
 
     {/* On-chain vault funding */}
@@ -92,6 +87,14 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         {firstLoad ? <Skeleton width="45%" height={18} radius={6} /> : <strong>{formatSats(balance.onChainSats)}</strong>}
       </div>
       <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
+    </div>
+
+    {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the balance block */}
+    <div className="custody-updated-row">
+      <span className="truth-updated" role="status">{updatedAt ? `Updated ${updatedAt}` : 'Not checked yet'}</span>
+      <button type="button" className="secondary-action-compact" onClick={runRefresh} disabled={refreshing || bootState === 'checking'}>
+        {refreshing ? 'Refreshing…' : 'Tap to refresh'}
+      </button>
     </div>
 
     {(onSend || onReceive || onRipcord) && <div className="balance-actions">
