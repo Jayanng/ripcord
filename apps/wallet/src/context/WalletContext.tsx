@@ -45,6 +45,8 @@ interface WalletContextValue {
   identity: Identity | null;
   vaults: VaultRecord[];
   activeVault: VaultRecord | null;
+  /** True when the wallet state has at least one vault record (single source of truth for nav gating). */
+  hasVault: boolean;
   receipts: PaymentReceipt[];
   liveVtxos: VtxoRecordItem[];
   spentVtxos: VtxoRecordItem[];
@@ -165,6 +167,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [pendingCredits]);
 
   const vaults = useMemo(() => vaultsForIdentity(storedVaults, identity), [identity, storedVaults]);
+  const hasVault = vaults.length > 0;
   // Explicit vault selection (Phase 5 multi-vault): the user's pick wins, the
   // scored heuristic stays as the default when nothing is selected. Vault
   // records are keyed by vaultIdHex (unique per funding outpoint - addresses
@@ -500,11 +503,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [identity, activeVault?.address]);
 
   const value = useMemo<WalletContextValue>(() => ({
-    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, receipts,
+    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
     liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

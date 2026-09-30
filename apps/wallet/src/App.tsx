@@ -20,35 +20,60 @@ export function App() {
         window.location.href = '/docs';
         return;
       }
+      if (!wallet.hasVault) {
+        if (hash === 'recover' || hash.startsWith('recover')) {
+          setTab('wallet');
+          return;
+        }
+        if (hash === 'activity' || hash === 'proofs' || hash === 'exit' || hash === 'wallet' || hash === 'send' || hash === 'receive' || hash === 'balance') {
+          window.location.hash = '#/create';
+        }
+        setTab('wallet');
+        return;
+      }
       if (hash === 'activity') setTab('activity');
       else if (hash === 'proofs') setTab('proofs');
       else if (hash === 'exit') setTab('exit');
-      else if (hash === 'wallet' || hash === 'create' || hash === 'recover') setTab('wallet');
+      else if (hash === 'wallet' || hash === 'create' || hash === 'recover') {
+        setTab('wallet');
+        if (hash === 'create' || hash === 'recover') {
+          window.location.hash = '#/wallet';
+        }
+      }
     };
     handleHash();
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
-  }, []);
+  }, [wallet.hasVault]);
 
   const handleTabChange = (nextTab: AppTab) => {
+    if (!wallet.hasVault) {
+      setTab('wallet');
+      window.location.hash = '#/create';
+      return;
+    }
     setTab(nextTab);
     window.location.hash = `#/${nextTab}`;
   };
 
-  const showSetup = !wallet.identity;
+  const navVisible = wallet.hasVault;
 
-  return <Layout tab={tab} onTabChange={handleTabChange}>
-    <SearchDrawer />
-    {tab === 'activity' ? (
-      <ActivityScreen />
-    ) : tab === 'proofs' ? (
-      <ProofsScreen />
-    ) : tab === 'exit' ? (
-      <ExitScreen />
-    ) : showSetup ? (
-      <SetupGate />
-    ) : (
-      <WalletScreen onExit={() => handleTabChange('exit')} />
-    )}
-  </Layout>;
+  return (
+    <Layout tab={tab} onTabChange={handleTabChange} navVisible={navVisible}>
+      {navVisible && <SearchDrawer />}
+      {navVisible ? (
+        tab === 'activity' ? (
+          <ActivityScreen />
+        ) : tab === 'proofs' ? (
+          <ProofsScreen />
+        ) : tab === 'exit' ? (
+          <ExitScreen />
+        ) : (
+          <WalletScreen onExit={() => handleTabChange('exit')} />
+        )
+      ) : (
+        <SetupGate onEnterWallet={() => handleTabChange('wallet')} />
+      )}
+    </Layout>
+  );
 }

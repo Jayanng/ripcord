@@ -13,7 +13,15 @@ function applyTheme(theme: Theme) {
   }
 }
 
-export function Header({ active, onChange }: { active: AppTab; onChange: (tab: AppTab) => void }) {
+export function Header({
+  active,
+  onChange,
+  navVisible = true,
+}: {
+  active: AppTab;
+  onChange: (tab: AppTab) => void;
+  navVisible?: boolean;
+}) {
   const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity'];
   // Phase 10 (#31): dark mode on the existing token set.
   const [theme, setTheme] = useState<Theme>(() => {
@@ -43,18 +51,20 @@ export function Header({ active, onChange }: { active: AppTab; onChange: (tab: A
       </span>
       <span>RIPCORD</span>
     </button>
-    <nav className="desktop-nav" aria-label="Primary navigation">
-      {tabs.map(tab => (
-        <button
-          key={tab}
-          className={active === tab ? 'active' : ''}
-          aria-current={active === tab ? 'page' : undefined}
-          onClick={() => onChange(tab)}
-        >
-          {tab === 'wallet' ? 'Wallet' : tab === 'exit' ? 'Exit' : tab === 'proofs' ? 'Proofs' : 'Activity'}
-        </button>
-      ))}
-    </nav>
+    {navVisible && (
+      <nav className="desktop-nav" aria-label="Primary navigation">
+        {tabs.map(tab => (
+          <button
+            key={tab}
+            className={active === tab ? 'active' : ''}
+            aria-current={active === tab ? 'page' : undefined}
+            onClick={() => onChange(tab)}
+          >
+            {tab === 'wallet' ? 'Wallet' : tab === 'exit' ? 'Exit' : tab === 'proofs' ? 'Proofs' : 'Activity'}
+          </button>
+        ))}
+      </nav>
+    )}
     <div className="topbar-actions">
       {/* Phase 10 (#29): security chip - the custody posture at a glance */}
       <span

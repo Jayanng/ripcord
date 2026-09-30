@@ -2,7 +2,16 @@ import { Icon } from './ui';
 
 export type AppTab = 'wallet' | 'exit' | 'proofs' | 'activity';
 
-export function TabBar({ active, onChange }: { active: AppTab; onChange: (tab: AppTab) => void }) {
+export function TabBar({
+  active,
+  onChange,
+  navVisible = true,
+}: {
+  active: AppTab;
+  onChange: (tab: AppTab) => void;
+  navVisible?: boolean;
+}) {
+  if (!navVisible) return null;
   const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity'];
   return <nav className="tabbar" aria-label="Primary navigation">
     {tabs.map(tab => (
