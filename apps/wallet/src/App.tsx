@@ -3,7 +3,6 @@ import { useWallet } from './context/WalletContext';
 import { Layout } from './components/Layout';
 import type { AppTab } from './components/TabBar';
 import { SetupGate } from './screens/SetupGate';
-import { SearchDrawer } from './components/SearchDrawer';
 import { WalletScreen } from './screens/WalletScreen';
 import { ExitScreen } from './screens/ExitScreen';
 import { ProofsScreen } from './screens/ProofsScreen';
@@ -94,7 +93,6 @@ export function App() {
 
   return (
     <Layout tab={tab} onTabChange={handleTabChange} navVisible={navVisible}>
-      {navVisible && <SearchDrawer />}
       {isBooting ? (
         <section className="flow-screen" aria-busy="true" aria-label="Loading wallet">
           <div style={{ display: 'grid', gap: '20px', padding: '24px 0' }}>
