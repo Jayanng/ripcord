@@ -37,6 +37,10 @@ const SERVICE_PROXY: Record<string, ProxyOptions> = {
   },
 };
 
+const BUILD_ID =
+  process.env.BUILD_ID ||
+  `v${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 /**
  * Phase 1 Correction: Ensures build output places the standalone landing page
  * at dist/index.html and preserves the compiled SPA shell at dist/app.html.
@@ -57,6 +61,14 @@ function ripcordHtmlPlugin(): Plugin {
         const landingHtml = resolve(distDir, 'landing/index.html');
         const vercelJsonSrc = fileURLToPath(new URL('./vercel.json', import.meta.url));
         const vercelJsonDest = resolve(distDir, 'vercel.json');
+        const buildIdDest = resolve(distDir, 'build-id.json');
+
+        // Emit build stamp file for stale-cache self-healing
+        fs.writeFileSync(
+          buildIdDest,
+          JSON.stringify({ buildId: BUILD_ID, timestamp: Date.now() }, null, 2),
+          'utf-8',
+        );
 
         if (fs.existsSync(indexHtml) && fs.existsSync(landingHtml)) {
           // 1. Preserve the compiled wallet SPA shell as dist/app.html
@@ -122,6 +134,13 @@ function ripcordRoutingPlugin(): Plugin {
         const pathname = rawUrl.split('?')[0];
         const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
 
+        if (pathname === '/build-id.json') {
+          _res.setHeader('Content-Type', 'application/json');
+          _res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          _res.end(JSON.stringify({ buildId: BUILD_ID, timestamp: Date.now() }));
+          return;
+        }
+
         if (pathname === '/' || pathname === '/index.html') {
           req.url = '/landing/index.html' + query;
         } else if (pathname === '/docs' || pathname === '/docs/') {
@@ -138,6 +157,13 @@ function ripcordRoutingPlugin(): Plugin {
         const pathname = rawUrl.split('?')[0];
         const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
 
+        if (pathname === '/build-id.json') {
+          _res.setHeader('Content-Type', 'application/json');
+          _res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          _res.end(JSON.stringify({ buildId: BUILD_ID, timestamp: Date.now() }));
+          return;
+        }
+
         if (pathname === '/' || pathname === '/index.html') {
           req.url = '/index.html' + query;
         } else if (pathname === '/docs' || pathname === '/docs/') {
@@ -152,6 +178,9 @@ function ripcordRoutingPlugin(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   resolve: {
     alias: { vm: fileURLToPath(new URL('./src/shims/vm.ts', import.meta.url)) },
   },
@@ -171,7 +200,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/app.html',
         navigateFallbackAllowlist: [/^\/app/],
-        globIgnores: ['landing/**', 'docs/**', 'index.html'],
+        globIgnores: ['landing/**', 'docs/**', 'index.html', 'build-id.json'],
         runtimeCaching: [],
         skipWaiting: true,
         clientsClaim: true,

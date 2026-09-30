@@ -1,4 +1,15 @@
 {
+  "headers": [
+    {
+      "source": "/build-id.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/health", "destination": "https://rpc-regtest.tachibtc.com/health" },
     { "source": "/tachi_validators/:path*", "destination": "https://rpc-regtest.tachibtc.com/tachi_validators/:path*" },

@@ -240,6 +240,7 @@ button:focus-visible, a:focus-visible {
 .hero-eyebrow-dot {
   width: 7px;
   height: 7px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: var(--confirmed);
   box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
@@ -1337,3 +1338,61 @@ button:focus-visible, a:focus-visible {
     gap: 4px;
   }
 }
+
+@media (max-width: 480px) {
+  .landing-header {
+    padding: 0 12px;
+    height: auto;
+    min-height: 56px;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  /* Below 480px: hide header's "Open wallet" button (hero has full-width CTA right below) */
+  .landing-header .landing-nav .btn-primary {
+    display: none;
+  }
+
+  /* Collapse Docs/GitHub into clean wrapping layout */
+  .landing-nav {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .nav-link {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  /* Make TACHI REGTEST badge wrap cleanly with no fixed letter-spacing overflow risk */
+  .hero-eyebrow {
+    flex-wrap: wrap;
+    white-space: normal;
+    word-break: break-word;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+    text-align: center;
+    justify-content: center;
+    max-width: calc(100vw - 32px);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+
+  .hero-eyebrow span:not(.hero-eyebrow-dot) {
+    white-space: normal;
+    word-break: break-word;
+    text-align: center;
+  }
+
+  .pocket-network-pill {
+    flex-wrap: wrap;
+    white-space: normal;
+    letter-spacing: normal;
+  }
+}
+
