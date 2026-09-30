@@ -1,9 +1,9 @@
 import { Icon } from './ui';
 
-export type AppTab = 'wallet' | 'exit' | 'proofs' | 'activity' | 'docs';
+export type AppTab = 'wallet' | 'exit' | 'proofs' | 'activity';
 
 export function TabBar({ active, onChange }: { active: AppTab; onChange: (tab: AppTab) => void }) {
-  const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity', 'docs'];
+  const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity'];
   return <nav className="tabbar" aria-label="Primary navigation">
     {tabs.map(tab => (
       <button
@@ -13,7 +13,7 @@ export function TabBar({ active, onChange }: { active: AppTab; onChange: (tab: A
         onClick={() => onChange(tab)}
       >
         <Icon name={tab} />
-        {tab === 'wallet' ? 'Wallet' : tab === 'exit' ? 'Exit' : tab === 'proofs' ? 'Proofs' : tab === 'activity' ? 'Activity' : 'Docs'}
+        {tab === 'wallet' ? 'Wallet' : tab === 'exit' ? 'Exit' : tab === 'proofs' ? 'Proofs' : 'Activity'}
       </button>
     ))}
   </nav>;

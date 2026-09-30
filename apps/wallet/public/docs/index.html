@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FAF9F6">
+  <meta name="description" content="RIPCORD Protocol Documentation. Deterministic Taproot vaults, VTXO payments, HAT/RIP proofs, and sovereign unilateral exits on Tachi and TAURUS.">
+  <title>Documentation · Ripcord Protocol</title>
+  <link rel="icon" href="/ripcord-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/landing/landing.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="landing-header">
+    <a href="/" class="brand" aria-label="Ripcord">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="ripcord-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FB923C"/>
+              <stop offset="100%" stop-color="#EA580C"/>
+            </linearGradient>
+          </defs>
+          <path d="M26 6C26 9.5 23 11 18 11.5" stroke="#EA580C" stroke-width="2.75" stroke-linecap="round"/>
+          <rect x="15" y="10" width="6" height="3" rx="1.5" fill="#0F172A"/>
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M11 15C8.5 15 6 18 6.5 24C7 29.5 12 32 18 32C24 32 29 29.5 29.5 24C30 18 27.5 15 25 15C22 15 21 16.5 18 16.5C15 16.5 14 15 11 15ZM12.5 19.5C14.5 19.5 15.5 21 18 21C20.5 21 21.5 19.5 23.5 19.5C24.5 19.5 25.5 21 25 24C24.5 26.5 21.5 27.5 18 27.5C14.5 27.5 11.5 26.5 11 24C10.5 21 11.5 19.5 12.5 19.5Z" fill="url(#ripcord-logo-grad)"/>
+        </svg>
+      </span>
+      <span>RIPCORD</span>
+    </a>
+    <nav class="landing-nav" aria-label="Main Navigation">
+      <a href="/docs" class="nav-link active">Docs</a>
+      <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="nav-link">GitHub</a>
+      <a href="/app" class="btn-primary">Open wallet</a>
+    </nav>
+  </header>
+
+  <!-- Docs Content Layout -->
+  <div class="docs-wrapper">
+    <button type="button" class="pocket-mobile-toggle" id="mobile-toggle" aria-expanded="false">
+      <span id="mobile-toggle-label">Docs: Overview (22 topics)</span>
+      <span id="mobile-toggle-btn">Browse Docs</span>
+    </button>
+
+    <div class="pocket-docs-layout">
+      <!-- Left Sidebar -->
+      <aside class="pocket-sidebar" id="docs-sidebar" aria-label="Documentation Navigation">
+        <div class="pocket-search-wrap">
+          <svg class="pocket-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            id="docs-search"
+            type="search"
+            placeholder="Search docs... (Press /)"
+            class="pocket-search-input"
+            aria-label="Search documentation"
+          />
+        </div>
+
+        <!-- Group: Introduction -->
+        <div class="pocket-group" data-group="Introduction">
+          <span class="pocket-group-title">Introduction</span>
+          <button type="button" class="pocket-nav-item active" data-id="overview">Overview</button>
+          <button type="button" class="pocket-nav-item" data-id="comparison">TAURUS vs. Lightning</button>
+        </div>
+
+        <!-- Group: Getting Started -->
+        <div class="pocket-group" data-group="Getting Started">
+          <span class="pocket-group-title">Getting Started</span>
+          <button type="button" class="pocket-nav-item" data-id="quickstart">Quick Start</button>
+          <button type="button" class="pocket-nav-item" data-id="installation">Installation</button>
+          <button type="button" class="pocket-nav-item" data-id="taproot">Deterministic Taproot Vaults</button>
+          <button type="button" class="pocket-nav-item" data-id="quorum">Quorum Discovery</button>
+        </div>
+
+        <!-- Group: Concepts -->
+        <div class="pocket-group" data-group="Concepts">
+          <span class="pocket-group-title">Concepts</span>
+          <button type="button" class="pocket-nav-item" data-id="nums">NUMS Unspendable Key</button>
+          <button type="button" class="pocket-nav-item" data-id="tapscript">Tapscript Tree Leaves</button>
+          <button type="button" class="pocket-nav-item" data-id="proofs">Inclusion Proofs (HAT &amp; RIP)</button>
+          <button type="button" class="pocket-nav-item" data-id="ephemeral">RAM-Only Key Policy</button>
+          <button type="button" class="pocket-nav-item" data-id="coin-selection">VTXO Coin Selection</button>
+        </div>
+
+        <!-- Group: Lifecycle & Exit -->
+        <div class="pocket-group" data-group="Lifecycle & Exit">
+          <span class="pocket-group-title">Lifecycle &amp; Exit</span>
+          <button type="button" class="pocket-nav-item" data-id="journey">Lifecycle (Steps 01-06)</button>
+          <button type="button" class="pocket-nav-item" data-id="ripcord-exit">Unilateral Ripcord Exit</button>
+          <button type="button" class="pocket-nav-item" data-id="timelocks">BIP68 Relative Timelocks</button>
+          <button type="button" class="pocket-nav-item" data-id="test-pull">Dry-Run Test-Pull Engine</button>
+          <button type="button" class="pocket-nav-item" data-id="recovery">Disaster Storage Wipe</button>
+        </div>
+
+        <!-- Group: Developer & Specs -->
+        <div class="pocket-group" data-group="Developer & Specs">
+          <span class="pocket-group-title">Developer &amp; Specs</span>
+          <button type="button" class="pocket-nav-item" data-id="invariants">Security Invariants</button>
+          <button type="button" class="pocket-nav-item" data-id="sdk">@ripcord/core SDK</button>
+          <button type="button" class="pocket-nav-item" data-id="sdk-examples">TypeScript Code Examples</button>
+          <button type="button" class="pocket-nav-item" data-id="sdk-subpaths">Exported Subpaths</button>
+          <button type="button" class="pocket-nav-item" data-id="satvm">SatVM Smart Contracts</button>
+          <button type="button" class="pocket-nav-item" data-id="specs">Network Specifications</button>
+        </div>
+
+        <!-- Resources -->
+        <div class="pocket-group pocket-sidebar-resources">
+          <span class="pocket-group-title">Resources</span>
+          <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="pocket-sidebar-link">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            <span>GitHub (Jayanng/ripcord)</span>
+          </a>
+          <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" class="pocket-sidebar-link">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M0 0v16h16V0H0zm13.333 13.333h-2.666V5.333H8V13.333H2.667V2.667h10.666v10.666z"/>
+            </svg>
+            <span>npm: @ripcord/core</span>
+          </a>
+          <a href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0" target="_blank" rel="noreferrer" class="pocket-sidebar-link">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 9l5 5 7-7V2.5H10L2.5 9z"/>
+              <circle cx="12" cy="4" r="1" fill="currentColor"/>
+            </svg>
+            <span>Release v0.2.0</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="pocket-main" id="docs-content">
+        <!-- Topic 1: Overview -->
+        <article class="docs-doc active" id="doc-overview">
+          <div class="pocket-eyebrow-row">
+            <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" class="pocket-package-badge" title="View @ripcord/core v0.2.0 on npm">
+              <span class="pocket-package-dot" aria-hidden="true"></span>
+              <span>PACKAGE</span>
+              <span>V0.2.0</span>
+            </a>
+            <span class="pocket-eyebrow-sep">·</span>
+            <span class="pocket-network-pill">TACHI REGTEST</span>
+            <span class="pocket-eyebrow-sep">·</span>
+            <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="pocket-github-badge">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>GitHub</span>
+            </a>
+          </div>
+          <h1 class="pocket-title">RIPCORD Protocol Documentation</h1>
+          <p class="pocket-lede">
+            Integrate self-custodial Bitcoin operations across the Tachi and TAURUS ecosystem via deterministic 5-of-7 Taproot vaults, spendable VTXOs, cryptographic inclusion proofs, and sovereign unilateral exits.
+          </p>
+          <p>
+            RIPCORD is a verification-first custody architecture where every balance and settlement claim names its authoritative cryptographic source. Cooperative transfers offer instant off-chain settlement for a minimal protocol fee (1 sat minimum, no L1 mining fees), while the on-chain Tapscript exit leaf guarantees that users can always reclaim their exact Bitcoin on L1 after the configured timelock expires without third-party permission.
+          </p>
+
+          <div class="pocket-callout">
+            <svg class="pocket-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>
+            </svg>
+            <div class="pocket-callout-body">
+              <h4 class="pocket-callout-title">Choose your integration path</h4>
+              <ul class="pocket-callout-list">
+                <li><strong>Self-Custodial Wallet UI</strong> — Full-featured self-custodial web application with real-time VTXO payments, proof receipts, and one-click hold-to-confirm exit engine.</li>
+                <li><strong>@ripcord/core SDK</strong> — Standalone TypeScript package for key derivation, deterministic vault derivation, and payment commitments.</li>
+                <li><strong>Tachi Consensus RPC</strong> — Direct interaction with 5-of-7 quorum validators and live WebSocket indexer streaming.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="pocket-grid">
+            <div class="pocket-card" onclick="navigateToDoc('quickstart')">
+              <h3 class="pocket-card-title">Quick Start</h3>
+              <p class="pocket-card-desc">Generate ephemeral BIP-39 mnemonic, derive user keys, and verify live on-chain custody in 3 steps.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('taproot')">
+              <h3 class="pocket-card-title">Deterministic Vaults</h3>
+              <p class="pocket-card-desc">Taproot P2TR script tree committing 5-of-7 validator quorum and unspendable NUMS internal key.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('coin-selection')">
+              <h3 class="pocket-card-title">Off-Chain VTXO Payments</h3>
+              <p class="pocket-card-desc">Greedy coin selection, local spend reservations, single-writer serialization, and isolated change routing.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('proofs')">
+              <h3 class="pocket-card-title">Inclusion Proofs (HAT &amp; RIP)</h3>
+              <p class="pocket-card-desc">History Authenticity Tree note continuity checks and Rollup Inclusion Proof verification.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('ripcord-exit')">
+              <h3 class="pocket-card-title">Unilateral Ripcord Exit</h3>
+              <p class="pocket-card-desc">BIP68 relative timelocks and dry-run test-pull engine allowing unconditional sweep to Bitcoin L1.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('recovery')">
+              <h3 class="pocket-card-title">Disaster Recovery</h3>
+              <p class="pocket-card-desc">Complete wallet reconstruction from only 12 words after total browser storage wipe.</p>
+            </div>
+          </div>
+
+          <p class="pocket-meta-footer">
+            The platform ships with 385 automated tests (385 passing live, 6 env-gated), ephemeral memory-only keys, per-transfer reservation locks, and real-time transaction confirmation streaming.
+          </p>
+        </article>
+
+        <!-- Topic 2: Comparison -->
+        <article class="docs-doc" id="doc-comparison">
+          <p class="pocket-eyebrow">TAURUS VS. LIGHTNING NETWORK</p>
+          <h1 class="pocket-title">TAURUS vs. Lightning: Superior UX &amp; Stronger Sovereignty</h1>
+          <p class="pocket-lede">
+            Tachi and TAURUS vaults deliver a superior user experience compared to the Lightning Network while providing stronger self-custody guarantees: zero channel management, no inbound liquidity bottlenecks, no force-closure penalties, and clean unilateral timelocked exits.
+          </p>
+
+          <div class="docs-table-wrap" style="margin-top: 24px;">
+            <table class="docs-table">
+              <thead>
+                <tr>
+                  <th>Custody Attribute</th>
+                  <th>TAURUS Vaults (Tachi)</th>
+                  <th>Lightning Network</th>
+                  <th>Custodial Wallets / Rollups</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Key Ownership</strong></td>
+                  <td>User holds BIP-39 seed (RAM-only)</td>
+                  <td>User holds private node keys</td>
+                  <td>Operator holds private keys</td>
+                </tr>
+                <tr>
+                  <td><strong>Channel Management</strong></td>
+                  <td>None. Single vault backs arbitrary VTXOs</td>
+                  <td>Manual channel capacity &amp; rebalancing</td>
+                  <td>None (centralized ledger)</td>
+                </tr>
+                <tr>
+                  <td><strong>Inbound Liquidity</strong></td>
+                  <td>Not a concept. Receive any amount</td>
+                  <td>Requires inbound channel liquidity</td>
+                  <td>Unlimited (centralized)</td>
+                </tr>
+                <tr>
+                  <td><strong>Unilateral Exit</strong></td>
+                  <td>Guaranteed via BIP68 timelock (CSV)</td>
+                  <td>Force close with dispute penalty</td>
+                  <td>None. Dependent on operator</td>
+                </tr>
+                <tr>
+                  <td><strong>Watchtower Requirement</strong></td>
+                  <td>None. Exit leaf requires only user signature</td>
+                  <td>Mandatory to prevent old state fraud</td>
+                  <td>None (trusted operator)</td>
+                </tr>
+                <tr>
+                  <td><strong>Offline Receive</strong></td>
+                  <td>Deterministic user P2TR addresses</td>
+                  <td>Node must remain continuously online</td>
+                  <td>Supported via custodial backend</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top: 32px;">
+            <h3 style="font-size: 20px; font-weight: 800; color: var(--text-hi); margin-bottom: 12px;">Why TAURUS Proves a Superior Second-Layer Model</h3>
+            <p>
+              The Lightning Network achieved breakthrough speed on Bitcoin, but introduced severe operational friction that pushed millions of users back toward custodial solutions. TAURUS solves these structural flaws at the protocol level:
+            </p>
+            <ul style="display: grid; gap: 12px; margin-top: 14px; padding-left: 20px;">
+              <li>
+                <strong>No Inbound Liquidity Deadlocks:</strong> On Lightning, a new user cannot receive Bitcoin until they have first spent funds or paid a routing node for an inbound liquidity lease. In TAURUS, Virtual UTXOs (VTXOs) are self-contained credit commitments; any user can receive sats instantly to their user Taproot address with zero pre-existing channels.
+              </li>
+              <li>
+                <strong>Elimination of Force-Closure &amp; Toxic State:</strong> If a Lightning node loses state synchronization or broadcasts an outdated commitment transaction, justice penalty mechanisms can burn or confiscate their entire channel balance. In TAURUS, off-chain state updates are committed to validator consensus trees; there are no penalty games or toxic states.
+              </li>
+              <li>
+                <strong>Deterministic Unilateral Timelock Exit:</strong> If live validators go offline or refuse to coordinate, the user does not need to run a complex fee-bumping dispute race. The TAURUS Taproot exit leaf is hardcoded to the user single-key CHECKSIG with an on-chain relative timelock (BIP68 CSV), enabling guaranteed single-transaction recovery directly to Bitcoin L1.
+              </li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- Topic 3: Quickstart -->
+        <article class="docs-doc" id="doc-quickstart">
+          <p class="pocket-eyebrow">GETTING STARTED</p>
+          <h1 class="pocket-title">Quick Start Guide</h1>
+          <p class="pocket-lede">
+            Follow these three core steps to initialize a sovereign identity, bind to an on-chain Taproot vault, and begin transacting.
+          </p>
+
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">1. Generate Ephemeral Mnemonic</h3>
+          <p>Generate a 12-word BIP-39 mnemonic. Private keys are derived into volatile JavaScript heap memory and are never written to disk or browser storage.</p>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">BIP-39 Identity Derivation</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { deriveIdentity } from '@ripcord/core';
+
+const identity = deriveIdentity(mnemonic, 'regtest', 0);
+console.log('User P2TR Address:', identity.userAddress);
+console.log('L1 Settlement Address:', identity.l1Address);</code></pre>
+          </div>
+
+          <h3 style="margin: 24px 0 8px; font-weight: 750;">2. Query Live Quorum &amp; Derive Vault</h3>
+          <p>Fetch the 5-of-7 validator threshold from the Tachi consensus daemon and construct the deterministic Taproot vault address.</p>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">Vault Construction</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { getQuorumWithCache, createVault } from '@ripcord/core';
+
+const quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');
+const vault = await createVault({
+  network: 'regtest',
+  nodePubkeys: quorum.nodePubkeys,
+  csvBlocks: 2,
+  userKeyDescriptor: identity.userKeyDescriptor,
+  threshold: quorum.threshold,
+});
+console.log('Vault P2TR Address:', vault.address);</code></pre>
+          </div>
+
+          <h3 style="margin: 24px 0 8px; font-weight: 750;">3. Fund &amp; Transact</h3>
+          <p>Fund the vault using the Tachi testnet faucet or Bitcoin RPC. Once confirmed on L1, the deposited satoshis become spendable Virtual UTXOs (VTXOs).</p>
+        </article>
+
+        <!-- Topic 4: Installation -->
+        <article class="docs-doc" id="doc-installation">
+          <p class="pocket-eyebrow">GETTING STARTED</p>
+          <h1 class="pocket-title">Installation &amp; Workspace Setup</h1>
+          <p class="pocket-lede">Install @ripcord/core into your Node.js or browser project, or run the full wallet monorepo locally.</p>
+          <p>
+            The package ships as ESM TypeScript (<code>"type": "module"</code>) with first-class type declarations and requires Node.js 18+ on the server, or a modern bundler (Vite, webpack, esbuild) in the browser. The full monorepo requires Node.js 20+.
+          </p>
+          <div class="docs-link-cards">
+            <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" class="docs-external-card">
+              <span class="docs-external-title">npm: @ripcord/core</span>
+              <span class="docs-external-sub">Verified TypeScript core package v0.2.0</span>
+            </a>
+            <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="docs-external-card">
+              <span class="docs-external-title">GitHub: Jayanng/ripcord</span>
+              <span class="docs-external-sub">Monorepo source code &amp; issues</span>
+            </a>
+          </div>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">Package Manager</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>npm install @ripcord/core
+# or
+pnpm add @ripcord/core
+# or
+yarn add @ripcord/core</code></pre>
+          </div>
+          <h3 style="margin: 24px 0 8px; font-weight: 750;">Running the Wallet Locally</h3>
+          <p>Clone the official repository from GitHub, install dependencies, build, and start the local development server:</p>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">Terminal Commands</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>git clone https://github.com/Jayanng/ripcord.git
+cd ripcord
+npm install
+npm run build
+npm run dev</code></pre>
+          </div>
+          <p style="margin-top: 12px; font-size: 14px; color: var(--text-lo);">
+            <code>npm run build</code> compiles the workspace packages, including <code>@ripcord/core</code>. The dev server serves the wallet at <code>http://localhost:4173</code> and proxies <code>/health</code>, <code>/tachi</code>, <code>/rpc</code>, and <code>/faucet</code> to the live Tachi regtest daemon.
+          </p>
+        </article>
+
+        <!-- Topic 5: Taproot -->
+        <article class="docs-doc" id="doc-taproot">
+          <p class="pocket-eyebrow">CRYPTOGRAPHIC PRIMITIVES</p>
+          <h1 class="pocket-title">Deterministic Taproot Vault Construction</h1>
+          <p class="pocket-lede">Every RIPCORD vault is an on-chain Bitcoin Taproot (P2TR) output governed by BIP-341 and BIP-342.</p>
+          <p>To enforce that funds can never be spent via an unknown keypath, the internal key is set to a provably unspendable NUMS point. Any spend MUST reveal a valid script leaf from the Taproot Merkle tree.</p>
+          <div class="docs-diagram">                        Taproot Output (P2TR)
+                                │
+                  Internal Key: NUMS Point (Unspendable)
+                                │
+                        Tapscript Merkle Root
+                               /      \
+                              /        \
+                     [Leaf A]            [Leaf B]
+                 Cooperative Path     Unilateral Exit Path
+                 ────────────────     ────────────────────
+                 5-of-7 Validator     &lt;csv_blocks&gt; OP_CHECKSEQUENCEVERIFY
+                 Schnorr Quorum       OP_DROP &lt;user_pubkey&gt; CHECKSIG</div>
+          <ul style="display: grid; gap: 10px; margin-top: 16px; padding-left: 20px;">
+            <li><strong>Leaf A (Cooperative Consensus Path):</strong> Requires valid Schnorr signatures from at least 5 of the 7 registered Tachi consensus validators. This path coordinates atomic off-chain VTXO minting and batch settlements.</li>
+            <li><strong>Leaf B (Unilateral Exit Path):</strong> Requires a valid Schnorr signature from the user's sovereign public key after the relative timelock matures. The real leaf (live-verified from the tapscript inspector) is <code>OP_2 OP_NOP3 OP_DROP &lt;user_xonly_pubkey&gt; OP_CHECKSIG</code>, where <code>OP_NOP3</code> is <code>OP_CHECKSEQUENCEVERIFY</code>.</li>
+          </ul>
+        </article>
+
+        <!-- Topic 6: Quorum -->
+        <article class="docs-doc" id="doc-quorum">
+          <p class="pocket-eyebrow">ARCHITECTURE</p>
+          <h1 class="pocket-title">Quorum Discovery &amp; Fingerprinting</h1>
+          <p class="pocket-lede">RIPCORD queries live consensus validators, computes quorum fingerprints, and prevents rogue validator collusion.</p>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">Fetching Consensus Quorum</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { getQuorumWithCache } from '@ripcord/core';
+
+const quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');
+console.log(`Quorum Threshold: ${quorum.threshold} of ${quorum.nodePubkeys.length} validators`);</code></pre>
+          </div>
+          <p style="margin-top: 14px;">The quorum fingerprint is a domain-separated cryptographic hash covering the exact sorted public keys and consensus threshold. Any change in validator composition triggers an explicit rotation warning.</p>
+        </article>
+
+        <!-- Topic 7: NUMS -->
+        <article class="docs-doc" id="doc-nums">
+          <p class="pocket-eyebrow">CRYPTOGRAPHIC PRIMITIVES</p>
+          <h1 class="pocket-title">NUMS Unspendable Key</h1>
+          <p class="pocket-lede">A Nothing-Up-My-Sleeve point ensures that funds locked in a Taproot vault can never be spent via keypath.</p>
+          <p>The NUMS internal key is derived by hashing a standard generator point such that the discrete logarithm (private key) is mathematically unfeasible to calculate:</p>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">BIP-341 NUMS Point</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>// Standard BIP-341 unspendable public key point:
+const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0';
+
+// Any spend of this Taproot output MUST reveal a valid script leaf from the Taproot Merkle tree.
+// No party (neither user nor validator quorum) can spend via the keypath.</code></pre>
+          </div>
+        </article>
+
+        <!-- Topic 8: Tapscript -->
+        <article class="docs-doc" id="doc-tapscript">
+          <p class="pocket-eyebrow">ARCHITECTURE</p>
+          <h1 class="pocket-title">Tapscript Tree Leaves</h1>
+          <p class="pocket-lede">Detailed specification of Leaf A (Cooperative 5-of-7 Quorum) and Leaf B (Unilateral Relative Timelock Exit).</p>
+          <p>Both script leaves are compiled into a binary Tapscript Merkle tree. Leaf A enables atomic off-chain transfers and batch settlements. Leaf B provides the sovereign emergency rip-cord: if validators disappear or censor transactions, the user signs a sweep transaction on L1 after the configured CSV blocks elapse.</p>
+        </article>
+
+        <!-- Topic 9: Proofs -->
+        <article class="docs-doc" id="doc-proofs">
+          <p class="pocket-eyebrow">VERIFICATION</p>
+          <h1 class="pocket-title">Inclusion Proofs: HAT and RIP</h1>
+          <p class="pocket-lede">Cryptographic verification guarantees that off-chain state transitions are authentic and verifiable by anyone.</p>
+          <ul style="display: grid; gap: 12px; padding-left: 20px; margin-top: 14px;">
+            <li><strong>History Authenticity Tree (HAT):</strong> A Merkle tree structure maintained by the Tachi daemon that records historical note consumption and balance continuity across rounds.</li>
+            <li><strong>Rollup Inclusion Proof (RIP):</strong> A cryptographic proof verifying that a specific payment transaction hash is included in the StateDiff committed to the rollup root.</li>
+          </ul>
+        </article>
+
+        <!-- Topic 10: Ephemeral -->
+        <article class="docs-doc" id="doc-ephemeral">
+          <p class="pocket-eyebrow">SECURITY ARCHITECTURE</p>
+          <h1 class="pocket-title">RAM-Only Ephemeral Key Policy</h1>
+          <p class="pocket-lede">Protecting Bitcoin private keys against browser exploits, persistent malware, and cross-site scripting.</p>
+          <div class="pocket-callout">
+            <svg class="pocket-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <div class="pocket-callout-body">
+              <h4 class="pocket-callout-title">Volatile Heap Isolation</h4>
+              <p style="margin: 0;">The 12-word recovery mnemonic and derived private keys are kept strictly in volatile JavaScript heap memory. They are automatically zeroized when the browser tab closes and are never written to disk, localStorage, or IndexedDB.</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- Topic 11: Coin Selection -->
+        <article class="docs-doc" id="doc-coin-selection">
+          <p class="pocket-eyebrow">CUSTODY LIFECYCLE</p>
+          <h1 class="pocket-title">VTXO Coin Selection &amp; Reservation Locks</h1>
+          <p class="pocket-lede">How RIPCORD selects inputs, isolates change outputs, and prevents concurrent double-spends.</p>
+          <ul style="display: grid; gap: 12px; padding-left: 20px; margin-top: 14px;">
+            <li><strong>Greedy Largest-First Selection:</strong> Deterministically picks spendable VTXOs largest-first to cover the amount plus fee, skipping spent, locked, or locally reserved inputs.</li>
+            <li><strong>Local Spend Reservation:</strong> Temporarily locks selected inputs in memory to prevent concurrent payments from double-spending the same note.</li>
+            <li><strong>Single-Writer Queue:</strong> Serializes outbound payments to enforce strict state nonce progression.</li>
+            <li><strong>Change Output Isolation:</strong> Change returns strictly to the sender's own user key descriptor, never into the shared validator pool.</li>
+          </ul>
+        </article>
+
+        <!-- Topic 12: Journey -->
+        <article class="docs-doc" id="doc-journey">
+          <p class="pocket-eyebrow">END-TO-END WALKTHROUGH</p>
+          <h1 class="pocket-title">The Complete Custody Lifecycle (Steps 01 to 06)</h1>
+          <p class="pocket-lede">The complete path of Bitcoin through the RIPCORD system, from fresh mnemonic generation to off-chain transfers and disaster recovery.</p>
+          <div class="journey-grid">
+            <div class="journey-card">
+              <div class="journey-step-num">01</div>
+              <div class="journey-body">
+                <h4>Ephemeral Key Generation &amp; Identity Derivation</h4>
+                <p>User generates a standard 128-bit BIP-39 mnemonic (12 words). Ripcord derives root keys in RAM at path <code>m/84'/1'/0'/0/index</code> (BIP-84 scheme, regtest coin type 1').</p>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="journey-step-num">02</div>
+              <div class="journey-body">
+                <h4>Quorum Discovery &amp; Vault Compilation</h4>
+                <p>Ripcord queries the live Tachi daemon, validates the 5-of-7 threshold, sorts validator public keys, and derives the Taproot vault address.</p>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="journey-step-num">03</div>
+              <div class="journey-body">
+                <h4>On-Chain Deposit &amp; Ambient Background Settlement</h4>
+                <p>User deposits BTC into the vault address. Ripcord monitors the Bitcoin mempool and verifies on-chain scriptPubKey matching upon L1 confirmation in the background.</p>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="journey-step-num">04</div>
+              <div class="journey-body">
+                <h4>VTXO Coin Selection &amp; Off-Chain Transacting</h4>
+                <p>Deposited BTC becomes spendable Virtual UTXOs. Outbound transfers serialize through single-writer queues with isolated change routing.</p>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="journey-step-num">05</div>
+              <div class="journey-body">
+                <h4>Live Activity Indexing &amp; Proof Commitment</h4>
+                <p>Transactions broadcast to Tachi and stream via WebSocket. Status updates in real-time as HAT and RIP proofs are anchored into rollup blocks.</p>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="journey-step-num">06</div>
+              <div class="journey-body">
+                <h4>Cold-Start Disaster Recovery</h4>
+                <p>If storage is wiped completely, Ripcord restores full state using only the 12-word phrase by scanning candidate CSV blocks (2, 144, 432, 1008, 2016).</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Topic 13: Ripcord Exit -->
+        <article class="docs-doc" id="doc-ripcord-exit">
+          <p class="pocket-eyebrow">SOVEREIGNTY GUARANTEED</p>
+          <h1 class="pocket-title">Unilateral Ripcord Exit</h1>
+          <p class="pocket-lede">The hallmark of non-custodial custody is the ability to withdraw funds without third-party permission.</p>
+          <p>If Tachi validators disappear, experience downtime, or attempt censorship, the user pulls the Ripcord. This executes a sweep transaction on Bitcoin L1 using the user's sovereign private key after the BIP68 relative timelock has elapsed.</p>
+        </article>
+
+        <!-- Topic 14: Timelocks -->
+        <article class="docs-doc" id="doc-timelocks">
+          <p class="pocket-eyebrow">SOVEREIGN EXIT</p>
+          <h1 class="pocket-title">BIP68 Relative Timelocks (CSV)</h1>
+          <p class="pocket-lede">The unilateral exit path uses OP_CHECKSEQUENCEVERIFY starting from the confirmation block height of the funding outpoint.</p>
+          <div class="docs-table-wrap">
+            <table class="docs-table">
+              <thead>
+                <tr>
+                  <th>Exit Lifecycle Status</th>
+                  <th>Timelock Condition</th>
+                  <th>User Action Permitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>unfunded</code></td>
+                  <td>No on-chain funding outpoint detected</td>
+                  <td>Fund vault on L1 before testing exit</td>
+                </tr>
+                <tr>
+                  <td><code>maturing</code></td>
+                  <td><code>confirmations &lt; csvBlocks</code></td>
+                  <td>Dry-run test-pull permitted; broadcast locked</td>
+                </tr>
+                <tr>
+                  <td><code>live</code></td>
+                  <td><code>confirmations &ge; csvBlocks</code></td>
+                  <td><strong>Full unilateral exit ready</strong>: User CHECKSIG can sweep to L1</td>
+                </tr>
+                <tr>
+                  <td><code>spent</code></td>
+                  <td>Funding outpoint has been spent on L1</td>
+                  <td>Funds already swept or settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Topic 15: Test-Pull -->
+        <article class="docs-doc" id="doc-test-pull">
+          <p class="pocket-eyebrow">SOVEREIGN EXIT</p>
+          <h1 class="pocket-title">Dry-Run Test-Pull Engine</h1>
+          <p class="pocket-lede">Eliminate user uncertainty before executing an on-chain broadcast through simulated witness construction.</p>
+          <ul style="display: grid; gap: 8px; padding-left: 20px;">
+            <li>Builds the exact Bitcoin L1 witness transaction.</li>
+            <li>Signs the Tapscript leaf with the user's own key locally (the exact final witness), so the reported vsize is the real spend size.</li>
+            <li>Computes virtual size (vsize) and sequence number (<code>nSequence = csvBlocks</code>).</li>
+            <li>Computes the deterministic transaction hash (txid) without broadcasting anything.</li>
+          </ul>
+          <div class="pocket-callout" style="margin-top: 20px;">
+            <svg class="pocket-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <div class="pocket-callout-body">
+              <h4 class="pocket-callout-title">Hold-to-Confirm Physical Mechanism</h4>
+              <p style="margin: 0;">Broadcasting an exit on L1 incurs standard Bitcoin mining fees and closes the off-chain vault. RIPCORD protects users from accidental triggers with a 1.2-second hold-to-confirm physical button.</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- Topic 16: Recovery -->
+        <article class="docs-doc" id="doc-recovery">
+          <p class="pocket-eyebrow">DISASTER RECOVERY</p>
+          <h1 class="pocket-title">Cold-Start Disaster Storage Wipe Recovery</h1>
+          <p class="pocket-lede">Complete state restoration from only the 12-word recovery phrase with zero centralized servers.</p>
+          <p>If browser storage is wiped completely (clearing IndexedDB, cache, and localStorage), Ripcord scans candidate CSV blocks (2, 144, 432, 1008, 2016), binds to live Bitcoin RPC funding scripts, reconnects to the indexer, and reconstructs the wallet with zero central dependencies.</p>
+        </article>
+
+        <!-- Topic 17: Invariants -->
+        <article class="docs-doc" id="doc-invariants">
+          <p class="pocket-eyebrow">SECURITY GUARANTEES</p>
+          <h1 class="pocket-title">Non-Negotiable Protocol Invariants</h1>
+          <p class="pocket-lede">Five foundational rules enforced across both the SDK and wallet UI to guarantee fund security.</p>
+          <dl class="docs-facts">
+            <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys remain strictly in volatile JavaScript heap memory. Only public metadata is stored in IndexedDB.</dd></div>
+            <div><dt>2. Change Isolation</dt><dd>Payment change always returns to the sender's own user key descriptor, never into the shared vault pool script.</dd></div>
+            <div><dt>3. Zero Mocks</dt><dd>Every balance, confirmation, proof check, and exit assessment is executed against live Tachi regtest and Bitcoin RPC outputs.</dd></div>
+            <div><dt>4. Script Binding</dt><dd>Funding outputs are verified against Bitcoin RPC via exact scriptPubKey matching. No unverified deposit is reported as confirmed.</dd></div>
+            <div><dt>5. Scope Transparency</dt><dd>RIPCORD targets OP_FREEDOM Bounty #1 on Tachi regtest. There are no false claims of mainnet support; regtest is a deliberate, honest verification boundary.</dd></div>
+          </dl>
+        </article>
+
+        <!-- Topic 18: SDK -->
+        <article class="docs-doc" id="doc-sdk">
+          <p class="pocket-eyebrow">DEVELOPER INTEGRATION</p>
+          <h1 class="pocket-title">@ripcord/core Standalone Library</h1>
+          <p class="pocket-lede">The core mechanics of RIPCORD are published on npm as a standalone, modular TypeScript library.</p>
+          <div class="docs-link-cards">
+            <a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" class="docs-external-card">
+              <span class="docs-external-title">npm Package</span>
+              <span class="docs-external-sub">npmjs.com/package/@ripcord/core (v0.2.0)</span>
+            </a>
+            <a href="https://github.com/Jayanng/ripcord/tree/main/packages/core" target="_blank" rel="noreferrer" class="docs-external-card">
+              <span class="docs-external-title">Package Source</span>
+              <span class="docs-external-sub">github.com/Jayanng/ripcord/tree/main/packages/core</span>
+            </a>
+            <a href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0" target="_blank" rel="noreferrer" class="docs-external-card">
+              <span class="docs-external-title">GitHub Release</span>
+              <span class="docs-external-sub">v0.2.0 release tag</span>
+            </a>
+          </div>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">Installation via npm</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>npm install @ripcord/core</code></pre>
+          </div>
+          <p>Designed for autonomous AI agents, backend services, and front-end wallets building non-custodial custody applications on the Tachi and TAURUS protocol.</p>
+        </article>
+
+        <!-- Topic 19: SDK Examples -->
+        <article class="docs-doc" id="doc-sdk-examples">
+          <p class="pocket-eyebrow">DEVELOPER INTEGRATION</p>
+          <h1 class="pocket-title">TypeScript Code Examples</h1>
+          <p class="pocket-lede">End-to-end integration snippets using @ripcord/core.</p>
+
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">Example 1: Key Derivation &amp; Quorum Discovery</h3>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">TypeScript</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { deriveIdentity, getQuorumWithCache } from '@ripcord/core';
+
+const mnemonic = process.env.RIPCORD_MNEMONIC!;
+const identity = deriveIdentity(mnemonic, 'regtest', 0);
+console.log('User P2TR Address:', identity.userAddress);
+
+const quorum = await getQuorumWithCache('https://rpc-regtest.tachibtc.com');
+console.log(`Quorum: ${quorum.threshold} of ${quorum.nodePubkeys.length} validators`);</code></pre>
+          </div>
+
+          <h3 style="margin: 24px 0 8px; font-weight: 750;">Example 2: Deterministic Vault Derivation</h3>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">TypeScript</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { createVault } from '@ripcord/core';
+
+const vault = await createVault({
+  network: 'regtest',
+  nodePubkeys: quorum.nodePubkeys,
+  csvBlocks: 2,
+  userKeyDescriptor: identity.userKeyDescriptor,
+  threshold: quorum.threshold,
+});
+console.log('Vault Taproot Address:', vault.address);</code></pre>
+          </div>
+
+          <h3 style="margin: 24px 0 8px; font-weight: 750;">Example 3: VTXO Transfer</h3>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">TypeScript</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { createVtxoPayment, makeSigner } from '@ripcord/core';
+
+const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex);
+const receipt = await createVtxoPayment({
+  vault,
+  senderXOnly: identity.xOnly,
+  recipientAddress: 'bcrt1p...',
+  amountSats: 50_000n,
+  baseUrl: 'https://rpc-regtest.tachibtc.com',
+  signer,
+});
+console.log('TxHash:', receipt.txHash);</code></pre>
+          </div>
+        </article>
+
+        <!-- Topic 20: SDK Subpaths -->
+        <article class="docs-doc" id="doc-sdk-subpaths">
+          <p class="pocket-eyebrow">DEVELOPER INTEGRATION</p>
+          <h1 class="pocket-title">Exported Module Subpaths</h1>
+          <p class="pocket-lede">Modular entry points available for granular bundling.</p>
+          <div class="docs-table-wrap">
+            <table class="docs-table">
+              <thead>
+                <tr><th>Import Subpath</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>@ripcord/core/keys</code></td><td>BIP-39 mnemonic validation, BIP-84 key derivation, and Schnorr signing adapters.</td></tr>
+                <tr><td><code>@ripcord/core/quorum</code></td><td>Consensus quorum discovery, validation, caching, and threshold-aware quorum fingerprinting.</td></tr>
+                <tr><td><code>@ripcord/core/vault</code></td><td>Taproot vault derivation, NUMS internal key, and script tree compilation.</td></tr>
+                <tr><td><code>@ripcord/core/deposit</code></td><td>L1 funding detection and scriptPubKey-verified deposit binding.</td></tr>
+                <tr><td><code>@ripcord/core/register</code></td><td>Vault registration against the Tachi daemon.</td></tr>
+                <tr><td><code>@ripcord/core/payment</code></td><td>VTXO payment building, change routing, and reservation-aware transfers.</td></tr>
+                <tr><td><code>@ripcord/core/coinselect</code></td><td>Deterministic largest-first VTXO coin selection.</td></tr>
+                <tr><td><code>@ripcord/core/queue</code></td><td>Single-writer FIFO transaction queue preventing VTXO double-spend collisions.</td></tr>
+                <tr><td><code>@ripcord/core/indexer</code></td><td>WebSocket indexer client for real-time transaction and block updates.</td></tr>
+                <tr><td><code>@ripcord/core/proofs</code></td><td>HAT and RIP proof fetchers with HAT-in-RIP inclusion linking.</td></tr>
+                <tr><td><code>@ripcord/core/exit</code></td><td>BIP68 maturity evaluation, test-pull dry runs, and unilateral exit execution.</td></tr>
+                <tr><td><code>@ripcord/core/refund</code></td><td>Cooperative refund and to_local recovery flows.</td></tr>
+                <tr><td><code>@ripcord/core/recovery</code></td><td>Multi-candidate CSV scanning, script matching, and cold-start browser restore.</td></tr>
+                <tr><td><code>@ripcord/core/lifecycle</code></td><td>End-to-end vault lifecycle helpers, including mnemonic-based recovery.</td></tr>
+                <tr><td><code>@ripcord/core/search</code></td><td>In-wallet protocol search against the daemon's search endpoint.</td></tr>
+                <tr><td><code>@ripcord/core/health</code></td><td>Fee estimates and daemon health probes.</td></tr>
+                <tr><td><code>@ripcord/core/net</code></td><td>Daemon URL joining and fetch-failure diagnosis.</td></tr>
+                <tr><td><code>@ripcord/core/store</code></td><td>Public metadata persistence adapters for Memory and IndexedDB.</td></tr>
+                <tr><td><code>@ripcord/core/errors</code></td><td>RipcordError and the RipcordCode error taxonomy.</td></tr>
+                <tr><td><code>@ripcord/core/bytes</code></td><td>Hex/byte helpers, including txid internal-vs-display order conversion.</td></tr>
+                <tr><td><code>@ripcord/core/types</code></td><td>Shared domain types: VaultRecord, receipts, and the forward-compatible SatVM interfaces.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Topic 21: SatVM -->
+        <article class="docs-doc" id="doc-satvm">
+          <p class="pocket-eyebrow">SMART CONTRACT PROGRAMMABILITY</p>
+          <h1 class="pocket-title">SatVM Smart Contracts on TAURUS</h1>
+          <p class="pocket-lede">
+            Forward-compatible smart contract architecture for Turing-complete state transitions directly against Virtual UTXOs (VTXOs) via SatVM covenants targeted for Phase 2 ecosystem grant expansion.
+          </p>
+          <div class="pocket-callout">
+            <svg class="pocket-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <div class="pocket-callout-body">
+              <h4 class="pocket-callout-title">Bounty Scope &amp; Verification Boundary</h4>
+              <p style="margin: 0;">
+                <strong>Live on Tachi Regtest Today:</strong> Sovereign identity derivation, deterministic 5-of-7 TAURUS vault construction, L1 funding verification, off-chain VTXO transfers, inclusion receipts, and BIP68 unilateral exits.<br>
+                <strong>Phase 2 Grant Scope:</strong> Turing-complete SatVM contract execution. <code>@ripcord/core</code> provides the forward-compatible TypeScript types (<code>SatVmCallParams</code>, <code>SatVmExecutionReceipt</code>) and architectural specification so downstream applications can prepare for contract state evaluation without breaking changes.
+              </p>
+            </div>
+          </div>
+          <p style="margin-top: 16px;">
+            While standard TAURUS vaults provide high-throughput peer-to-peer VTXO transfers, SatVM extends this architecture with programmable covenant state machines. Contracts evaluate off-chain against VTXO inputs and produce verifiable state roots committed to the Tachi History Authenticity Tree (HAT).
+          </p>
+
+          <h3 style="margin: 24px 0 12px; font-weight: 750;">How SatVM Integrates with TAURUS Custody</h3>
+          <div class="docs-table-wrap">
+            <table class="docs-table">
+              <thead>
+                <tr><th>Layer</th><th>Responsibility</th><th>Security Anchor</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>Bitcoin L1</strong></td><td>Custody of deposited satoshis in 5-of-7 Taproot vaults</td><td>BIP68 timelock (CSV) unconditional unilateral exit</td></tr>
+                <tr><td><strong>Tachi Consensus</strong></td><td>Off-chain VTXO sequencing, double-spend prevention, HAT anchoring</td><td>5-of-7 validator threshold signatures</td></tr>
+                <tr><td><strong>SatVM Engine</strong></td><td>Contract state execution, condition evaluation, output VTXO generation</td><td>Cryptographic state root attested by quorum</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="margin: 28px 0 8px; font-weight: 750;">TypeScript Contract Invocation Interface</h3>
+          <div class="docs-code-block">
+            <div class="docs-code-header">
+              <span class="docs-code-title">SatVM Contract Call Pattern</span>
+              <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
+            </div>
+            <pre><code>import { SatVmCallParams, SatVmExecutionReceipt } from '@ripcord/core';
+
+const callParams: SatVmCallParams = {
+  contractAddress: 'satvm1qq...escrow_vault',
+  method: 'releaseConditional',
+  args: ['oracle_attestation_hex', 50_000n],
+  inputVtxoId: 'vtxo:9a4b2c...',
+  maxFeeSats: 250n,
+};</code></pre>
+          </div>
+        </article>
+
+        <!-- Topic 22: Specs -->
+        <article class="docs-doc" id="doc-specs">
+          <p class="pocket-eyebrow">VERIFIED ENVIRONMENT</p>
+          <h1 class="pocket-title">Network &amp; Daemon Specifications</h1>
+          <p class="pocket-lede">Authoritative live RPC endpoints, explorers, and protocol parameters for Tachi regtest.</p>
+          <dl class="docs-facts">
+            <div><dt>Network</dt><dd>tachi-regtest-1</dd></div>
+            <div><dt>Consensus Quorum</dt><dd>5 of 7 validator threshold</dd></div>
+            <div><dt>Daemon REST RPC</dt><dd><a href="https://rpc-regtest.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://rpc-regtest.tachibtc.com</a></dd></div>
+            <div><dt>WebSocket Indexer</dt><dd><code>wss://rpc-regtest.tachibtc.com/tachi_ws</code></dd></div>
+            <div><dt>Bitcoin Faucet</dt><dd><a href="https://faucet.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://faucet.tachibtc.com</a></dd></div>
+            <div><dt>Block Explorer</dt><dd><a href="https://explorer-regtest.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://explorer-regtest.tachibtc.com</a></dd></div>
+            <div><dt>GitHub Repository</dt><dd><a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" style="color: var(--primary);">github.com/Jayanng/ripcord</a></dd></div>
+            <div><dt>Core Package (npm)</dt><dd><a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" style="color: var(--primary);">npmjs.com/package/@ripcord/core (v0.2.0)</a></dd></div>
+            <div><dt>GitHub Release</dt><dd><a href="https://github.com/Jayanng/ripcord/releases/tag/v0.2.0" target="_blank" rel="noreferrer" style="color: var(--primary);">Release v0.2.0</a></dd></div>
+            <div><dt>BIP Standards</dt><dd>BIP-39 (Mnemonic), BIP-84 (Derivation), BIP-340/341/342 (Taproot), BIP-68 (CSV)</dd></div>
+          </dl>
+        </article>
+
+        <!-- Pagination Footer -->
+        <nav class="pocket-pagination" aria-label="Documentation Pagination">
+          <button type="button" class="pocket-page-btn prev" id="page-prev-btn" style="display: none;" onclick="navigatePrev()">
+            <span class="pocket-page-label">← PREVIOUS</span>
+            <span class="pocket-page-title" id="page-prev-title"></span>
+          </button>
+          <button type="button" class="pocket-page-btn next" id="page-next-btn" onclick="navigateNext()">
+            <span class="pocket-page-label">NEXT →</span>
+            <span class="pocket-page-title" id="page-next-title"></span>
+          </button>
+        </nav>
+      </main>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <div class="page-container">
+      <div class="footer-inner">
+        <a href="/" class="brand" aria-label="Ripcord">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M26 6C26 9.5 23 11 18 11.5" stroke="#EA580C" stroke-width="2.75" stroke-linecap="round"/>
+              <rect x="15" y="10" width="6" height="3" rx="1.5" fill="#0F172A"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M11 15C8.5 15 6 18 6.5 24C7 29.5 12 32 18 32C24 32 29 29.5 29.5 24C30 18 27.5 15 25 15C22 15 21 16.5 18 16.5C15 16.5 14 15 11 15ZM12.5 19.5C14.5 19.5 15.5 21 18 21C20.5 21 21.5 19.5 23.5 19.5C24.5 19.5 25.5 21 25 24C24.5 26.5 21.5 27.5 18 27.5C14.5 27.5 11.5 26.5 11 24C10.5 21 11.5 19.5 12.5 19.5Z" fill="url(#ripcord-logo-grad)"/>
+            </svg>
+          </span>
+          <span>RIPCORD</span>
+        </a>
+        <nav class="footer-nav" aria-label="Footer Navigation">
+          <a href="/docs" class="footer-link">Docs</a>
+          <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="footer-link">GitHub</a>
+          <a href="/app" class="footer-link">Open wallet</a>
+        </nav>
+      </div>
+      <div class="footer-network-note">
+        <span class="footer-dot" aria-hidden="true"></span>
+        <span>Tachi Regtest Network · Built for OP_FREEDOM Bounty #1 · Keys never touch disk</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Vanilla Documentation Controller Script -->
+  <script>
+    (function () {
+      const TOPICS = [
+        { id: 'overview', label: 'Overview' },
+        { id: 'comparison', label: 'TAURUS vs. Lightning' },
+        { id: 'quickstart', label: 'Quick Start' },
+        { id: 'installation', label: 'Installation' },
+        { id: 'taproot', label: 'Deterministic Taproot Vaults' },
+        { id: 'quorum', label: 'Quorum Discovery' },
+        { id: 'nums', label: 'NUMS Unspendable Key' },
+        { id: 'tapscript', label: 'Tapscript Tree Leaves' },
+        { id: 'proofs', label: 'Inclusion Proofs (HAT & RIP)' },
+        { id: 'ephemeral', label: 'RAM-Only Key Policy' },
+        { id: 'coin-selection', label: 'VTXO Coin Selection' },
+        { id: 'journey', label: 'Lifecycle (Steps 01-06)' },
+        { id: 'ripcord-exit', label: 'Unilateral Ripcord Exit' },
+        { id: 'timelocks', label: 'BIP68 Relative Timelocks' },
+        { id: 'test-pull', label: 'Dry-Run Test-Pull Engine' },
+        { id: 'recovery', label: 'Disaster Storage Wipe' },
+        { id: 'invariants', label: 'Security Invariants' },
+        { id: 'sdk', label: '@ripcord/core SDK' },
+        { id: 'sdk-examples', label: 'TypeScript Code Examples' },
+        { id: 'sdk-subpaths', label: 'Exported Subpaths' },
+        { id: 'satvm', label: 'SatVM Smart Contracts' },
+        { id: 'specs', label: 'Network Specifications' },
+      ];
+
+      let currentId = 'overview';
+
+      function updateActiveDoc(id) {
+        const item = TOPICS.find(t => t.id === id) || TOPICS[0];
+        currentId = item.id;
+
+        // Hide all docs, show active
+        document.querySelectorAll('.docs-doc').forEach(el => {
+          el.classList.toggle('active', el.id === 'doc-' + currentId);
+        });
+
+        // Update active class on nav items
+        document.querySelectorAll('.pocket-nav-item').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-id') === currentId);
+        });
+
+        // Update mobile toggle label
+        const mobileToggleLabel = document.getElementById('mobile-toggle-label');
+        if (mobileToggleLabel) {
+          mobileToggleLabel.textContent = 'Docs: ' + item.label + ' (' + TOPICS.length + ' topics)';
+        }
+
+        // Close mobile sidebar if open
+        const sidebar = document.getElementById('docs-sidebar');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+
+        // Update pagination buttons
+        const idx = TOPICS.findIndex(t => t.id === currentId);
+        const prevItem = idx > 0 ? TOPICS[idx - 1] : null;
+        const nextItem = idx < TOPICS.length - 1 ? TOPICS[idx + 1] : null;
+
+        const prevBtn = document.getElementById('page-prev-btn');
+        const prevTitle = document.getElementById('page-prev-title');
+        const nextBtn = document.getElementById('page-next-btn');
+        const nextTitle = document.getElementById('page-next-title');
+
+        if (prevBtn && prevTitle) {
+          if (prevItem) {
+            prevBtn.style.display = 'flex';
+            prevTitle.textContent = prevItem.label;
+          } else {
+            prevBtn.style.display = 'none';
+          }
+        }
+
+        if (nextBtn && nextTitle) {
+          if (nextItem) {
+            nextBtn.style.display = 'flex';
+            nextTitle.textContent = nextItem.label;
+          } else {
+            nextBtn.style.display = 'none';
+          }
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      window.navigateToDoc = function (id) {
+        window.location.hash = id;
+        updateActiveDoc(id);
+      };
+
+      window.navigatePrev = function () {
+        const idx = TOPICS.findIndex(t => t.id === currentId);
+        if (idx > 0) navigateToDoc(TOPICS[idx - 1].id);
+      };
+
+      window.navigateNext = function () {
+        const idx = TOPICS.findIndex(t => t.id === currentId);
+        if (idx < TOPICS.length - 1) navigateToDoc(TOPICS[idx + 1].id);
+      };
+
+      window.copyCode = async function (btn) {
+        const pre = btn.closest('.docs-code-block').querySelector('pre code');
+        if (!pre) return;
+        try {
+          await navigator.clipboard.writeText(pre.textContent.trim());
+          const original = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = original; }, 2000);
+        } catch (e) {
+          // ignore
+        }
+      };
+
+      // Handle hash change
+      function parseHash() {
+        const raw = window.location.hash.replace('#', '').replace('/docs#', '').replace('/docs/', '');
+        if (raw && TOPICS.some(t => t.id === raw)) {
+          updateActiveDoc(raw);
+        } else {
+          updateActiveDoc('overview');
+        }
+      }
+
+      window.addEventListener('hashchange', parseHash);
+
+      // Search filtering
+      const searchInput = document.getElementById('docs-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', function (e) {
+          const q = e.target.value.toLowerCase().trim();
+          document.querySelectorAll('.pocket-group[data-group]').forEach(grp => {
+            let hasVisible = false;
+            grp.querySelectorAll('.pocket-nav-item').forEach(btn => {
+              const text = btn.textContent.toLowerCase();
+              const match = !q || text.includes(q);
+              btn.style.display = match ? 'block' : 'none';
+              if (match) hasVisible = true;
+            });
+            grp.style.display = hasVisible ? 'flex' : 'none';
+          });
+        });
+
+        // Keyboard shortcut / or Ctrl+K to focus search
+        window.addEventListener('keydown', function (e) {
+          if ((e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) && document.activeElement !== searchInput) {
+            e.preventDefault();
+            searchInput.focus();
+          }
+        });
+      }
+
+      // Mobile toggle
+      const mobileToggle = document.getElementById('mobile-toggle');
+      const sidebar = document.getElementById('docs-sidebar');
+      if (mobileToggle && sidebar) {
+        mobileToggle.addEventListener('click', function () {
+          const isOpen = sidebar.classList.toggle('mobile-open');
+          mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          document.getElementById('mobile-toggle-btn').textContent = isOpen ? 'Close Menu' : 'Browse Docs';
+        });
+      }
+
+      // Hook up sidebar click handlers
+      document.querySelectorAll('.pocket-nav-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const id = btn.getAttribute('data-id');
+          if (id) navigateToDoc(id);
+        });
+      });
+
+      // Initial load
+      parseHash();
+    })();
+  </script>
+</body>
+</html>

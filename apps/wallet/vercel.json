@@ -7,6 +7,14 @@
     { "source": "/rpc/", "destination": "https://rpc-regtest.tachibtc.com/" },
     { "source": "/rpc/:path*", "destination": "https://rpc-regtest.tachibtc.com/:path*" },
     { "source": "/faucet/", "destination": "https://faucet.tachibtc.com/" },
-    { "source": "/faucet/:path*", "destination": "https://faucet.tachibtc.com/:path*" }
+    { "source": "/faucet/:path*", "destination": "https://faucet.tachibtc.com/:path*" },
+    { "source": "/landing", "destination": "/landing/index.html" },
+    { "source": "/landing/", "destination": "/landing/index.html" },
+    { "source": "/docs", "destination": "/docs/index.html" },
+    { "source": "/docs/", "destination": "/docs/index.html" },
+    { "source": "/app", "destination": "/index.html" },
+    { "source": "/app/", "destination": "/index.html" },
+    { "source": "/app/:path*", "destination": "/index.html" },
+    { "source": "/", "destination": "/landing/index.html" }
   ]
 }

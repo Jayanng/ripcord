@@ -1,4 +1,4 @@
-import { defineConfig, type ProxyOptions } from 'vite';
+import { defineConfig, type ProxyOptions, type Plugin } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
@@ -35,6 +35,39 @@ const SERVICE_PROXY: Record<string, ProxyOptions> = {
   },
 };
 
+/**
+ * Phase 1: Ripcord routing middleware for local dev and preview.
+ * - "/" serves the standalone landing page (/landing/index.html)
+ * - "/docs" serves the standalone documentation page (/docs/index.html)
+ * - "/app" serves the wallet SPA (/index.html)
+ */
+function ripcordRoutingPlugin(): Plugin {
+  const rewriteRouting = (req: any, _res: any, next: any) => {
+    const rawUrl = req.url || '';
+    const pathname = rawUrl.split('?')[0];
+    const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
+
+    if (pathname === '/' || pathname === '/index.html') {
+      req.url = '/landing/index.html' + query;
+    } else if (pathname === '/docs' || pathname === '/docs/') {
+      req.url = '/docs/index.html' + query;
+    } else if (pathname === '/app' || pathname === '/app/' || pathname.startsWith('/app/')) {
+      req.url = '/index.html' + query;
+    }
+    next();
+  };
+
+  return {
+    name: 'ripcord-routing',
+    configureServer(server) {
+      server.middlewares.use(rewriteRouting);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewriteRouting);
+    },
+  };
+}
+
 export default defineConfig({
   resolve: {
     alias: { vm: fileURLToPath(new URL('./src/shims/vm.ts', import.meta.url)) },
@@ -51,12 +84,14 @@ export default defineConfig({
       includeAssets: ['ripcord-mark.svg'],
       manifest: false,
       workbox: {
-        navigateFallback: 'index.html',
+        navigateFallback: '/index.html',
+        navigateFallbackAllowlist: [/^\/app/],
         runtimeCaching: [],
         skipWaiting: true,
         clientsClaim: true,
       },
     }),
+    ripcordRoutingPlugin(),
   ],
   build: {
     chunkSizeWarningLimit: 1200,

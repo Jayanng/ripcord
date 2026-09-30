@@ -8,7 +8,6 @@ import { WalletScreen } from './screens/WalletScreen';
 import { ExitScreen } from './screens/ExitScreen';
 import { ProofsScreen } from './screens/ProofsScreen';
 import { ActivityScreen } from './screens/ActivityScreen';
-import { DocsScreen } from './screens/DocsScreen';
 
 export function App() {
   const wallet = useWallet();
@@ -17,8 +16,11 @@ export function App() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.toLowerCase().replace('#/', '').replace('#', '');
-      if (hash === 'docs') setTab('docs');
-      else if (hash === 'activity') setTab('activity');
+      if (hash === 'docs' || hash.startsWith('docs')) {
+        window.location.href = '/docs';
+        return;
+      }
+      if (hash === 'activity') setTab('activity');
       else if (hash === 'proofs') setTab('proofs');
       else if (hash === 'exit') setTab('exit');
       else if (hash === 'wallet' || hash === 'create' || hash === 'recover') setTab('wallet');
@@ -37,9 +39,7 @@ export function App() {
 
   return <Layout tab={tab} onTabChange={handleTabChange}>
     <SearchDrawer />
-    {tab === 'docs' ? (
-      <DocsScreen />
-    ) : tab === 'activity' ? (
+    {tab === 'activity' ? (
       <ActivityScreen />
     ) : tab === 'proofs' ? (
       <ProofsScreen />
