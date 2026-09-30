@@ -272,5 +272,16 @@
       </div>
     </div>
   </footer>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) {
+          if (regs[i].scope === window.location.origin + '/' || regs[i].scope === window.location.origin) {
+            regs[i].unregister();
+          }
+        }
+      });
+    }
+  </script>
 </body>
 </html>

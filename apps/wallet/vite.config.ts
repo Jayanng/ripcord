@@ -1,5 +1,7 @@
 import { defineConfig, type ProxyOptions, type Plugin } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
+import { resolve } from 'node:path';
+import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -36,34 +38,87 @@ const SERVICE_PROXY: Record<string, ProxyOptions> = {
 };
 
 /**
+ * Phase 1 Correction: Ensures build output places the standalone landing page
+ * at dist/index.html and preserves the compiled SPA shell at dist/app.html.
+ *
+ * Runs with order: 'pre' on closeBundle so that dist/app.html is generated
+ * BEFORE VitePWA runs generateSW (which requires navigateFallback to exist).
+ */
+function ripcordHtmlPlugin(): Plugin {
+  return {
+    name: 'ripcord-html',
+    closeBundle: {
+      order: 'pre',
+      sequential: true,
+      async handler() {
+        const distDir = fileURLToPath(new URL('./dist', import.meta.url));
+        const indexHtml = resolve(distDir, 'index.html');
+        const appHtml = resolve(distDir, 'app.html');
+        const landingHtml = resolve(distDir, 'landing/index.html');
+        const vercelJsonSrc = fileURLToPath(new URL('./vercel.json', import.meta.url));
+        const vercelJsonDest = resolve(distDir, 'vercel.json');
+
+        if (fs.existsSync(indexHtml) && fs.existsSync(landingHtml)) {
+          // 1. Preserve the compiled wallet SPA shell as dist/app.html
+          fs.copyFileSync(indexHtml, appHtml);
+          // 2. Place the standalone landing page at dist/index.html
+          fs.copyFileSync(landingHtml, indexHtml);
+        }
+        if (fs.existsSync(vercelJsonSrc)) {
+          fs.copyFileSync(vercelJsonSrc, vercelJsonDest);
+        }
+      },
+    },
+  };
+}
+
+/**
  * Phase 1: Ripcord routing middleware for local dev and preview.
+ *
+ * In dev:
  * - "/" serves the standalone landing page (/landing/index.html)
  * - "/docs" serves the standalone documentation page (/docs/index.html)
  * - "/app" serves the wallet SPA (/index.html)
+ *
+ * In preview:
+ * - "/" serves the standalone landing page (/index.html)
+ * - "/docs" serves the standalone documentation page (/docs/index.html)
+ * - "/app" serves the wallet SPA (/app.html)
  */
 function ripcordRoutingPlugin(): Plugin {
-  const rewriteRouting = (req: any, _res: any, next: any) => {
-    const rawUrl = req.url || '';
-    const pathname = rawUrl.split('?')[0];
-    const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
-
-    if (pathname === '/' || pathname === '/index.html') {
-      req.url = '/landing/index.html' + query;
-    } else if (pathname === '/docs' || pathname === '/docs/') {
-      req.url = '/docs/index.html' + query;
-    } else if (pathname === '/app' || pathname === '/app/' || pathname.startsWith('/app/')) {
-      req.url = '/index.html' + query;
-    }
-    next();
-  };
-
   return {
     name: 'ripcord-routing',
     configureServer(server) {
-      server.middlewares.use(rewriteRouting);
+      server.middlewares.use((req: any, _res: any, next: any) => {
+        const rawUrl = req.url || '';
+        const pathname = rawUrl.split('?')[0];
+        const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
+
+        if (pathname === '/' || pathname === '/index.html') {
+          req.url = '/landing/index.html' + query;
+        } else if (pathname === '/docs' || pathname === '/docs/') {
+          req.url = '/docs/index.html' + query;
+        } else if (pathname === '/app' || pathname === '/app/' || pathname.startsWith('/app/')) {
+          req.url = '/index.html' + query;
+        }
+        next();
+      });
     },
     configurePreviewServer(server) {
-      server.middlewares.use(rewriteRouting);
+      server.middlewares.use((req: any, _res: any, next: any) => {
+        const rawUrl = req.url || '';
+        const pathname = rawUrl.split('?')[0];
+        const query = rawUrl.includes('?') ? '?' + rawUrl.split('?')[1] : '';
+
+        if (pathname === '/' || pathname === '/index.html') {
+          req.url = '/index.html' + query;
+        } else if (pathname === '/docs' || pathname === '/docs/') {
+          req.url = '/docs/index.html' + query;
+        } else if (pathname === '/app' || pathname === '/app/' || pathname.startsWith('/app/')) {
+          req.url = '/app.html' + query;
+        }
+        next();
+      });
     },
   };
 }
@@ -79,13 +134,16 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true },
       protocolImports: true,
     }),
+    ripcordHtmlPlugin(),
     VitePWA({
+      scope: '/app',
       registerType: 'autoUpdate',
       includeAssets: ['ripcord-mark.svg'],
       manifest: false,
       workbox: {
-        navigateFallback: '/index.html',
+        navigateFallback: '/app.html',
         navigateFallbackAllowlist: [/^\/app/],
+        globIgnores: ['landing/**', 'docs/**', 'index.html'],
         runtimeCaching: [],
         skipWaiting: true,
         clientsClaim: true,
