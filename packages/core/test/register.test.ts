@@ -11,6 +11,7 @@ import {
   evaluateFundingStep,
   computeFundingSteps,
   toSdkVault,
+  sendTransfer,
 } from '../src/index.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 import { withTransportRetry } from './live-fixtures.js';
@@ -140,8 +141,65 @@ describe('register.ts', { timeout: 60000 }, () => {
 
     it('re-registers existing vault: proves code=17 from daemon, adopts vaultId, and verifies H(funding_txid || vout)', async () => {
       // 1. Find an unspent VTXO owned by Alice to construct the live registration transaction
-      const vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));
-      const unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
+      let vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));
+      let unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
+
+      if (!unspentVtxo) {
+        // Self-heal: ensure Alice has an unspent VTXO of at least 1000 sats using sendTransfer
+        const aliceTotal = vtxoRes.vtxos
+          .filter(v => !v.spent && !v.locked)
+          .reduce((sum, v) => sum + v.amountSats, 0n);
+
+        if (aliceTotal >= 1001n) {
+          await withTransportRetry(() =>
+            sendTransfer({
+              vault: toSdkVault(vault),
+              senderXOnly: aliceIdentity.xOnly,
+              recipientAddress: aliceIdentity.userAddress,
+              amountSats: 1000n,
+              feeSats: 1n,
+              baseUrl: DAEMON_URL,
+              network: 'regtest',
+              userSigner,
+            }),
+          );
+        } else {
+          const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
+          const bobIdentity = deriveIdentity(BOB_MNEMONIC, 'regtest');
+          const bobVault = await createVault({
+            network: 'regtest',
+            nodePubkeys: quorum.nodePubkeys,
+            csvBlocks: 2,
+            userKeyDescriptor: bobIdentity.userKeyDescriptor,
+          });
+          const bobSigner = makeSigner(BOB_MNEMONIC, 'regtest', 0);
+          await withTransportRetry(() =>
+            sendTransfer({
+              vault: toSdkVault(bobVault),
+              senderXOnly: bobIdentity.xOnly,
+              recipientAddress: aliceIdentity.userAddress,
+              amountSats: 2000n,
+              feeSats: 1n,
+              baseUrl: DAEMON_URL,
+              network: 'regtest',
+              userSigner: bobSigner,
+            }),
+          );
+        }
+
+        vtxoRes = await withTransportRetry(
+          () => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }),
+          {
+            validate: res => {
+              if (!res.vtxos.some(v => !v.spent && v.amountSats >= 1000n)) {
+                throw new Error('Waiting for minted VTXO to appear on daemon');
+              }
+            },
+          },
+        );
+        unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
+      }
+
       expect(unspentVtxo).toBeDefined();
       const vtxo = unspentVtxo!;
 
