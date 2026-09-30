@@ -11,7 +11,7 @@ export interface VtxoManagementCardProps {
   onFund?: () => void;
 }
 
-export function VtxoManagementCard({ onFund }: VtxoManagementCardProps) {
+export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps = {}) {
   const { liveVtxos, spentVtxos, lockedVtxos, vaults, receipts, identity } = useWallet();
   const [filter, setFilter] = useState<VtxoFilter>('all');
   const [selectedVtxo, setSelectedVtxo] = useState<VtxoRecordItem | null>(null);
@@ -88,17 +88,6 @@ export function VtxoManagementCard({ onFund }: VtxoManagementCardProps) {
               <span className="empty-glyph">⌁</span>
               <strong>No VTXOs yet</strong>
               <p>Deposit funds into a TAURUS vault to mint your first spendable VTXO.</p>
-              {onFund && (
-                <button
-                  type="button"
-                  className="action-btn"
-                  onClick={onFund}
-                  style={{ marginTop: '16px', minHeight: '44px' }}
-                >
-                  <Icon name="receive" />
-                  <span>Deposit & Fund Vault</span>
-                </button>
-              )}
             </div>
           ) : (
             <>
@@ -149,9 +138,9 @@ export function VtxoManagementCard({ onFund }: VtxoManagementCardProps) {
                   <section className="vtxo-group" aria-labelledby="group-spendable-title">
                     <div className="vtxo-group-header">
                       <h3 id="group-spendable-title">
-                        Spendable <span className="vtxo-group-count">({spendableCount})</span>
-                      </h3>
-                      <small>Off-chain balance spendable now</small>
+                         Spendable <span className="vtxo-group-count">({spendableCount})</span>
+                       </h3>
+                      <small>Available for immediate transfer</small>
                     </div>
                     {spendableCount === 0 ? (
                       <p className="vtxo-group-empty">No spendable VTXOs available</p>
@@ -177,7 +166,7 @@ export function VtxoManagementCard({ onFund }: VtxoManagementCardProps) {
                       <h3 id="group-locked-title">
                         Locked (cooperative escrow) <span className="vtxo-group-count">({lockedCount})</span>
                       </h3>
-                      <small>Committed to vault escrow; not spendable</small>
+                      <small>Escrowed in vault consensus; not spendable</small>
                     </div>
                     {lockedCount === 0 ? (
                       <p className="vtxo-group-empty">0 locked VTXOs</p>

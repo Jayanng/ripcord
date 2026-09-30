@@ -52,10 +52,8 @@ export function WatchtowerPanel() {
           <dd>{watchtowerStatus ? watchtowerStatus.receiptCount : 'Unavailable'}</dd>
         </div>
         <div>
-          <dt>Vault watched</dt>
-          <dd title={activeVault?.vaultIdHex || undefined}>
-            {activeVault?.vaultIdHex ? truncate(activeVault.vaultIdHex, 8, 6) : 'None'}
-          </dd>
+          <dt>Surveillance</dt>
+          <dd>{activeVault?.vaultIdHex ? 'Active vault' : 'Standby'}</dd>
         </div>
       </dl>
 

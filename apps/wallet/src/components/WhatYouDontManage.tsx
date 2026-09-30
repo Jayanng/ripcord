@@ -27,7 +27,7 @@ const ROWS: CustodyComparisonRow[] = [
     resolution: 'Node-side',
   },
   {
-    name: 'Unilateral exit',
+    name: 'Sovereign exit guarantee',
     detail: 'Pre-signed BIP68 relative timelocks guarantee independent on-chain recovery.',
     resolution: 'Always yours',
     isSovereignGuarantee: true,

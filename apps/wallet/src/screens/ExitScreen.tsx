@@ -1,3 +1,4 @@
+import { ExitRing } from '../components/ExitRing';
 import { RipcordPanel } from '../components/RipcordPanel';
 import { RefundPanel } from '../components/RefundPanel';
 
@@ -18,6 +19,9 @@ export function ExitScreen() {
           The sovereign exit needs nobody, just the timelock to mature.
           Pick whichever fits the moment.
         </p>
+      </div>
+      <div style={{ marginBottom: '20px' }}>
+        <ExitRing />
       </div>
       <div className="exit-console">
         <RefundPanel />

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
-import { truncate, formatSats } from './ui';
+import { truncate } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -241,7 +241,7 @@ export function VaultStatusCard() {
     {wallet.identity && (
       <div className="vault-switcher" role="tablist" aria-label="Select vault">
         <p className="vault-switcher-totals">
-          {wallet.vaults.length} {wallet.vaults.length === 1 ? 'vault' : 'vaults'} · {formatSats(wallet.vaults.reduce((sum, v) => sum + (v.funding?.valueSats ?? 0n), 0n))} total on-chain
+          {wallet.vaults.length} {wallet.vaults.length === 1 ? 'vault round' : 'vault rounds'}
         </p>
         <div className="vault-chip-row">
           {wallet.vaults.map((item, index) => {
@@ -257,8 +257,7 @@ export function VaultStatusCard() {
                 title={`${item.address}\nfunding ${item.funding ? item.funding.txid.slice(0, 16) : 'none'}`}
               >
                 <span className="vault-chip-round">Vault {index + 1}</span>
-                <span className="vault-chip-amount">{item.funding ? formatSats(item.funding.valueSats ?? 0n) : 'unfunded'}</span>
-                <span className={`vault-chip-state ${item.registered ? 'ready' : ''}`}>{item.registered ? 'registered' : 'pending'}</span>
+                <span className={`vault-chip-state ${item.registered ? 'ready' : ''}`}>{item.registered ? 'registered' : item.funding ? 'funded' : 'pending'}</span>
               </button>
             );
           })}
@@ -278,10 +277,54 @@ export function VaultStatusCard() {
     <div className="flow-success">
       <strong>{vaultReady || flow === 'complete' ? 'Vault ready' : busy ? 'Funding in progress' : 'Identity ready'}</strong>
       <dl>
-        <div><dt>Receive</dt><dd>{truncate(wallet.identity.userAddress, 14, 10)}</dd></div>
-        <div><dt>L1 settlement</dt><dd>{truncate(wallet.identity.l1Address, 14, 10)}</dd></div>
-        <div><dt>Path</dt><dd>{wallet.identity.userKeyDescriptor.path}</dd></div>
-        {depositTxid && <div><dt>Deposit tx</dt><dd>{truncate(depositTxid, 14, 10)}</dd></div>}
+        <div>
+          <dt>Vault ID</dt>
+          <dd title={wallet.activeVault?.vaultIdHex || undefined}>
+            {wallet.activeVault?.vaultIdHex ? truncate(wallet.activeVault.vaultIdHex, 14, 10) : 'Pending funding'}
+          </dd>
+        </div>
+        <div>
+          <dt>Vault address</dt>
+          <dd title={wallet.activeVault?.address || undefined}>
+            {wallet.activeVault?.address ? truncate(wallet.activeVault.address, 14, 10) : 'Not derived'}
+          </dd>
+        </div>
+        <div>
+          <dt>Registration</dt>
+          <dd>{vaultReady || flow === 'complete' ? 'Registered with quorum' : wallet.activeVault?.registered ? 'Registered' : 'Pending registration'}</dd>
+        </div>
+        <div>
+          <dt>Funding</dt>
+          <dd>
+            {wallet.activeVault?.funding ? (
+              <a
+                className="explorer-link"
+                href={explorerUrl(wallet.activeVault.funding.txid)}
+                target="_blank"
+                rel="noreferrer"
+                title={`Funding tx: ${wallet.activeVault.funding.txid}`}
+              >
+                {truncate(wallet.activeVault.funding.txid, 10, 8)}:{wallet.activeVault.funding.vout} ↗
+              </a>
+            ) : depositTxid || savedDepositTxid ? (
+              <a
+                className="explorer-link"
+                href={explorerUrl(depositTxid || savedDepositTxid!)}
+                target="_blank"
+                rel="noreferrer"
+                title={`Deposit tx: ${depositTxid || savedDepositTxid}`}
+              >
+                {truncate(depositTxid || savedDepositTxid!, 10, 8)}:0 (pending) ↗
+              </a>
+            ) : (
+              'Awaiting deposit'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>L1 settlement</dt>
+          <dd title={wallet.identity?.l1Address}>{wallet.identity ? truncate(wallet.identity.l1Address, 14, 10) : 'Unavailable'}</dd>
+        </div>
       </dl>
       {(busy || Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready') && (
         <ol className="funding-progress" aria-label="Vault funding progress">
@@ -320,11 +363,6 @@ export function VaultStatusCard() {
       {pendingFaucetTxid && flow === 'ready' && (
         <a className="explorer-link" href={explorerUrl(pendingFaucetTxid)} target="_blank" rel="noreferrer">
           View faucet transaction on regtest explorer ↗
-        </a>
-      )}
-      {(depositTxid || savedDepositTxid) && (
-        <a className="explorer-link" href={explorerUrl(depositTxid || savedDepositTxid!)} target="_blank" rel="noreferrer">
-          View deposit on the regtest explorer ↗
         </a>
       )}
     </div>

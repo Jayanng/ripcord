@@ -1,22 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { formatSats } from './ui';
 
 export function TruthRail() {
-  const { bootState, health, refresh, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, lastRefreshedAt } = useWallet();
+  const { bootState, health, indexerStatus, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts } = useWallet();
   // Phase 9 (#19): compact sticky banner on mobile, expandable sheet.
   const [expanded, setExpanded] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 560px)').matches) {
       setExpanded(false);
     }
   }, []);
-  const updatedAt = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString() : null;
-  const runRefresh = () => {
-    setRefreshing(true);
-    void Promise.resolve(refresh()).finally(() => setRefreshing(false));
-  };
   const statusLabel = bootState === 'ready'
     ? 'All probes answered'
     : bootState === 'checking'
@@ -27,8 +20,10 @@ export function TruthRail() {
 
   const crossCheckLabel = balanceCrossCheck
     ? !balanceCrossCheck.chainReachable || balanceCrossCheck.matches === null
-      ? `snapshot ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`
-      : `snapshot ${formatSats(balanceCrossCheck.snapshotSats)} vs chain ${formatSats(balanceCrossCheck.chainBalanceSats)}${balanceCrossCheck.matches ? ' (match)' : ' (mismatch)'}`
+      ? 'Chain unreachable'
+      : balanceCrossCheck.matches
+        ? 'Verified (matches chain)'
+        : 'Reserves mismatch'
     : 'Not checked';
 
   return <>
@@ -80,26 +75,12 @@ export function TruthRail() {
           {/* Scope 3: Balance cross-check (informational, never silently changes balance) */}
           <div>
             <dt>Balance Cross-Check</dt>
-            <dd title={balanceCrossCheck ? (balanceCrossCheck.chainReachable ? `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)}, Chain: ${formatSats(balanceCrossCheck.chainBalanceSats)} (VTXOs: ${balanceCrossCheck.chainVtxoCount})` : `Snapshot: ${formatSats(balanceCrossCheck.snapshotSats)} (chain unavailable)`) : undefined}>
+            <dd>
               {crossCheckLabel}
             </dd>
           </div>
         </dl>
       )}
-      <div className="truth-actions">
-        {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh */}
-        <span className="truth-updated" role="status">
-          {updatedAt ? `Updated ${updatedAt}` : 'Not checked yet'}
-        </span>
-        <button
-          type="button"
-          className="refresh"
-          onClick={runRefresh}
-          disabled={bootState === 'checking' || refreshing}
-        >
-          {bootState === 'checking' || refreshing ? 'Checking…' : 'Tap to refresh'}
-        </button>
-      </div>
     </section>
 
     {health && health.probeFailures.length > 0 && (
