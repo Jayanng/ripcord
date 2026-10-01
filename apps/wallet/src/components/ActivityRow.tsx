@@ -30,6 +30,13 @@ export interface ExitActivity {
   createdAt: number;
 }
 
+export interface ConscienceActivity {
+  kind: 'tx:conscience';
+  amountSats: bigint;
+  recipient: string;
+  createdAt: number;
+}
+
 export interface VtxoSpentActivity {
   kind: 'vtxo:spent';
   id: string;
@@ -39,7 +46,7 @@ export interface VtxoSpentActivity {
   createdAt?: number;
 }
 
-export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity | ExitActivity;
+export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity | ExitActivity | ConscienceActivity;
 
 export function ActivityRow({
   item,
@@ -128,6 +135,23 @@ export function ActivityRow({
               Explorer ↗
             </a>
           </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === 'tx:conscience') {
+    return (
+      <article className="activity-row committed">
+        <div>
+          <div className="activity-title-group">
+            <strong>{formatSats(item.amountSats)}</strong>
+            <span className="activity-tag" style={{ background: 'rgba(217, 119, 6, 0.14)', color: '#B45309' }}>Conscience flagged</span>
+          </div>
+          <span className="tx-link">{truncate(item.recipient, 14, 10)}</span>
+        </div>
+        <div>
+          <span>Your rules flagged this send and you sent it after reviewing them.</span>
         </div>
       </article>
     );

@@ -13,7 +13,7 @@ type Props = {
  * device only.
  */
 export function ConscienceSettings({ settings, onChange }: Props) {
-  const [log] = useState<SpendLogEntry[]>(() => loadSpendLog().slice(0, 5));
+  const [log, setLog] = useState<SpendLogEntry[]>(() => loadSpendLog().slice(0, 5));
 
   const update = (patch: Partial<ConscienceSettings>) => {
     const next = { ...settings, ...patch };
@@ -21,41 +21,20 @@ export function ConscienceSettings({ settings, onChange }: Props) {
     onChange(next);
   };
 
+  // Non-destructive editing: the text box holds its own draft and commits
+  // only valid numbers, so clearing the field while typing never unchecks
+  // the rule or unmounts the input (second-eye review).
   const limitInput = (
     value: bigint | null,
     onLimit: (v: bigint | null) => void,
     label: string,
     hint: string,
   ) => (
-    <div style={{ display: 'grid', gap: '6px', marginBottom: '14px' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-hi)', fontSize: '13.5px', fontWeight: 600 }}>
-        <input
-          type="checkbox"
-          checked={value !== null}
-          onChange={e => onLimit(e.target.checked ? 50_000n : null)}
-        />
-        {label}
-      </label>
-      {value !== null && (
-        <input
-          type="number"
-          min={1}
-          step={1000}
-          value={value.toString()}
-          onChange={e => {
-            const parsed = Number(e.target.value);
-            onLimit(Number.isSafeInteger(parsed) && parsed > 0 ? BigInt(parsed) : null);
-          }}
-          aria-label={label}
-          style={{ width: '180px', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-inset)', color: 'var(--text-hi)', font: '600 14px var(--font-mono)' }}
-        />
-      )}
-      <small style={{ color: 'var(--text-lo)', fontSize: '12px' }}>{hint}</small>
-    </div>
+    <LimitField value={value} onLimit={onLimit} label={label} hint={hint} />
   );
 
   return (
-    <details className="instrument balance-details-drawer" style={{ marginTop: '18px' }}>
+    <details className="instrument balance-details-drawer" style={{ marginTop: '18px' }} onToggle={e => { if ((e.target as HTMLDetailsElement).open) setLog(loadSpendLog().slice(0, 5)); }}>
       <summary className="balance-details-summary" aria-label="Toggle Spend Conscience settings">
         <span>Spend Conscience settings</span>
         <span className="balance-details-chevron" aria-hidden="true">▾</span>
@@ -127,8 +106,8 @@ export function ConscienceSettings({ settings, onChange }: Props) {
             </p>
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '6px' }}>
               {log.map(entry => (
-                <li key={entry.at} style={{ color: 'var(--text-lo)', fontSize: '12px' }}>
-                  {new Date(entry.at).toLocaleString()} · {entry.amountSats} sats · {entry.allPassed ? 'all rules passed' : 'rules flagged'} · {entry.recipient.slice(0, 10)}…
+                <li key={`${entry.at}-${entry.recipient}`} style={{ color: 'var(--text-lo)', fontSize: '12px' }}>
+                  {new Date(entry.at).toLocaleString()} · {entry.amountSats} sats · {entry.rulesRun === 0 ? 'no rules set' : entry.allPassed ? 'all rules passed' : 'rules flagged'} · {entry.recipient.slice(0, 10)}…
                 </li>
               ))}
             </ul>
@@ -136,5 +115,48 @@ export function ConscienceSettings({ settings, onChange }: Props) {
         )}
       </div>
     </details>
+  );
+}
+
+
+function LimitField({
+  value,
+  onLimit,
+  label,
+  hint,
+}: {
+  value: bigint | null;
+  onLimit: (v: bigint | null) => void;
+  label: string;
+  hint: string;
+}) {
+  const [draft, setDraft] = useState(() => (value !== null ? value.toString() : '50000'));
+  return (
+    <div style={{ display: 'grid', gap: '6px', marginBottom: '14px' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-hi)', fontSize: '13.5px', fontWeight: 600 }}>
+        <input
+          type="checkbox"
+          checked={value !== null}
+          onChange={e => onLimit(e.target.checked ? (draft && Number(draft) > 0 ? BigInt(draft) : 50_000n) : null)}
+        />
+        {label}
+      </label>
+      {value !== null && (
+        <input
+          type="number"
+          min={1}
+          step={1000}
+          value={draft}
+          onChange={e => {
+            setDraft(e.target.value);
+            const parsed = Number(e.target.value);
+            if (Number.isSafeInteger(parsed) && parsed > 0) onLimit(BigInt(parsed));
+          }}
+          aria-label={label}
+          style={{ width: '180px', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-inset)', color: 'var(--text-hi)', font: '600 14px var(--font-mono)' }}
+        />
+      )}
+      <small style={{ color: 'var(--text-lo)', fontSize: '12px' }}>{hint}</small>
+    </div>
   );
 }

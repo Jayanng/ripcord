@@ -65,7 +65,7 @@ export function evaluateSpend(
   const checks: ConscienceCheck[] = [];
   const recipientKey = recipient.trim().toLowerCase();
 
-  if (settings.perTxLimitSats !== null) {
+  if (settings.perTxLimitSats !== null && settings.perTxLimitSats > 0n) {
     const limit = settings.perTxLimitSats;
     const pass = limit > 0n && amountSats <= limit;
     checks.push({
@@ -78,7 +78,7 @@ export function evaluateSpend(
     });
   }
 
-  if (settings.dailyLimitSats !== null) {
+  if (settings.dailyLimitSats !== null && settings.dailyLimitSats > 0n) {
     const limit = settings.dailyLimitSats;
     const projected = state.sentLast24hSats + amountSats;
     const pass = limit > 0n && projected <= limit;
@@ -87,8 +87,8 @@ export function evaluateSpend(
       label: 'Under your 24-hour limit',
       pass,
       detail: pass
-        ? `${sats(state.sentLast24hSats)} sent in the last 24 hours plus this ${sats(amountSats)} send stays within ${sats(limit)}.`
-        : `${sats(state.sentLast24hSats)} sent in the last 24 hours plus this ${sats(amountSats)} send goes over your ${sats(limit)} limit.`,
+        ? `${sats(state.sentLast24hSats)} sent in the last 24 hours on this device, plus this ${sats(amountSats)} send, stays within ${sats(limit)}.`
+        : `${sats(state.sentLast24hSats)} sent in the last 24 hours on this device, plus this ${sats(amountSats)} send, goes over your ${sats(limit)} limit.`,
     });
   }
 
@@ -96,10 +96,10 @@ export function evaluateSpend(
     const known = state.savedRecipients.some(r => r.trim().toLowerCase() === recipientKey);
     checks.push({
       rule: 'new-recipient',
-      label: known ? 'Recipient is someone you know' : 'New recipient',
+      label: known ? 'Recipient you have used before' : 'New recipient',
       pass: known,
       detail: known
-        ? 'This address is in your saved recipients.'
+        ? 'You have sent to this address before, or saved it.'
         : 'You have not sent to this address before. Check it character by character.',
     });
   }
@@ -114,7 +114,7 @@ export function evaluateSpend(
       : '100.0';
     checks.push({
       rule: 'large-fraction',
-      label: pass ? 'A normal slice of your balance' : 'This is most of your balance',
+      label: pass ? 'Within your share threshold' : 'Above your share threshold',
       pass,
       detail: pass
         ? `This send is ${shareText}% of your spendable balance (your threshold is ${pct}%).`
@@ -131,5 +131,8 @@ export function rolling24hSentSats(
   now: number,
 ): bigint {
   const cutoff = now - 24 * 60 * 60 * 1000;
-  return entries.reduce((sum, e) => (e.at >= cutoff && e.at <= now ? sum + e.amountSats : sum), 0n);
+  // 5 minutes of forward skew tolerance: clock adjustments between tabs must
+  // not silently drop a send from the window.
+  const horizon = now + 5 * 60 * 1000;
+  return entries.reduce((sum, e) => (e.at >= cutoff && e.at <= horizon ? sum + e.amountSats : sum), 0n);
 }

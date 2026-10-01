@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { readExitRecord } from '../lib/exitRecord';
+import { loadSpendLog } from '../lib/conscience';
 import { vaultRecordKey } from '../context/WalletContext';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
-import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type ExitActivity } from './ActivityRow';
+import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type ExitActivity, type ConscienceActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
@@ -45,7 +46,7 @@ export function ActivityFeed() {
   const receiptByHash = new Map(receipts.map(receipt => [receipt.txHash.toLowerCase(), receipt]));
 
   // Synthesize on-chain activity entries for L1 deposit and faucet testnet funding
-  const onChainItems: (VaultDepositActivity | FaucetActivity | ExitActivity)[] = [];
+  const onChainItems: (VaultDepositActivity | FaucetActivity | ExitActivity | ConscienceActivity)[] = [];
 
   if (activeVault?.funding?.txid) {
     onChainItems.push({
@@ -91,6 +92,19 @@ export function ActivityFeed() {
     }
   }
 
+  // Spend Conscience outcomes land in Activity when rules flagged a send the
+  // user then chose to make (the plan's "outcomes logged to activity notes").
+  for (const entry of loadSpendLog()) {
+    if (entry.rulesRun > 0 && !entry.allPassed) {
+      onChainItems.push({
+        kind: 'tx:conscience',
+        amountSats: BigInt(entry.amountSats),
+        recipient: entry.recipient,
+        createdAt: entry.at,
+      });
+    }
+  }
+
   if (identity) {
     const savedFaucet = localStorage.getItem(`ripcord:faucet:${identity.l1Address}`);
     if (savedFaucet && /^[0-9a-f]{64}$/i.test(savedFaucet)) {
@@ -108,7 +122,7 @@ export function ActivityFeed() {
   const knownTxHashes = new Set(activity.flatMap(item => 'txHash' in item ? [item.txHash.toLowerCase()] : []));
   const dedupedReceipts = receipts.filter(receipt => !knownTxHashes.has(receipt.txHash.toLowerCase()));
   for (const r of dedupedReceipts) knownTxHashes.add(r.txHash.toLowerCase());
-  const dedupedOnChain = onChainItems.filter(item => !knownTxHashes.has(item.txHash.toLowerCase()));
+  const dedupedOnChain = onChainItems.filter(item => !('txHash' in item) || !knownTxHashes.has(item.txHash.toLowerCase()));
 
   const spentItems: VtxoSpentActivity[] = (spentVtxos ?? []).map(v => ({
     kind: 'vtxo:spent',

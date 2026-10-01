@@ -70,17 +70,18 @@ describe('spendConscience: 24-hour limit', () => {
     expect(checks[0].pass).toBe(true);
   });
 
-  it('rolling24hSentSats ignores entries outside the window', () => {
+  it('rolling24hSentSats ignores old entries but tolerates small clock skew', () => {
     const now = 1_700_000_000_000;
     const total = rolling24hSentSats(
       [
         { amountSats: 10n, at: now - 60_000 },
         { amountSats: 20n, at: now - 25 * 60 * 60 * 1000 },
-        { amountSats: 40n, at: now + 1 },
+        { amountSats: 40n, at: now + 1 },                      // within skew: counts
+        { amountSats: 100n, at: now + 10 * 60 * 1000 },        // beyond skew: ignored
       ],
       now,
     );
-    expect(total).toBe(10n);
+    expect(total).toBe(50n);
   });
 });
 
@@ -118,7 +119,7 @@ describe('spendConscience: large fraction', () => {
       state(),
     );
     expect(checks[0].pass).toBe(false);
-    expect(checks[0].label).toContain('most of your balance');
+    expect(checks[0].label).toContain('Above your share threshold');
   });
 
   it('treats an empty balance as everything being large', () => {

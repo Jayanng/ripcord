@@ -477,7 +477,7 @@ export function SendForm() {
   })();
   const feeNote =
     feeChoice === 'custom'
-      ? 'your custom fee'
+      ? customFeeSats !== null ? 'your custom fee' : 'custom fee not set'
       : feeChoice === 'fast' && hasLiveFee
         ? 'recommended'
         : feeChoice === 'fast'
@@ -485,6 +485,8 @@ export function SendForm() {
           : feeChoice;
   const feeDisplay = `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (${feeNote})`;
   const lastChecksRef = useRef<ConscienceCheck[] | null>(null);
+  // The fee shown in the review is the fee the send uses (TOCTOU lock).
+  const reviewedFeeRef = useRef<bigint | null>(null);
 
   const fail = (field: Field, message: string) => {
     setError({ field, message });
@@ -535,6 +537,9 @@ export function SendForm() {
     if (!Number.isSafeInteger(sats) || sats < 1) {
       return fail('amount', 'Enter a whole-sat amount of at least 1');
     }
+    if (feeChoice === 'custom' && customFeeSats === null) {
+      return fail('form', 'Enter a custom fee between 1 and 100,000 sats, or pick one of the presets.');
+    }
     const sendAmount = BigInt(sats);
     if (sendAmount + feeSats > balance.offChainSats) {
       return fail(
@@ -542,6 +547,7 @@ export function SendForm() {
         `Insufficient funds: amount (${formatSats(sendAmount)}) + fee (${formatSats(feeSats)}) exceeds available balance (${formatSats(balance.offChainSats)})`
       );
     }
+    reviewedFeeRef.current = feeSats;
     setShowReview(true);
   };
 
@@ -549,6 +555,7 @@ export function SendForm() {
   const executeSend = async () => {
     setError(null);
     setResult('');
+    const sendFee = reviewedFeeRef.current ?? feeSats;
     const vault = wallet.activeVault;
     if (!vault?.registered || !vault.p2tr) return fail('form', 'No registered spendable vault is loaded for this identity');
     const sats = Number(amount);
@@ -576,7 +583,7 @@ export function SendForm() {
               recipientAddress: recipient,
               network: 'regtest',
               amountSats: BigInt(sats),
-              feeSats,
+              feeSats: sendFee,
               baseUrl: wallet.daemonUrl,
               userSigner: makeSigner(wallet.identity!.mnemonic, 'regtest', vault.userKeyIndex),
               queue: wallet.txQueue,
@@ -591,7 +598,7 @@ export function SendForm() {
               fromXOnly: wallet.identity!.xOnly,
               toXOnly: recipientXOnly,
               amountSats: BigInt(sats),
-              feeSats,
+              feeSats: sendFee,
               baseUrl: wallet.daemonUrl,
               window: 0,
             });
@@ -601,6 +608,7 @@ export function SendForm() {
               amountSats: String(sats),
               recipient: String(recipient),
               allPassed: (lastChecksRef.current ?? []).every(c => c.pass),
+              rulesRun: (lastChecksRef.current ?? []).length,
             });
             recordRecipient(recipient);
             setRecent(loadRecentRecipients());

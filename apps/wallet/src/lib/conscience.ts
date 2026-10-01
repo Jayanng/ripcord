@@ -28,6 +28,8 @@ export interface SpendLogEntry {
   recipient: string;
   /** Whether every conscience rule passed at send time. */
   allPassed: boolean;
+  /** How many rules actually ran (0 = no rules were set: not a 'pass'). */
+  rulesRun: number;
 }
 
 function parseBigOr(value: string | null | undefined, fallback: bigint | null): bigint | null {
@@ -79,8 +81,19 @@ export function loadSpendLog(): SpendLogEntry[] {
   try {
     const raw = window.localStorage.getItem(LOG_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as SpendLogEntry[];
-    return Array.isArray(parsed) ? parsed.filter(e => typeof e.at === 'number') : [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    // Per-entry hardening: one corrupted row must never throw here, because
+    // this runs inside the send path (second-eye review: a throw here BLOCKS
+    // sends until storage is cleared).
+    return parsed.filter((e): e is SpendLogEntry => {
+      try {
+        const row = e as SpendLogEntry;
+        return typeof row?.at === 'number' && typeof row?.amountSats === 'string' && /^[0-9]+$/.test(row.amountSats);
+      } catch {
+        return false;
+      }
+    });
   } catch {
     return [];
   }
@@ -89,7 +102,8 @@ export function loadSpendLog(): SpendLogEntry[] {
 /** Record a send with its check outcome (bounded, newest kept). */
 export function recordSpend(entry: SpendLogEntry): void {
   try {
-    const next = [entry, ...loadSpendLog()].slice(0, 50);
+    // 500 entries: the rolling 24h window must not lose sends to a small cap.
+    const next = [entry, ...loadSpendLog()].slice(0, 500);
     window.localStorage.setItem(LOG_KEY, JSON.stringify(next));
   } catch {
     // best effort
@@ -98,8 +112,13 @@ export function recordSpend(entry: SpendLogEntry): void {
 
 /** Sats sent in the rolling 24h window, from the local send log. */
 export function sentLast24hSats(now = Date.now()): bigint {
-  return rolling24hSentSats(
-    loadSpendLog().map(e => ({ amountSats: BigInt(e.amountSats), at: e.at })),
-    now,
-  );
+  // Never throws: worst case the window reports 0 and the rule undercounts.
+  try {
+    return rolling24hSentSats(
+      loadSpendLog().map(e => ({ amountSats: BigInt(e.amountSats), at: e.at })),
+      now,
+    );
+  } catch {
+    return 0n;
+  }
 }

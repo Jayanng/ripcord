@@ -21,17 +21,36 @@ type Props = {
  */
 export function ConscienceSheet({ recipient, amountSats, checks, onProceed, onCancel }: Props) {
   const proceed = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
     proceed.current?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         onCancel();
+        return;
+      }
+      if (event.key !== 'Tab' || !panel.current) return;
+      // Focus trap: a modal must not let Tab reach the page behind it.
+      const focusable = [...panel.current.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])')];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('keydown', key);
+      previous?.focus();
+    };
   }, [onCancel]);
 
   const flagged = checks.filter(c => !c.pass).length;
@@ -43,7 +62,7 @@ export function ConscienceSheet({ recipient, amountSats, checks, onProceed, onCa
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <aside className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="conscience-title">
+      <aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="conscience-title">
         <header>
           <div>
             <p className="eyebrow">Spend Conscience</p>
