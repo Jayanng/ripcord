@@ -328,7 +328,7 @@ console.log('Vault P2TR Address:', vault.address);</code></pre>
           </div>
 
           <h3 style="margin: 24px 0 8px; font-weight: 750;">3. Fund &amp; Transact</h3>
-          <p>Fund the vault using the Tachi testnet faucet or Bitcoin RPC. Once confirmed on L1, the deposited satoshis become spendable Virtual UTXOs (VTXOs).</p>
+          <p>Fund the vault using the Tachi testnet faucet or Bitcoin RPC. Funding is two steps: send BTC to the vault address, then register the deposit in the wallet after it confirms on L1. Registration is what mints the spendable Virtual UTXOs (VTXOs) — before it, the deposit shows under on-chain vaults only.</p>
         </article>
 
         <!-- Topic 4: Installation -->
@@ -456,6 +456,12 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
             <li><strong>History Authenticity Tree (HAT):</strong> A Merkle tree structure maintained by the Tachi daemon that records historical note consumption and balance continuity across rounds.</li>
             <li><strong>Rollup Inclusion Proof (RIP):</strong> A cryptographic proof verifying that a specific payment transaction hash is included in the StateDiff committed to the rollup root.</li>
           </ul>
+          <h4 style="margin: 22px 0 8px; font-size: 15px; font-weight: 800; color: var(--text-hi);">Which transactions carry which proofs</h4>
+          <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
+            <li><strong>Off-chain transfers:</strong> carry the full proof chain — HAT commitment, Verkle state-diff inclusion, RIP chain, and the final epoch root. The wallet fetches these automatically when you open a transfer receipt and shows every step.</li>
+            <li><strong>Deposits (VTXO mints):</strong> mint transactions have no inputs, so ledger proofs do not exist for them by design. Their proof is the on-chain confirmation of the deposit transaction itself, viewable on the block explorer. The wallet labels these receipts accordingly instead of showing empty proof rows.</li>
+          </ul>
+          <p style="margin-top: 12px;">Every receipt in the wallet exports as JSON — a complete, shareable record of what the daemon attested, with no invented fields.</p>
         </article>
 
         <!-- Topic 10: Ephemeral -->
@@ -472,6 +478,13 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
               <p style="margin: 0;">The 12-word recovery mnemonic and derived private keys are kept strictly in volatile JavaScript heap memory. They are automatically zeroized when the browser tab closes and are never written to disk, localStorage, or IndexedDB.</p>
             </div>
           </div>
+          <h4 style="margin: 22px 0 8px; font-size: 15px; font-weight: 800; color: var(--text-hi);">What this means when you close and reopen the wallet</h4>
+          <p style="margin: 0 0 10px;">Because keys are never persisted, closing the tab or restarting the browser clears them. On reopen, the wallet shows a lock screen: your vault records are still on this device, and entering your 12-word phrase re-derives the keys in memory and restores your balances, VTXOs, and proofs. This is the RAM-only policy working as designed — there is no password file an attacker could steal, only your phrase can unlock the wallet.</p>
+          <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
+            <li><strong>On reopen:</strong> lock screen asks for the recovery phrase; unlocking restores the full wallet.</li>
+            <li><strong>Phrase lost?</strong> "Start over on this device" resets the vault records so you can create or recover a wallet. Funds in a wallet whose phrase is truly lost cannot be recovered by anyone.</li>
+            <li><strong>Storage only holds public data:</strong> vault metadata, receipts, and proofs. Nothing secret is ever in it.</li>
+          </ul>
         </article>
 
         <!-- Topic 11: Coin Selection -->
@@ -510,8 +523,8 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
             <div class="journey-card">
               <div class="journey-step-num">03</div>
               <div class="journey-body">
-                <h4>On-Chain Deposit &amp; Ambient Background Settlement</h4>
-                <p>User deposits BTC into the vault address. Ripcord monitors the Bitcoin mempool and verifies on-chain scriptPubKey matching upon L1 confirmation in the background.</p>
+                <h4>On-Chain Deposit &amp; Two-Step Funding</h4>
+                <p>User deposits BTC into the vault address (for example from the Tachi faucet). After the deposit confirms on L1 (~10 minutes on regtest), the wallet registers it — this second step is what mints the spendable VTXO. Until registration, the balance shows under on-chain vaults, not spendable sats.</p>
               </div>
             </div>
             <div class="journey-card">
@@ -615,7 +628,11 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           <p class="pocket-eyebrow">DISASTER RECOVERY</p>
           <h1 class="pocket-title">Cold-Start Disaster Storage Wipe Recovery</h1>
           <p class="pocket-lede">Complete state restoration from only the 12-word recovery phrase with zero centralized servers.</p>
-          <p>If browser storage is wiped completely (clearing IndexedDB, cache, and localStorage), Ripcord scans candidate CSV blocks (2, 144, 432, 1008, 2016), binds to live Bitcoin RPC funding scripts, reconnects to the indexer, and reconstructs the wallet with zero central dependencies.</p>
+          <p>There are two levels of restore, and both need only your 12-word phrase:</p>
+          <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
+            <li><strong>Everyday unlock (page reopened, storage intact):</strong> the wallet shows its lock screen; entering the phrase re-derives keys in memory and your balances, VTXOs, and receipts return immediately.</li>
+            <li><strong>Cold-start (storage wiped completely):</strong> if browser storage is cleared entirely (IndexedDB, cache, localStorage), the "Recover wallet" flow scans candidate CSV blocks (2, 144, 432, 1008, 2016), binds to live Bitcoin RPC funding scripts, reconnects to the indexer, and reconstructs the wallet with zero central dependencies.</li>
+          </ul>
         </article>
 
         <!-- Topic 17: Invariants -->

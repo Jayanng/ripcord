@@ -238,8 +238,8 @@ npm test
 - **Instant wallet entry (< 300 ms)**: Key derivation (BIP-39, BIP-84) and deterministic Taproot vault computation occur entirely on-device in under a third of a second. Users are never trapped behind a 20-minute loading gate.
 - **Ambient background settlement**:
   - When test funds are requested, the transaction is broadcast to the Bitcoin mempool immediately.
-  - The wallet monitors the transaction in the background (polling every 10 seconds) while leaving all tabs (Proofs, Activity, Docs, Exit, Receive) fully interactive.
-  - As soon as the L1 block confirms, the wallet automatically deposits into the vault, mints the spendable VTXO on Tachi, and registers with consensus validators.
+  - The wallet monitors the transaction in the background (polling every 10 seconds) while leaving all tabs (Wallet, Exit, Proofs, Activity, Receive) fully interactive.
+  - After the L1 block confirms, the user completes funding with one tap: "Check and register deposit". Registration mints the spendable VTXO on Tachi and records the vault with consensus validators. Until this step, the deposit is visible under on-chain vault balances only.
   - In-flight transaction IDs are persisted in `localStorage` and resume automatically across page reloads.
 
 ## TAURUS vs. Lightning: Superior UX & Stronger Sovereignty
