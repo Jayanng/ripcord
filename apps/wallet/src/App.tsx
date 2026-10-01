@@ -3,6 +3,7 @@ import { useWallet } from './context/WalletContext';
 import { Layout } from './components/Layout';
 import type { AppTab } from './components/TabBar';
 import { SetupGate } from './screens/SetupGate';
+import { UnlockScreen } from './screens/UnlockScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { ExitScreen } from './screens/ExitScreen';
 import { ProofsScreen } from './screens/ProofsScreen';
@@ -93,11 +94,17 @@ export function App() {
   };
 
   const navVisible = !isBooting && wallet.hasVault;
+  // Locked: vault records exist but the in-memory keys are gone (page
+  // reloaded / browser restarted). Show the lock screen instead of a
+  // zero-balance wallet; unlocking re-derives the identity.
+  const locked = wallet.hasVault && !wallet.identity;
 
   return (
-    <Layout tab={tab} onTabChange={handleTabChange} navVisible={navVisible}>
+    <Layout tab={tab} onTabChange={handleTabChange} navVisible={navVisible && !locked}>
       {isBooting ? (
         <WalletSkeleton />
+      ) : locked ? (
+        <UnlockScreen />
       ) : navVisible ? (
         tab === 'activity' ? (
           <ActivityScreen />
