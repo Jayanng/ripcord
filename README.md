@@ -1,7 +1,7 @@
 # RIPCORD
 
 [![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
-[![Release](https://img.shields.io/badge/release-v0.1.1-blue)](https://github.com/Jayanng/ripcord/releases/tag/v0.1.1)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
 [![Status](https://img.shields.io/badge/status-experimental-yellow)](https://github.com/Jayanng/ripcord)
@@ -16,8 +16,8 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 
 RIPCORD is experimental software targeting **Tachi regtest only**. It is not production custody software and must not be used with funds that matter.
 
-- `@ripcord/core@0.1.1` is published on npm.
-- GitHub release `v0.1.1` is available.
+- `@ripcord/core@0.2.0` is published on npm.
+- GitHub release `v0.2.0` is available.
 - Core wallet mechanics and the responsive wallet application have been exercised against the live Tachi regtest environment.
 - Browser-wipe recovery has been manually exercised from a mnemonic against live regtest data.
 - The project has no signet or mainnet support.
@@ -36,7 +36,7 @@ RIPCORD is experimental software targeting **Tachi regtest only**. It is not pro
 - Unilateral-exit dry runs with live BIP68 maturity status
 - Mnemonic-based cold-start recovery after browser storage deletion
 - Public-data persistence through memory and IndexedDB adapters
-- A responsive React/Vite PWA for desktop and mobile browsers
+- A responsive React/Vite web application for desktop and mobile browsers
 
 ## Why RIPCORD exists
 
@@ -55,7 +55,7 @@ The goal is a Lightning-like spending experience without hiding the custody mode
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ apps/wallet                                                  │
-│ React + Vite responsive PWA                                  │
+│ React + Vite responsive web application                      │
 │ Balance, onboarding, sending, recovery, proofs, and exit UI │
 └──────────────────────────────┬──────────────────────────────┘
                                │ @ripcord/core
@@ -85,15 +85,18 @@ npm install @ripcord/core
 Package links:
 
 - [npm package](https://www.npmjs.com/package/@ripcord/core)
-- [npm v0.1.1](https://www.npmjs.com/package/@ripcord/core/v/0.1.1)
-- [GitHub release v0.1.1](https://github.com/Jayanng/ripcord/releases/tag/v0.1.1)
+- [npm v0.2.0](https://www.npmjs.com/package/@ripcord/core/v/0.2.0)
+- [GitHub release v0.2.0](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
 
 The package exposes the root API and focused subpaths for:
 
 ```text
 /types       /store       /health       /exit
-/vault       /indexer     /keys        /quorum
-/recovery    /payment     /lifecycle
+/vault       /indexer     /keys         /quorum
+/recovery    /payment     /lifecycle    /proofs
+/deposit     /register    /coinselect   /queue
+/bytes       /net         /errors       /search
+/refund
 ```
 
 ### Minimal example
@@ -210,7 +213,7 @@ npm run dev --workspace=apps/wallet
 Open the localhost URL printed by Vite, usually:
 
 ```text
-http://localhost:5173
+http://localhost:4173
 ```
 
 ### Verification commands
@@ -238,7 +241,7 @@ npm test
 - **Instant wallet entry (< 300 ms)**: Key derivation (BIP-39, BIP-84) and deterministic Taproot vault computation occur entirely on-device in under a third of a second. Users are never trapped behind a 20-minute loading gate.
 - **Ambient background settlement**:
   - When test funds are requested, the transaction is broadcast to the Bitcoin mempool immediately.
-  - The wallet monitors the transaction in the background (polling every 10 seconds) while leaving all tabs (Wallet, Exit, Proofs, Activity, Receive) fully interactive.
+  - The wallet monitors the transaction in the background (polling every 10 seconds) while leaving all tabs (Wallet, Exit, Proofs, Activity) fully interactive.
   - After the L1 block confirms, the user completes funding with one tap: "Check and register deposit". Registration mints the spendable VTXO on Tachi and records the vault with consensus validators. Until this step, the deposit is visible under on-chain vault balances only.
   - In-flight transaction IDs are persisted in `localStorage` and resume automatically across page reloads.
 
@@ -253,7 +256,7 @@ Conventional layer-2 Bitcoin solutions (primarily Lightning) introduced signific
 | **Key Ownership** | User holds BIP-39 seed (RAM-only) | User holds node private keys | Operator holds private keys |
 | **Channel Management** | **None.** Single vault backs arbitrary VTXOs | Continuous manual channel capacity rebalancing | None (centralized ledger) |
 | **Inbound Liquidity** | **Zero friction.** Receive any amount immediately | Requires pre-allocated inbound channel liquidity | Unlimited (centralized) |
-| **Online Requirement** | Receive to deterministic Taproot addresses offline | Lightning node must remain continuously online | Dependent on custodian uptime |
+| **Receiver Online Requirement** | Non-interactive; receive without active session | Lightning node must remain continuously online | Dependent on custodian uptime |
 | **State Security** | Consensus-anchored History Authenticity Trees | Watchtower required to prevent toxic state fraud | None (custodian trusted) |
 | **Unilateral Exit** | **BIP68 relative timelock (CSV)** sweep to L1 | Complex force-close with dispute penalties | None (custodian approval required) |
 | **Routing Failures** | Zero routing hops; single-hop consensus | Multi-hop routing failure and fee spikes | None (centralized routing) |
@@ -283,7 +286,7 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 | Clear balance displays | Verified | On-chain vault reserves and spendable off-chain VTXO balances are shown separately. |
 | Unilateral exit flow | Verified | Exit construction, signing, BIP68 maturity inspection, destination validation, and controlled broadcast path are implemented and live-verified as a dry run. |
 | Timelock status | Verified | Live `unfunded`, `maturing`, `live`, and `spent` exit states with confirmation progress. |
-| Mobile and desktop wallet experience | Verified | Delivered as a responsive PWA that works across mobile and desktop browsers. It is not a separate native iOS, Android, Windows, or macOS application. |
+| Mobile and desktop wallet experience | Verified | Delivered as a responsive web application that works across mobile and desktop browsers. It is not a separate native iOS, Android, Windows, or macOS application. |
 | SatVM Smart Contracts (Grant Scope) | Verified | Forward-compatible `SatVmCallParams` and `SatVmExecutionReceipt` types in `@ripcord/core` with documentation. |
 
 ## SatVM Smart Contract Programmability & Grant Roadmap
@@ -355,7 +358,7 @@ The accurate scope is:
 
 ```text
 Live-verified Tachi regtest wallet prototype
-Responsive mobile and desktop browser PWA
+Responsive mobile and desktop browser web application
 No mainnet or signet support
 No production custody claim
 ```
@@ -373,7 +376,7 @@ RIPCORD is not production-ready.
 - RIPCORD does not currently verify the Verkle/IPA commitment locally.
 - Sampled proof responses do not provide reliable L1 anchoring fields.
 - Unilateral exit maturity depends on live Bitcoin confirmation state.
-- Native iOS and Android applications are not included. The wallet is a responsive browser PWA.
+- Native iOS and Android applications are not included. The wallet is a responsive browser web application.
 - Protocol dependencies are tied to the verified versions above.
 
 ## Evidence and documentation
@@ -384,11 +387,11 @@ Start with:
 
 - [npm package documentation](packages/core/README.md)
 - [Published package](https://www.npmjs.com/package/@ripcord/core)
-- [GitHub release v0.1.1](https://github.com/Jayanng/ripcord/releases/tag/v0.1.1)
+- [GitHub release v0.2.0](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
 
 ## Project tags
 
-`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custody` `non-custodial` `typescript` `react` `vite` `pwa` `regtest` `wallet` `bitcoin-wallet` `proof-of-reserves`
+`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custody` `non-custodial` `typescript` `react` `vite` `web-app` `regtest` `wallet` `bitcoin-wallet` `proof-of-reserves`
 
 ## License
 

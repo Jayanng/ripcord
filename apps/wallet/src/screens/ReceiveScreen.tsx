@@ -53,7 +53,7 @@ export function ReceiveScreen({ onBack }: { onBack?: () => void } = {}) {
   const [regResult, setRegResult] = useState('');
   const [regError, setRegError] = useState('');
 
-  if (!identity) return <section className="flow-screen"><div className="flow-heading"><p className="eyebrow">Receive</p><h2>No receive identity loaded</h2><p>Return to Balance and create a wallet identity before sharing an address.</p></div></section>;
+  if (!identity) return <section className="flow-screen"><div className="flow-heading"><p className="eyebrow">Receive</p><h2>No receive identity loaded</h2><p>Return to the Wallet tab and create an identity before sharing an address.</p></div></section>;
 
   const copy = async (text: string, label = 'Address') => {
     try {
@@ -225,7 +225,7 @@ export function ReceiveScreen({ onBack }: { onBack?: () => void } = {}) {
           </div>
           <small className="form-help">
             On-chain deposits settle into your TAURUS vault, then register as spendable VTXO sats. Track progress on the
-            vault card (Balance screen).
+            vault card (Wallet tab).
           </small>
         </div>
       )}

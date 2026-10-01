@@ -91,7 +91,7 @@ export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps 
             <div className="empty-state vtxo-empty-state">
               <span className="empty-glyph">⌁</span>
               <strong>No VTXOs yet</strong>
-              <p>Deposit funds into a TAURUS vault to mint your first spendable VTXO.</p>
+              <p>Deposit funds into a TAURUS vault and register the deposit to mint your first spendable VTXO.</p>
             </div>
           ) : (
             <>

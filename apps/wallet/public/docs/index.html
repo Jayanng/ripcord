@@ -168,7 +168,7 @@
             <div class="pocket-callout-body">
               <h4 class="pocket-callout-title">Choose your integration path</h4>
               <ul class="pocket-callout-list">
-                <li><strong>Self-Custodial Wallet UI</strong> — Full-featured self-custodial web application with real-time VTXO payments, proof receipts, and one-click hold-to-confirm exit engine.</li>
+                <li><strong>Self-Custodial Wallet UI</strong> — Full-featured self-custodial web application with real-time VTXO payments, proof receipts, and hold-to-confirm exit engine.</li>
                 <li><strong>@ripcord/core SDK</strong> — Standalone TypeScript package for key derivation, deterministic vault derivation, and payment commitments.</li>
                 <li><strong>Tachi Consensus RPC</strong> — Direct interaction with 5-of-7 quorum validators and live WebSocket indexer streaming.</li>
               </ul>
@@ -257,8 +257,8 @@
                   <td>None (trusted operator)</td>
                 </tr>
                 <tr>
-                  <td><strong>Offline Receive</strong></td>
-                  <td>Deterministic user P2TR addresses</td>
+                  <td><strong>Receiver Availability</strong></td>
+                  <td>Non-interactive; receive without active session</td>
                   <td>Node must remain continuously online</td>
                   <td>Supported via custodial backend</td>
                 </tr>
@@ -524,7 +524,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
               <div class="journey-step-num">03</div>
               <div class="journey-body">
                 <h4>On-Chain Deposit &amp; Two-Step Funding</h4>
-                <p>User deposits BTC into the vault address (for example from the Tachi faucet). After the deposit confirms on L1 (~10 minutes on regtest), the wallet registers it — this second step is what mints the spendable VTXO. Until registration, the balance shows under on-chain vaults, not spendable sats.</p>
+                <p>User deposits BTC into the vault address (for example from the Tachi faucet). After the deposit confirms on L1 (~10 minutes on regtest), the user taps "Check and register deposit" in the wallet — this second step is what mints the spendable VTXO. Until registration, the balance shows under on-chain vaults, not spendable sats.</p>
               </div>
             </div>
             <div class="journey-card">
