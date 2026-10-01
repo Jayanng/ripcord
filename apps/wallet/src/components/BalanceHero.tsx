@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBalance } from '../hooks/useBalance';
 import { useWallet } from '../context/WalletContext';
 import { formatSats, Icon } from './ui';
@@ -16,7 +16,17 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
   const [refreshing, setRefreshing] = useState(false);
   // Phase 9 (#22): skeletons until the first VTXO snapshot lands - the honest
   // "still loading" signal. After that, real values (including zeros) show.
-  const firstLoad = !vtxoSnapshotLoaded;
+  // Fix: bound the wait. If the snapshot stalls (blocked/slow network), stop
+  // showing placeholder bars after 8s and show known values with an honest
+  // "may be out of date" hint instead of gray bars forever.
+  const [waitExpired, setWaitExpired] = useState(false);
+  useEffect(() => {
+    if (vtxoSnapshotLoaded && balanceCrossCheck) return;
+    const timer = window.setTimeout(() => setWaitExpired(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [vtxoSnapshotLoaded, balanceCrossCheck]);
+  const firstLoad = !vtxoSnapshotLoaded && !waitExpired;
+  const snapshotStale = !vtxoSnapshotLoaded && waitExpired;
   const updatedAt = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString() : null;
   const runRefresh = () => {
     setRefreshing(true);
@@ -44,7 +54,9 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
                 ? 'Reserves Mismatch'
                 : 'Reserves Indeterminate'
             : 'Reserves Unchecked (chain unreachable)'
-          : 'Checking L1 Reserves'}
+          : waitExpired
+            ? 'Reserve check unavailable'
+            : 'Checking L1 Reserves'}
       </span>
       <span className={`proof-badge ${proofCount > 0 ? '' : 'muted'}`} title="Cryptographic HAT proofs on record for your payments">
         {proofCount > 0 ? `${proofCount} proof${proofCount === 1 ? '' : 's'} on record` : 'No proofs on record yet'}
@@ -144,6 +156,13 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
           <small>{vaults.length} {vaults.length === 1 ? 'TAURUS vault' : 'TAURUS vaults'} · public records</small>
         </div>
       </>
+    )}
+
+    {/* Fix: honest hint when the snapshot never arrived within the bound */}
+    {snapshotStale && (
+      <small className="balance-stale-hint" role="status">
+        Amounts shown are from your last known state and may be out of date.
+      </small>
     )}
 
     {/* Phase 9 (#23): last-updated timestamp + tap-to-refresh on the balance block */}
