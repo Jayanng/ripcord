@@ -3008,3 +3008,25 @@ details[open] .balance-details-chevron {
 [data-theme='dark'] .safety-ok { color: var(--confirmed); }
 [data-theme='dark'] .safety-warn { color: var(--pending); }
 [data-theme='dark'] .sentinel-alert h3 { color: var(--danger); }
+
+/* ── Sentinel: watch-only vault health (Bounty #1 Phase 1) ───────────── */
+.sentinel-panel { display: grid; gap: 16px; }
+.sentinel-body { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 560px) { .sentinel-body { grid-template-columns: 1fr; justify-items: center; } .sentinel-findings { width: 100%; } }
+.sentinel-ring { display: grid; justify-items: center; gap: 8px; }
+.sentinel-status { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-lo); background: var(--bg-soft, #F8FAFC); }
+.sentinel-status-all-clear { color: var(--confirmed, #059669); border-color: color-mix(in srgb, var(--confirmed, #059669) 35%, transparent); }
+.sentinel-status-attention { color: var(--pending, #D97706); border-color: color-mix(in srgb, var(--pending, #D97706) 35%, transparent); }
+.sentinel-status-alert { color: var(--danger, #DC2626); border-color: color-mix(in srgb, var(--danger, #DC2626) 35%, transparent); }
+.sentinel-findings { display: grid; gap: 10px; }
+.sentinel-finding { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft, #F8FAFC); }
+.sentinel-finding strong { font-size: 13px; color: var(--text-hi); }
+.sentinel-finding small { font-size: 12px; color: var(--text-lo); line-height: 1.5; }
+.sentinel-finding-chip { justify-self: start; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+.sentinel-finding-info .sentinel-finding-chip { color: var(--text-lo); background: color-mix(in srgb, var(--text-lo) 12%, transparent); }
+.sentinel-finding-attention .sentinel-finding-chip { color: var(--pending, #D97706); background: color-mix(in srgb, var(--pending, #D97706) 14%, transparent); }
+.sentinel-finding-alert .sentinel-finding-chip { color: var(--danger, #DC2626); background: color-mix(in srgb, var(--danger, #DC2626) 14%, transparent); }
+.sentinel-finding-alert { border-color: color-mix(in srgb, var(--danger, #DC2626) 30%, transparent); }
+.sentinel-checking { color: var(--text-lo); font-size: 13px; }
+.sentinel-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+[data-theme='dark'] .sentinel-finding, [data-theme='dark'] .sentinel-status { background: var(--bg-soft, #111827); }

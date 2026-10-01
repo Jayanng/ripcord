@@ -60,6 +60,10 @@
       "types": "./dist/health.d.ts",
       "import": "./dist/health.js"
     },
+    "./sentinel": {
+      "types": "./dist/sentinel.d.ts",
+      "import": "./dist/sentinel.js"
+    },
     "./exit": {
       "types": "./dist/exit.d.ts",
       "import": "./dist/exit.js"

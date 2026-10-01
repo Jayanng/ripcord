@@ -1,5 +1,6 @@
 import { useWallet } from '../context/WalletContext';
-import { SentinelAlertBanner, WatchtowerPanel } from '../components/WatchtowerPanel';
+import { SentinelAlertBanner } from '../components/WatchtowerPanel';
+import { SentinelPanel } from '../components/SentinelPanel';
 import { BalanceHero } from '../components/BalanceHero';
 import { VaultStatusCard } from '../components/VaultStatusCard';
 import { VtxoManagementCard } from '../components/VtxoManagementCard';
@@ -24,6 +25,9 @@ export function BalanceScreen({
 
       {/* 2 & 3. BalanceHero (single source of balance truth + quick actions row) */}
       <BalanceHero onSend={onSend} onReceive={onReceive} onRipcord={onExit} />
+
+      {/* 2b. Sentinel: watch-only vault health (score + plain-English findings) */}
+      <SentinelPanel />
 
       {/* 4. VaultStatusCard (merged card: identity + address + funding pipeline + registration + L1 anchors) */}
       <VaultStatusCard />
@@ -55,7 +59,6 @@ export function BalanceScreen({
             </div>
           )}
           <TruthRail />
-          <WatchtowerPanel />
           <WhatYouDontManage />
         </div>
       </details>
