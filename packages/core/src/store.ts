@@ -25,6 +25,7 @@ import { serializeJson, deserializeJson } from './bytes.js';
  * vault ids), so the store must never key by address alone.
  */
 export function vaultStoreKey(vault: VaultRecord): string {
+  if (!vault || typeof vault !== 'object') return 'corrupt-row';
   return vault.vaultIdHex || `${vault.address}:${vault.createdAt}`;
 }
 
@@ -138,6 +139,7 @@ interface IdbObjectStoreLike {
   put(value: unknown, key?: string): IdbRequestLike;
   get(key: string): IdbRequestLike;
   getAll(): IdbRequestLike;
+  getAllKeys(): IdbRequestLike;
   delete(key: string): IdbRequestLike;
   clear(): IdbRequestLike;
 }
@@ -215,19 +217,37 @@ export class IndexedDbStore implements RipcordStore {
           db.createObjectStore(VAULT_STORE);
         } else if (versionTx) {
           // v1 -> v2 migration: the old store keyed by `address` (in-line).
-          // Re-key every row by funding identity, keeping all rows: two rows
-          // that shared an address can only exist in v1 if they arrived in the
-          // same getAll batch, and both must survive.
+          // Re-key every row by funding identity IN PLACE. The previous
+          // implementation deleted and recreated the store inside an async
+          // callback; any exception mid-loop or suspended tab left the store
+          // EMPTY forever (silent wallet loss). Rows now survive every failure
+          // mode: a bad row keeps its old key, and nothing is ever deleted
+          // wholesale. Idempotent: rows already under the new key are skipped.
           const oldStore = versionTx.objectStore(VAULT_STORE);
           const getAll = oldStore.getAll();
-          getAll.onsuccess = () => {
-            const rows = (getAll.result as VaultRecord[]) ?? [];
-            db.deleteObjectStore(VAULT_STORE);
-            const fresh = db.createObjectStore(VAULT_STORE);
-            for (const row of rows) {
-              fresh.put(row, vaultStoreKey(row));
+          const getKeys = oldStore.getAllKeys();
+          let ready = 0;
+          const rekey = () => {
+            ready += 1;
+            if (ready < 2) return;
+            const rows = (getAll.result as unknown[]) ?? [];
+            const keys = (getKeys.result as Array<string | number>) ?? [];
+            for (let i = 0; i < rows.length; i += 1) {
+              try {
+                const row = rows[i] as VaultRecord;
+                const oldKey = String(keys[i] ?? '');
+                const newKey = vaultStoreKey(row);
+                if (oldKey && oldKey !== newKey) {
+                  oldStore.delete(oldKey);
+                  oldStore.put(row, newKey);
+                }
+              } catch {
+                // Keep the row under its old key rather than lose it.
+              }
             }
           };
+          getAll.onsuccess = rekey;
+          getKeys.onsuccess = rekey;
         }
         if (!db.objectStoreNames.contains(RECEIPT_STORE)) {
           db.createObjectStore(RECEIPT_STORE, { keyPath: 'txHash' });

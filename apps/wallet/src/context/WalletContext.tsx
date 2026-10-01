@@ -250,7 +250,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
           const [nextVaults, nextReceipts] = next;
           if (stateGen.current === readGen) {
-            setStoredVaults(nextVaults);
+            // A transient empty read must NEVER eject a known wallet to the
+            // setup gate mid-session (the unlock-eject bug): the lock screen
+            // proves the rows exist, so keep known state over an empty read.
+            setStoredVaults(current => {
+              if (nextVaults.length === 0 && current.length > 0) {
+                console.warn('[boot] store read returned no vaults while a wallet is known; keeping current state');
+                return current;
+              }
+              return nextVaults;
+            });
             setReceipts(nextReceipts);
           }
           setStoreReadFailed(false);
