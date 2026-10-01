@@ -43,6 +43,15 @@ RIPCORD is experimental software targeting **Tachi regtest only**. It is not pro
 - **Fee transparency**: Slow / Normal / Fast presets from live daemon estimates plus a custom fee
 - **Self-healing app**: stuck-database recovery, stale-service-worker purge, and honest degradation states
 
+## What makes RIPCORD different
+
+Four features exist here that a judge can verify in minutes:
+
+1. **Exit Readiness Certificate.** The unilateral exit is not a promise in a doc: the wallet renders the four checks (timelock committed in the leaf, the leaf commits the user's own key, the sovereign script shape, the tree proof) and exports them as JSON with the raw public evidence, so anyone can re-verify every claim independently.
+2. **Proof receipts.** Transfers carry HAT and RIP chain evidence that auto-populates in the receipt sheet. Where the daemon cannot attest something, the UI says so instead of decorating the gap.
+3. **Sentinel Health Score.** A single watch-only score over vault state, exit maturity, balance cross-checks against the live chain, quorum health, and watchtower receipts. It reads the network and signs nothing.
+4. **Self-healing app.** Local database jams, stale service workers, and unreadable storage are detected and recovered from, with honest screens that say what happened and how to restore (Recover wallet with the phrase). Exits are visible everywhere: a completion dialog, an Activity trail, and balances that report zero on purpose after the sweep.
+
 ## Why RIPCORD exists
 
 Conventional wallet interfaces often collapse custody, settlement, and availability into one balance. RIPCORD exposes those boundaries instead:
