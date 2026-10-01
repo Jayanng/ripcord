@@ -40,7 +40,7 @@
   <!-- Docs Content Layout -->
   <div class="docs-wrapper">
     <button type="button" class="pocket-mobile-toggle" id="mobile-toggle" aria-expanded="false">
-      <span id="mobile-toggle-label">Docs: Overview (22 topics)</span>
+      <span id="mobile-toggle-label">Docs: Overview (25 topics)</span>
       <span id="mobile-toggle-btn">Browse Docs</span>
     </button>
 
@@ -94,6 +94,9 @@
           <button type="button" class="pocket-nav-item" data-id="ripcord-exit">Unilateral Ripcord Exit</button>
           <button type="button" class="pocket-nav-item" data-id="timelocks">BIP68 Relative Timelocks</button>
           <button type="button" class="pocket-nav-item" data-id="test-pull">Dry-Run Test-Pull Engine</button>
+          <button type="button" class="pocket-nav-item" data-id="sentinel">Sentinel Vault Health</button>
+          <button type="button" class="pocket-nav-item" data-id="exit-certificate">Exit Readiness Certificate</button>
+          <button type="button" class="pocket-nav-item" data-id="conscience">Spend Conscience &amp; Fees</button>
           <button type="button" class="pocket-nav-item" data-id="recovery">Disaster Storage Wipe</button>
         </div>
 
@@ -867,6 +870,12 @@ console.log('TxHash:', receipt.txHash);</code></pre>
                 <tr><td><code>@ripcord/core/errors</code></td><td>RipcordError and the RipcordCode error taxonomy.</td></tr>
                 <tr><td><code>@ripcord/core/bytes</code></td><td>Hex/byte helpers, including txid internal-vs-display order conversion.</td></tr>
                 <tr><td><code>@ripcord/core/types</code></td><td>Shared domain types: VaultRecord, receipts, and the forward-compatible SatVM interfaces.</td></tr>
+                <tr><td><code>@ripcord/core/sentinel</code></td><td>Watch-only vault health engine: score, plain-English findings, and bounded daemon reads.</td></tr>
+                <tr><td><code>@ripcord/core/exit-certificate</code></td><td>Exit Readiness Certificate: the four checks, exportable JSON, and public evidence.</td></tr>
+                <tr><td><code>@ripcord/core/spend-conscience</code></td><td>Pure pre-send rule engine: per-send and 24-hour limits, recipient and share warnings.</td></tr>
+                <tr><td><code>@ripcord/core/idle-timer</code></td><td>Injectable idle timer behind the wallet's auto-lock.</td></tr>
+                <tr><td><code>@ripcord/core/address-safety</code></td><td>Address highlight parsing and mangled-paste detection.</td></tr>
+                <tr><td><code>@ripcord/core/units</code></td><td>Sats to BTC formatting for the display-unit toggle.</td></tr>
               </tbody>
             </table>
           </div>
