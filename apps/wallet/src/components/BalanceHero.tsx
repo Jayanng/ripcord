@@ -12,7 +12,7 @@ export interface BalanceHeroProps {
 
 export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps = {}) {
   const balance = useBalance();
-  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded, receipts, balanceCrossCheck, exitReadiness } = useWallet();
+  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded, receipts, balanceCrossCheck, exitReadiness, l1BalanceSats, identity } = useWallet();
   const [refreshing, setRefreshing] = useState(false);
   // Phase 9 (#22): skeletons until the first VTXO snapshot lands - the honest
   // "still loading" signal. After that, real values (including zeros) show.
@@ -66,6 +66,18 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         {proofCount > 0 ? `${proofCount} proof${proofCount === 1 ? '' : 's'} on record` : 'No proofs on record yet'}
       </span>
     </div>
+
+    {/* L1 settlement visibility: the user's plain Bitcoin balance (deposit
+        change and exit proceeds live here), verified live on the chain. */}
+    {identity && l1BalanceSats !== null && (
+      <div className="balance-secondary">
+        <div>
+          <span>BITCOIN L1 · YOUR SETTLEMENT ADDRESS</span>
+          <strong>{formatSats(l1BalanceSats)}</strong>
+        </div>
+        <small>Verified on the chain · {balance.exited ? 'your exit proceeds are here' : 'outside the vault, fully yours'}</small>
+      </div>
+    )}
 
     {balance.offChainSats === 0n && balance.pendingIncomingSats === 0n && balance.lockedSats === 0n && balance.onChainSats === 0n ? (
       <>

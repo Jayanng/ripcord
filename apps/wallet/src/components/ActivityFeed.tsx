@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { readExitRecord } from '../lib/exitRecord';
+import { vaultRecordKey } from '../context/WalletContext';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
-import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity } from './ActivityRow';
+import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type ExitActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
@@ -43,7 +45,7 @@ export function ActivityFeed() {
   const receiptByHash = new Map(receipts.map(receipt => [receipt.txHash.toLowerCase(), receipt]));
 
   // Synthesize on-chain activity entries for L1 deposit and faucet testnet funding
-  const onChainItems: (VaultDepositActivity | FaucetActivity)[] = [];
+  const onChainItems: (VaultDepositActivity | FaucetActivity | ExitActivity)[] = [];
 
   if (activeVault?.funding?.txid) {
     onChainItems.push({
@@ -68,6 +70,23 @@ export function ActivityFeed() {
         vaultAddress: activeVault.address,
         committed: false,
         createdAt: Date.now(),
+      });
+    }
+  }
+
+  // Exit visibility: the exit record (written at broadcast time or derived
+  // from the chain) makes 'Exited to Bitcoin L1' show in Activity across
+  // reloads, including exits that predate any local record.
+  if (activeVault) {
+    const exitRecord = readExitRecord(vaultRecordKey(activeVault));
+    if (exitRecord) {
+      onChainItems.push({
+        kind: 'tx:exit',
+        txHash: exitRecord.txid,
+        amountSats: BigInt(exitRecord.amountSats),
+        vaultAddress: activeVault.address,
+        committed: true,
+        createdAt: exitRecord.createdAt,
       });
     }
   }

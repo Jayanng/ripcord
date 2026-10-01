@@ -3,6 +3,7 @@ import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { useRipcord } from '../hooks/useRipcord';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { ExitSuccessModal } from './ExitSuccessModal';
+import { writeExitRecord } from '../lib/exitRecord';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { ProofOfReservesBadge } from './ProofOfReservesBadge';
 import { TapscriptInspector } from './TapscriptInspector';
@@ -81,7 +82,7 @@ export function RipcordPanel() {
     {error && <p className="inline-error" role="alert">{error}</p>}
     {broadcastTxid && <p className="flow-note" role="status">Exit broadcast: <code>{broadcastTxid}</code>. Confirm it on the regtest explorer before treating funds as settled.</p>}
     {vault && <TapscriptInspector vault={vault} />}
-    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Verifying exit path…' : readiness?.dryRun ? 'Verify Exit Path (Dry Run) again' : 'Verify Exit Path (Dry Run)'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); recordActivity({ kind: 'tx:pending', txHash: result.txid, type: 'exit', vaultAddress: vault.address, height: 0, committed: false, vout: [], receivedAt: Date.now() }); setExitDone({ txid: result.txid }); await refreshMaturity(vault); await refresh(); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
+    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Verifying exit path…' : readiness?.dryRun ? 'Verify Exit Path (Dry Run) again' : 'Verify Exit Path (Dry Run)'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); writeExitRecord(vaultRecordKey(vault), { txid: result.txid, amountSats: String((vault.funding?.valueSats ?? 0n) - 200n), createdAt: Date.now() }); setExitDone({ txid: result.txid }); await refreshMaturity(vault); await refresh(); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
     {exitDone && <ExitSuccessModal txid={exitDone.txid} amountSats={vault?.funding?.valueSats ? Number(vault.funding.valueSats) : 0} destination={readiness?.dryRun?.destination} onClose={() => setExitDone(null)} />}
   </section>;
 }

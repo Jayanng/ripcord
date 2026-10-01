@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { purgeServiceWorkersAndCaches } from '../lib/selfHeal';
+import { readExitRecord, writeExitRecord } from '../lib/exitRecord';
 import { IndexedDbStore, vaultStoreKey, type RipcordStore } from '@ripcord/core/store';
 import { TxQueue } from '@ripcord/core';
 import { deriveIdentity } from '@ripcord/core/keys';
@@ -63,6 +64,8 @@ interface WalletContextValue {
   lastRefreshedAt: number | null;
   /** True when this device's saved records could not be read at all. */
   storeReadFailed: boolean;
+  /** Verified Bitcoin balance at the user's L1 settlement address (null until known). */
+  l1BalanceSats: bigint | null;
   /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
   vtxoSnapshotLoaded: boolean;
   /**
@@ -210,6 +213,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // True when the device database could not be read at all: the user must not
   // be shown a silent "new user" experience in that case.
   const [storeReadFailed, setStoreReadFailed] = useState(false);
+  // Real Bitcoin balance at the user's L1 settlement address (verified live).
+  const [l1BalanceSats, setL1BalanceSats] = useState<bigint | null>(null);
 
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet && !hasLoadedOnce.current) setBootState('checking');
@@ -356,6 +361,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
     };
   }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
+
+  // L1 settlement visibility (2026-10-02, user-reported): show the real
+  // Bitcoin balance at the settlement address (deposit change + exit
+  // proceeds live there). One scan also identifies the exact exit
+  // transaction (the unspent spending the funding outpoint is the exit:
+  // a funding output can be spent only once), so Activity can show the exit
+  // even for exits that predate any local record.
+  useEffect(() => {
+    const address = identity?.l1Address;
+    if (!address) {
+      setL1BalanceSats(null);
+      return;
+    }
+    let cancelled = false;
+    const scan = async () => {
+      try {
+        const { scanL1Settlement } = await import('../lib/l1');
+        const funding = activeVault?.funding;
+        const found = await scanL1Settlement({
+          address,
+          baseUrl: BITCOIN_RPC_BASE,
+          funding: funding ? { txid: funding.txid, vout: funding.vout } : undefined,
+        });
+        if (cancelled) return;
+        setL1BalanceSats(found.balanceSats);
+        if (found.exitTxid && activeVault) {
+          const key = vaultRecordKey(activeVault);
+          if (!readExitRecord(key)) {
+            writeExitRecord(key, {
+              txid: found.exitTxid,
+              amountSats: String(found.exitSats ?? 0n),
+              createdAt: Date.now(),
+            });
+          }
+        }
+      } catch {
+        // L1 visibility is a convenience; never break the UI for it.
+      }
+    };
+    void scan();
+    const timer = window.setInterval(() => void scan(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [identity?.l1Address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void runPreflight(true), 30_000);
@@ -623,10 +674,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, vtxoSnapshotLoaded, claimedOutpointsFor,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

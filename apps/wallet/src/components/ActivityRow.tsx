@@ -21,6 +21,15 @@ export interface FaucetActivity {
   createdAt: number;
 }
 
+export interface ExitActivity {
+  kind: 'tx:exit';
+  txHash: string;
+  amountSats: bigint;
+  vaultAddress: string;
+  committed: boolean;
+  createdAt: number;
+}
+
 export interface VtxoSpentActivity {
   kind: 'vtxo:spent';
   id: string;
@@ -30,7 +39,7 @@ export interface VtxoSpentActivity {
   createdAt?: number;
 }
 
-export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity;
+export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity | ExitActivity;
 
 export function ActivityRow({
   item,
@@ -113,6 +122,41 @@ export function ActivityRow({
               rel="noreferrer"
             >
               Explorer ↗
+            </a>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === 'tx:exit') {
+    return (
+      <article className={`activity-row ${item.committed ? 'committed' : 'pending'}`}>
+        <div>
+          <div className="activity-title-group">
+            <strong>{formatSats(item.amountSats)}</strong>
+            <span className="activity-tag l1">L1 Exit</span>
+          </div>
+          <a
+            className="tx-link"
+            href={explorerTxUrl(item.txHash)}
+            target="_blank"
+            rel="noreferrer"
+            title={`View exit transaction ${item.txHash} on regtest explorer`}
+          >
+            {truncate(item.txHash, 14, 10)} ↗
+          </a>
+        </div>
+        <div>
+          <span>Exited to Bitcoin L1 · funds at your settlement address</span>
+          <div className="activity-actions">
+            <a
+              className="explorer-btn"
+              href={explorerTxUrl(item.txHash)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View on explorer
             </a>
           </div>
         </div>
