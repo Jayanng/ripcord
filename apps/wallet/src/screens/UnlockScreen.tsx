@@ -60,10 +60,10 @@ export function UnlockScreen() {
   return (
     <div className="setup-gate auth-container" role="dialog" aria-label="Unlock wallet">
       <div className="auth-header">
-        <p className="eyebrow">Locked · Keys in memory only</p>
+        <p className="eyebrow">Locked · Keys are never stored</p>
         <h2>Welcome back</h2>
         <p className="auth-subtext">
-          Your vault records are stored on this device, but your keys are kept in memory only and were cleared when the page closed.
+          Your vault records are stored on this device, but your keys are never stored — they were cleared when the page closed.
           Enter your 12-word recovery phrase to unlock your wallet and reload balances, VTXOs, and proofs.
         </p>
         <textarea
@@ -89,7 +89,7 @@ export function UnlockScreen() {
           </button>
         </div>
         <span className="balance-friendly-helper" style={{ display: 'block', marginTop: '10px', fontSize: '12px' }}>
-          Keys are never written to disk. Unlocking re-derives them from your phrase.
+          Keys are never written anywhere. Unlocking restores them from your phrase.
         </span>
         <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
           <span style={{ fontSize: '12px', opacity: 0.65 }}>Phrase gone?</span>

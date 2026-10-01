@@ -69,10 +69,10 @@ export function Header({
       {/* Phase 10 (#29): security chip - the custody posture at a glance */}
       <span
         className="security-chip"
-        title="Your mnemonic and keys live in this tab's memory only. Nothing key-shaped is written to storage or sent anywhere."
+        title="Nothing key-shaped is written to storage or sent anywhere. Your keys exist only while the wallet is open."
       >
         <span className="security-chip-dot" aria-hidden="true" />
-        Keys in memory only
+        Keys never stored
       </span>
       {/* Phase 10 (#31): theme toggle */}
       <button

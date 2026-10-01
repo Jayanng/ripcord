@@ -74,7 +74,7 @@ export function RecoveryScreen() {
   };
 
   return <section className="recovery-screen flow-screen" aria-labelledby="recovery-title">
-    <div className="flow-heading"><p className="eyebrow">Setup Gate · Cold-start recovery</p><h2 id="recovery-title">Recover from a clean browser</h2><p>Recovery reads the live chain and writes only public vault metadata. Your mnemonic stays in memory and is cleared after success.</p></div>
+    <div className="flow-heading"><p className="eyebrow">Setup Gate · Cold-start recovery</p><h2 id="recovery-title">Recover from a clean browser</h2><p>Recovery reads the live chain and writes only public vault metadata. Your mnemonic is never stored and is cleared after success.</p></div>
     <form onSubmit={event => { event.preventDefault(); void recover(); }}>
       <label>12-word BIP-39 mnemonic<textarea value={mnemonic} onChange={event => setMnemonic(event.target.value)} autoComplete="off" spellCheck={false} required rows={3} /><small className="form-help">Enter the 12 words separated by spaces. Your phrase will not be persisted.</small></label>
       {/* Hidden from frontend but preserved in backend/logic */}

@@ -253,7 +253,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
       <p>
         {wallet.identity
           ? 'Fund your L1 settlement address to mint your first VTXO and register with consensus validators.'
-          : 'The mnemonic stays in memory. Only public vault metadata is written to IndexedDB.'}
+          : 'Your mnemonic is never stored. Only public vault metadata is written to IndexedDB.'}
       </p>
     </div>
 

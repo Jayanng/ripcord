@@ -83,7 +83,7 @@
           <button type="button" class="pocket-nav-item" data-id="nums">NUMS Unspendable Key</button>
           <button type="button" class="pocket-nav-item" data-id="tapscript">Tapscript Tree Leaves</button>
           <button type="button" class="pocket-nav-item" data-id="proofs">Inclusion Proofs (HAT &amp; RIP)</button>
-          <button type="button" class="pocket-nav-item" data-id="ephemeral">RAM-Only Key Policy</button>
+          <button type="button" class="pocket-nav-item" data-id="ephemeral">Zero Key Persistence</button>
           <button type="button" class="pocket-nav-item" data-id="coin-selection">VTXO Coin Selection</button>
         </div>
 
@@ -228,7 +228,7 @@
               <tbody>
                 <tr>
                   <td><strong>Key Ownership</strong></td>
-                  <td>User holds BIP-39 seed (RAM-only)</td>
+                  <td>User holds BIP-39 seed (never stored)</td>
                   <td>User holds private node keys</td>
                   <td>Operator holds private keys</td>
                 </tr>
@@ -294,7 +294,7 @@
           </p>
 
           <h3 style="margin: 20px 0 8px; font-weight: 750;">1. Generate Ephemeral Mnemonic</h3>
-          <p>Generate a 12-word BIP-39 mnemonic. Private keys are derived into volatile JavaScript heap memory and are never written to disk or browser storage.</p>
+          <p>Generate a 12-word BIP-39 mnemonic. Private keys are derived on your device and are never written to disk or browser storage.</p>
           <div class="docs-code-block">
             <div class="docs-code-header">
               <span class="docs-code-title">BIP-39 Identity Derivation</span>
@@ -467,19 +467,19 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
         <!-- Topic 10: Ephemeral -->
         <article class="docs-doc" id="doc-ephemeral">
           <p class="pocket-eyebrow">SECURITY ARCHITECTURE</p>
-          <h1 class="pocket-title">RAM-Only Ephemeral Key Policy</h1>
+          <h1 class="pocket-title">Zero Key Persistence Policy</h1>
           <p class="pocket-lede">Protecting Bitcoin private keys against browser exploits, persistent malware, and cross-site scripting.</p>
           <div class="pocket-callout">
             <svg class="pocket-callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             <div class="pocket-callout-body">
-              <h4 class="pocket-callout-title">Volatile Heap Isolation</h4>
-              <p style="margin: 0;">The 12-word recovery mnemonic and derived private keys are kept strictly in volatile JavaScript heap memory. They are automatically zeroized when the browser tab closes and are never written to disk, localStorage, or IndexedDB.</p>
+              <h4 class="pocket-callout-title">Nothing Secret Is Stored</h4>
+              <p style="margin: 0;">The 12-word recovery mnemonic and derived private keys are never written to disk, localStorage, or IndexedDB. They exist only while you are using the wallet and are cleared the moment the tab closes.</p>
             </div>
           </div>
           <h4 style="margin: 22px 0 8px; font-size: 15px; font-weight: 800; color: var(--text-hi);">What this means when you close and reopen the wallet</h4>
-          <p style="margin: 0 0 10px;">Because keys are never persisted, closing the tab or restarting the browser clears them. On reopen, the wallet shows a lock screen: your vault records are still on this device, and entering your 12-word phrase re-derives the keys in memory and restores your balances, VTXOs, and proofs. This is the RAM-only policy working as designed — there is no password file an attacker could steal, only your phrase can unlock the wallet.</p>
+          <p style="margin: 0 0 10px;">Because keys are never persisted, closing the tab or restarting the browser clears them. On reopen, the wallet shows a lock screen: your vault records are still on this device, and entering your 12-word phrase restores your balances, VTXOs, and proofs. There is no key file an attacker could steal from this device — only your phrase can unlock the wallet.</p>
           <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
             <li><strong>On reopen:</strong> lock screen asks for the recovery phrase; unlocking restores the full wallet.</li>
             <li><strong>Phrase lost?</strong> "Start over on this device" resets the vault records so you can create or recover a wallet. Funds in a wallet whose phrase is truly lost cannot be recovered by anyone.</li>
@@ -494,7 +494,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           <p class="pocket-lede">How RIPCORD selects inputs, isolates change outputs, and prevents concurrent double-spends.</p>
           <ul style="display: grid; gap: 12px; padding-left: 20px; margin-top: 14px;">
             <li><strong>Greedy Largest-First Selection:</strong> Deterministically picks spendable VTXOs largest-first to cover the amount plus fee, skipping spent, locked, or locally reserved inputs.</li>
-            <li><strong>Local Spend Reservation:</strong> Temporarily locks selected inputs in memory to prevent concurrent payments from double-spending the same note.</li>
+            <li><strong>Local Spend Reservation:</strong> Temporarily locks selected inputs while a payment is in flight to prevent concurrent payments from double-spending the same note.</li>
             <li><strong>Single-Writer Queue:</strong> Serializes outbound payments to enforce strict state nonce progression.</li>
             <li><strong>Change Output Isolation:</strong> Change returns strictly to the sender's own user key descriptor, never into the shared validator pool.</li>
           </ul>
@@ -630,7 +630,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           <p class="pocket-lede">Complete state restoration from only the 12-word recovery phrase with zero centralized servers.</p>
           <p>There are two levels of restore, and both need only your 12-word phrase:</p>
           <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
-            <li><strong>Everyday unlock (page reopened, storage intact):</strong> the wallet shows its lock screen; entering the phrase re-derives keys in memory and your balances, VTXOs, and receipts return immediately.</li>
+            <li><strong>Everyday unlock (page reopened, storage intact):</strong> the wallet shows its lock screen; entering the phrase restores your keys on the spot and your balances, VTXOs, and receipts return immediately.</li>
             <li><strong>Cold-start (storage wiped completely):</strong> if browser storage is cleared entirely (IndexedDB, cache, localStorage), the "Recover wallet" flow scans candidate CSV blocks (2, 144, 432, 1008, 2016), binds to live Bitcoin RPC funding scripts, reconnects to the indexer, and reconstructs the wallet with zero central dependencies.</li>
           </ul>
         </article>
@@ -641,7 +641,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           <h1 class="pocket-title">Non-Negotiable Protocol Invariants</h1>
           <p class="pocket-lede">Five foundational rules enforced across both the SDK and wallet UI to guarantee fund security.</p>
           <dl class="docs-facts">
-            <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys remain strictly in volatile JavaScript heap memory. Only public metadata is stored in IndexedDB.</dd></div>
+            <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys are never written to storage. Only public metadata is stored in IndexedDB.</dd></div>
             <div><dt>2. Change Isolation</dt><dd>Payment change always returns to the sender's own user key descriptor, never into the shared vault pool script.</dd></div>
             <div><dt>3. Zero Mocks</dt><dd>Every balance, confirmation, proof check, and exit assessment is executed against live Tachi regtest and Bitcoin RPC outputs.</dd></div>
             <div><dt>4. Script Binding</dt><dd>Funding outputs are verified against Bitcoin RPC via exact scriptPubKey matching. No unverified deposit is reported as confirmed.</dd></div>
@@ -905,7 +905,7 @@ const callParams: SatVmCallParams = {
         { id: 'nums', label: 'NUMS Unspendable Key' },
         { id: 'tapscript', label: 'Tapscript Tree Leaves' },
         { id: 'proofs', label: 'Inclusion Proofs (HAT & RIP)' },
-        { id: 'ephemeral', label: 'RAM-Only Key Policy' },
+        { id: 'ephemeral', label: 'Zero Key Persistence' },
         { id: 'coin-selection', label: 'VTXO Coin Selection' },
         { id: 'journey', label: 'Lifecycle (Steps 01-06)' },
         { id: 'ripcord-exit', label: 'Unilateral Ripcord Exit' },

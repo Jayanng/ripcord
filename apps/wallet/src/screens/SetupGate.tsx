@@ -48,7 +48,7 @@ export function SetupGate({ initialTab, onEnterWallet }: { initialTab?: SetupTab
       <p className="eyebrow">Setup Gate · Local Custody</p>
       <h2>Initialize your sovereign wallet</h2>
       <p className="auth-subtext">
-        Keys remain in memory and are never persisted. Create a new sovereign vault identity or recover an existing one from a 12-word recovery phrase.
+        Keys are never stored on this device. Create a new sovereign vault identity or recover an existing one from a 12-word recovery phrase.
       </p>
       <div className="subnav" role="tablist" aria-label="Setup mode" style={{ marginTop: '16px' }}>
         <button

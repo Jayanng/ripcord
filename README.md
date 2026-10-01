@@ -157,7 +157,7 @@ RIPCORD is self-custodial in the sense that user signing material is derived and
 
 The project follows these boundaries:
 
-1. Mnemonics and signing keys remain in memory and must never enter persistent stores.
+1. Mnemonics and signing keys are never written to storage — no persistent key material exists.
 2. Public vault records, funding outpoints, VTXO metadata, transaction hashes, and proof commitments may be persisted.
 3. Every send validates the sender key, recipient format, amount, fee, and selected inputs.
 4. Change is sent to the sender's user key, never to the vault address.
@@ -253,7 +253,7 @@ Conventional layer-2 Bitcoin solutions (primarily Lightning) introduced signific
 
 | Dimension | TAURUS Vaults (Tachi) | Lightning Network | Custodial Services / Rollups |
 |---|---|---|---|
-| **Key Ownership** | User holds BIP-39 seed (RAM-only) | User holds node private keys | Operator holds private keys |
+| **Key Ownership** | User holds BIP-39 seed (never stored) | User holds node private keys | Operator holds private keys |
 | **Channel Management** | **None.** Single vault backs arbitrary VTXOs | Continuous manual channel capacity rebalancing | None (centralized ledger) |
 | **Inbound Liquidity** | **Zero friction.** Receive any amount immediately | Requires pre-allocated inbound channel liquidity | Unlimited (centralized) |
 | **Receiver Online Requirement** | Non-interactive; receive without active session | Lightning node must remain continuously online | Dependent on custodian uptime |
