@@ -775,7 +775,8 @@ h3 {
   bottom: 0;
   left: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* 4 tabs since Docs moved to the landing (was 5); equal-width targets */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.94);
@@ -802,8 +803,14 @@ h3 {
 .tabbar button span { font-size: 18px; }
 .tabbar button.active {
   color: var(--primary);
-  background: var(--primary-light);
   font-weight: 800;
+}
+/* Compact indicator pill behind the icon only; label stays clean below.
+   Avoids the chunky full-item box that read as a filter chip. */
+.tabbar button.active svg {
+  background: var(--primary-light);
+  border-radius: 10px;
+  padding: 6px 14px;
 }
 
 @media (min-width: 720px) {
