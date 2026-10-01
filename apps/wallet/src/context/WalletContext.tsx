@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { purgeServiceWorkersAndCaches } from '../lib/selfHeal';
 import { IndexedDbStore, vaultStoreKey, type RipcordStore } from '@ripcord/core/store';
 import { TxQueue } from '@ripcord/core';
 import { deriveIdentity } from '@ripcord/core/keys';
@@ -216,10 +217,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Read local store first so stored vaults are restored immediately and independently of daemon health.
       const currentStore = store ?? (typeof window !== 'undefined' && typeof indexedDB !== 'undefined' ? new IndexedDbStore({ dbName: 'ripcord-public-v1' }) : null);
       if (currentStore) {
-        try {
-          // Stuck-storage guard: profiles carrying an older database can
-          // deadlock the read (IndexedDB upgrade-block). Never let storage
-          // hang the boot skeleton forever.
+        const readStoreBounded = async () => {
           const storeRead = Promise.all([
             currentStore.getVaults(),
             currentStore.getReceipts(),
@@ -227,7 +225,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           const storeTimeout = new Promise<never>((_, reject) =>
             window.setTimeout(() => reject(new Error('store read timed out')), 5000),
           );
-          const [nextVaults, nextReceipts] = await Promise.race([storeRead, storeTimeout]);
+          return Promise.race([storeRead, storeTimeout]);
+        };
+        try {
+          // Stuck-storage guard: profiles carrying an older database can
+          // deadlock the read (stale holder keeps an IndexedDB connection /
+          // versionchange lock). Never let storage hang the boot forever.
+          let next: [Awaited<ReturnType<typeof currentStore.getVaults>>, Awaited<ReturnType<typeof currentStore.getReceipts>>];
+          try {
+            next = await readStoreBounded();
+          } catch (storeError) {
+            // Break the jam: a stale service worker from an older build may
+            // be holding the database. Unregister it and retry once so the
+            // user's stored wallets come back instead of being hidden.
+            console.warn('[boot] store read failed, releasing stale holders and retrying:', storeError);
+            await purgeServiceWorkersAndCaches().catch(() => {});
+            await new Promise(resolve => window.setTimeout(resolve, 400));
+            next = await readStoreBounded();
+          }
+          const [nextVaults, nextReceipts] = next;
           if (stateGen.current === readGen) {
             setStoredVaults(nextVaults);
             setReceipts(nextReceipts);
