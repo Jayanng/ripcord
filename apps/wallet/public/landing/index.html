@@ -106,7 +106,7 @@
           </div>
           <h3 class="feature-title">Keys are never stored</h3>
           <p class="feature-desc">
-            Nothing key-shaped is ever written to disk, localStorage, or IndexedDB. Your keys exist only while you're using the wallet — close the tab and they're gone. Reopening simply asks for your phrase again.
+            Nothing key-shaped is ever written to disk, localStorage, or IndexedDB. Your keys exist only while you're using the wallet. Close the tab and they are gone. Reopening simply asks for your phrase again, and a wiped browser is not a lost wallet: your phrase rebuilds everything from the chain.
           </p>
           <span class="feature-badge">Zero Key Persistence</span>
         </article>
@@ -122,7 +122,7 @@
           </div>
           <h3 class="feature-title">Cryptographic receipts you can verify</h3>
           <p class="feature-desc">
-            Every off-chain transfer produces verifiable History Authenticity Tree (HAT) and Rollup Inclusion Proofs (RIP), while deposits are anchored by on-chain L1 confirmations. Verify inclusion directly against consensus validators—no trust required.
+            Every off-chain transfer produces verifiable History Authenticity Tree (HAT) and Rollup Inclusion Proofs (RIP), while deposits are anchored by on-chain L1 confirmations. Verify inclusion directly against consensus validators. No trust required.
           </p>
           <span class="feature-badge">Authoritative Invariant</span>
         </article>
@@ -140,6 +140,21 @@
             Deterministic Taproot script trees commit a unilateral exit leaf governed by BIP68 relative timelocks. If validators go dark or attempt censorship, sweep your Bitcoin directly to your L1 address with zero third-party permission.
           </p>
           <span class="feature-badge">BIP-341 + BIP-68 CSV</span>
+        </article>
+
+        <!-- Feature 4 -->
+        <article class="feature-card">
+          <div class="feature-icon-badge" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M8 12l2.5 2.5L16 9"></path>
+            </svg>
+          </div>
+          <h3 class="feature-title">Proof you can hold, watched by Sentinel</h3>
+          <p class="feature-desc">
+            The Exit Readiness Certificate exports four checks with raw public evidence anyone can re-verify, and the watch-only Sentinel score reads vault health in plain English and signs nothing. Your exit is not a promise in a document.
+          </p>
+          <span class="feature-badge">Certificate + Sentinel</span>
         </article>
       </div>
     </section>
@@ -186,7 +201,12 @@
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
                 </svg>
-                <span><strong>Unilateral exit guarantee:</strong> Timelocked recovery directly back to Bitcoin L1.</span>
+                <span><strong>Unilateral exit guarantee:</strong> Timelocked recovery directly back to Bitcoin L1.</span></li>
+                <li>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/>
+                </svg>
+                <span><strong>Your own safety rails:</strong> Per-send limits, new-recipient warnings, and live fee choice.</span>
               </li>
             </ul>
           </div>
