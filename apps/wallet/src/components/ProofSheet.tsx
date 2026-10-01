@@ -69,7 +69,18 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
   };
 
   const missingProofs = !live.hat || !live.rip;
-  return <div className="sheet-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="proof-title"><header><div><p className="eyebrow">Cryptographic receipt</p><h2 id="proof-title">Proof chain</h2></div><button ref={close} aria-label="Close proof" onClick={onClose}><Icon name="close" /></button></header><div className="proof-chain"><ProofStep label="Transaction" value={<a href={explorerTxUrl(live.txHash)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>{truncate(live.txHash, 14, 10)} ↗</a>} detail={`epoch ${live.epoch} · code ${live.code}`} /><ProofStep label="HAT" value={live.hat ? truncate(live.hat.proof, 14, 10) : 'Unavailable'} detail={live.hat ? 'daemon commitment included' : 'not fetched'} /><ProofStep label="Verkle" value={live.rip?.hatInStateDiff ? 'HAT found in state diff' : 'Not verified'} detail="normalized inclusion comparison" /><ProofStep label="RIP chain" value={live.rip ? live.rip.chainLength === 0 ? 'self-proof' : `${live.rip.chainLength} epochs` : 'Unavailable'} detail={live.rip ? `origin ${live.rip.originEpoch} → final ${live.rip.finalEpoch}` : 'not fetched'} /><ProofStep label="Final root" value={live.rip ? truncate(live.rip.finalRoot, 14, 10) : 'Unavailable'} detail="daemon-attested; encoding preserved" /></div><div className="proof-diagram" aria-label="Proof chain diagram">
+
+  // Receiver receipts deliberately ship proof-less; auto-fetch once when the
+  // sheet opens so users see real proofs instead of 'Unavailable' labels that
+  // read as errors. One attempt + the tap button remain as fallbacks.
+  const autoFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!live || autoFetchedRef.current) return;
+    if (live.hat && live.rip) return;
+    autoFetchedRef.current = true;
+    void fetchProofs();
+  }, [live]);
+  return <div className="sheet-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="proof-title"><header><div><p className="eyebrow">Cryptographic receipt</p><h2 id="proof-title">Proof chain</h2></div><button ref={close} aria-label="Close proof" onClick={onClose}><Icon name="close" /></button></header><div className="proof-chain"><ProofStep label="Transaction" value={<a href={explorerTxUrl(live.txHash)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>{truncate(live.txHash, 14, 10)} ↗</a>} detail={`epoch ${live.epoch} · code ${live.code}`} /><ProofStep label="HAT" value={live.hat ? truncate(live.hat.proof, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.hat ? 'daemon commitment included' : 'tap the fetch button to attest'} /><ProofStep label="Verkle" value={live.rip?.hatInStateDiff ? 'HAT found in state diff' : 'Not verified'} detail="normalized inclusion comparison" /><ProofStep label="RIP chain" value={live.rip ? live.rip.chainLength === 0 ? 'self-proof' : `${live.rip.chainLength} epochs` : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.rip ? `origin ${live.rip.originEpoch} → final ${live.rip.finalEpoch}` : 'tap the fetch button to attest'} /><ProofStep label="Final root" value={live.rip ? truncate(live.rip.finalRoot, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail="daemon-attested; encoding preserved" /></div><div className="proof-diagram" aria-label="Proof chain diagram">
           <p className="eyebrow">Chain of evidence</p>
           <div className="proof-diagram-row">
             <div className={`proof-node ${live.hat ? 'proved' : ''}`}><span>Tx hash</span><strong>{truncate(live.txHash, 8, 6)}</strong></div>
