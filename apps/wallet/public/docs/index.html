@@ -168,9 +168,9 @@
             <div class="pocket-callout-body">
               <h4 class="pocket-callout-title">Choose your integration path</h4>
               <ul class="pocket-callout-list">
-                <li><strong>Self-Custodial Wallet UI</strong> — Full-featured self-custodial web application with real-time VTXO payments, proof receipts, and hold-to-confirm exit engine.</li>
-                <li><strong>@ripcord/core SDK</strong> — Standalone TypeScript package for key derivation, deterministic vault derivation, and payment commitments.</li>
-                <li><strong>Tachi Consensus RPC</strong> — Direct interaction with 5-of-7 quorum validators and live WebSocket indexer streaming.</li>
+                <li><strong>Self-Custodial Wallet UI</strong>: Full-featured self-custodial web application with real-time VTXO payments, proof receipts, and hold-to-confirm exit engine.</li>
+                <li><strong>@ripcord/core SDK</strong>: Standalone TypeScript package for key derivation, deterministic vault derivation, and payment commitments.</li>
+                <li><strong>Tachi Consensus RPC</strong>: Direct interaction with 5-of-7 quorum validators and live WebSocket indexer streaming.</li>
               </ul>
             </div>
           </div>
@@ -196,6 +196,18 @@
               <h3 class="pocket-card-title">Unilateral Ripcord Exit</h3>
               <p class="pocket-card-desc">BIP68 relative timelocks and dry-run test-pull engine allowing unconditional sweep to Bitcoin L1.</p>
             </div>
+            <div class="pocket-card" onclick="navigateToDoc('sentinel')">
+              <h3 class="pocket-card-title">Sentinel Vault Health</h3>
+              <p class="pocket-card-desc">A watch-only 0-100 health score over vault state, exit maturity, balances, quorum, and watchtower receipts.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('exit-certificate')">
+              <h3 class="pocket-card-title">Exit Readiness Certificate</h3>
+              <p class="pocket-card-desc">Four exportable checks proving the unilateral exit is enforced by Bitcoin consensus.</p>
+            </div>
+            <div class="pocket-card" onclick="navigateToDoc('conscience')">
+              <h3 class="pocket-card-title">Spend Conscience &amp; Fees</h3>
+              <p class="pocket-card-desc">Your own pre-send limits and warnings, plus live fee presets and a fee you actually choose.</p>
+            </div>
             <div class="pocket-card" onclick="navigateToDoc('recovery')">
               <h3 class="pocket-card-title">Disaster Recovery</h3>
               <p class="pocket-card-desc">Complete wallet reconstruction from only 12 words after total browser storage wipe.</p>
@@ -203,7 +215,7 @@
           </div>
 
           <p class="pocket-meta-footer">
-            The platform ships with 385 automated tests (385 passing live, 6 env-gated), ephemeral memory-only keys, per-transfer reservation locks, and real-time transaction confirmation streaming.
+            The platform ships with 451 automated tests (444 passing live, 6 gated on environment or faucet conditions, 1 pending a faucet refill), ephemeral memory-only keys, per-transfer reservation locks, and real-time transaction confirmation streaming.
           </p>
         </article>
 
@@ -328,7 +340,7 @@ console.log('Vault P2TR Address:', vault.address);</code></pre>
           </div>
 
           <h3 style="margin: 24px 0 8px; font-weight: 750;">3. Fund &amp; Transact</h3>
-          <p>Fund the vault using the Tachi testnet faucet or Bitcoin RPC. Funding is two steps: send BTC to the vault address, then register the deposit in the wallet after it confirms on L1. Registration is what mints the spendable Virtual UTXOs (VTXOs) — before it, the deposit shows under on-chain vaults only.</p>
+          <p>Fund the vault using the Tachi testnet faucet or Bitcoin RPC. Funding is two steps: send BTC to the vault address, then register the deposit in the wallet after it confirms on L1. Registration is what mints the spendable Virtual UTXOs (VTXOs): before it, the deposit shows under on-chain vaults only.</p>
         </article>
 
         <!-- Topic 4: Installation -->
@@ -458,10 +470,10 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           </ul>
           <h4 style="margin: 22px 0 8px; font-size: 15px; font-weight: 800; color: var(--text-hi);">Which transactions carry which proofs</h4>
           <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
-            <li><strong>Off-chain transfers:</strong> carry the full proof chain — HAT commitment, Verkle state-diff inclusion, RIP chain, and the final epoch root. The wallet fetches these automatically when you open a transfer receipt and shows every step.</li>
+            <li><strong>Off-chain transfers:</strong> carry the full proof chain: HAT commitment, Verkle state-diff inclusion, RIP chain, and the final epoch root. The wallet fetches these automatically when you open a transfer receipt and shows every step.</li>
             <li><strong>Deposits (VTXO mints):</strong> mint transactions have no inputs, so ledger proofs do not exist for them by design. Their proof is the on-chain confirmation of the deposit transaction itself, viewable on the block explorer. The wallet labels these receipts accordingly instead of showing empty proof rows.</li>
           </ul>
-          <p style="margin-top: 12px;">Every receipt in the wallet exports as JSON — a complete, shareable record of what the daemon attested, with no invented fields.</p>
+          <p style="margin-top: 12px;">Every receipt in the wallet exports as JSON: a complete, shareable record of what the daemon attested, with no invented fields.</p>
         </article>
 
         <!-- Topic 10: Ephemeral -->
@@ -479,7 +491,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
             </div>
           </div>
           <h4 style="margin: 22px 0 8px; font-size: 15px; font-weight: 800; color: var(--text-hi);">What this means when you close and reopen the wallet</h4>
-          <p style="margin: 0 0 10px;">Because keys are never persisted, closing the tab or restarting the browser clears them. On reopen, the wallet shows a lock screen: your vault records are still on this device, and entering your 12-word phrase restores your balances, VTXOs, and proofs. There is no key file an attacker could steal from this device — only your phrase can unlock the wallet.</p>
+          <p style="margin: 0 0 10px;">Because keys are never persisted, closing the tab or restarting the browser clears them. On reopen, the wallet shows a lock screen: your vault records are still on this device, and entering your 12-word phrase restores your balances, VTXOs, and proofs. There is no key file an attacker could steal from this device: only your phrase can unlock the wallet.</p>
           <ul style="display: grid; gap: 8px; padding-left: 20px; margin-top: 10px;">
             <li><strong>On reopen:</strong> lock screen asks for the recovery phrase; unlocking restores the full wallet.</li>
             <li><strong>Phrase lost?</strong> "Start over on this device" resets the vault records so you can create or recover a wallet. Funds in a wallet whose phrase is truly lost cannot be recovered by anyone.</li>
@@ -524,7 +536,7 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
               <div class="journey-step-num">03</div>
               <div class="journey-body">
                 <h4>On-Chain Deposit &amp; Two-Step Funding</h4>
-                <p>User deposits BTC into the vault address (for example from the Tachi faucet). After the deposit confirms on L1 (~10 minutes on regtest), the user taps "Check and register deposit" in the wallet — this second step is what mints the spendable VTXO. Until registration, the balance shows under on-chain vaults, not spendable sats.</p>
+                <p>User deposits BTC into the vault address (for example from the Tachi faucet). After the deposit confirms on L1 (~10 minutes on regtest), the user taps "Check and register deposit" in the wallet: this second step is what mints the spendable VTXO. Until registration, the balance shows under on-chain vaults, not spendable sats.</p>
               </div>
             </div>
             <div class="journey-card">
@@ -624,6 +636,90 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
         </article>
 
         <!-- Topic 16: Recovery -->
+        <article class="docs-doc" id="doc-sentinel">
+          <p class="pocket-eyebrow">VAULT MONITORING</p>
+          <h1 class="pocket-title">Sentinel Vault Health</h1>
+          <p class="pocket-lede">
+            A watch-only health score for your vault. Sentinel reads the network
+            and your vault's state, explains both in plain English, and signs
+            nothing. It lives on the Wallet tab and never moves a satoshi.
+          </p>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">What it checks</h3>
+          <ul class="pocket-callout-list">
+            <li><strong>Watchtower receipts</strong>: on-chain activity against your vault, classified as legitimate or a breach.</li>
+            <li><strong>Exit maturity</strong>: how far the exit timelock has matured, with a plain-English countdown.</li>
+            <li><strong>Balance cross-check</strong>: your vault record's numbers against the live chain snapshot.</li>
+            <li><strong>Quorum health</strong>: how many validators are live versus the 5-of-7 threshold.</li>
+            <li><strong>Watchtower liveness</strong>: whether the surveillance scan is keeping up with the chain.</li>
+          </ul>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">How it reads</h3>
+          <p>
+            A single 0 to 100 score, a one-line summary, and a findings list
+            where every item names the fact behind it. When the daemon cannot be
+            reached, Sentinel says "paused" and refuses to score what it cannot
+            see. Alerts (browser notifications when permitted) fire once per
+            finding, and the raw watchtower audit sits behind a
+            "Surveillance details" drawer in the same panel.
+          </p>
+          <p class="pocket-meta-footer">Evidence: 20 engine tests in <code>packages/core/test/sentinel.test.ts</code>. The engine is pure data in, data out, and never throws.</p>
+        </article>
+
+        <article class="docs-doc" id="doc-exit-certificate">
+          <p class="pocket-eyebrow">SOVEREIGNTY, PROVEN</p>
+          <h1 class="pocket-title">Exit Readiness Certificate</h1>
+          <p class="pocket-lede">
+            The exit is not a promise in a document. The wallet proves it and
+            hands you the evidence. The certificate sits on the Exit tab and
+            exports as JSON for anyone to re-verify.
+          </p>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">The four checks</h3>
+          <ul class="pocket-callout-list">
+            <li><strong>Timelock</strong>: the CSV committed inside the exit script equals the vault's declared timelock and cannot be shortened.</li>
+            <li><strong>Your key</strong>: the exit leaf commits the key derived from your own recovery phrase, not whatever a stored record claims.</li>
+            <li><strong>Script shape</strong>: the exit script is exactly the sovereign shape: wait, drop, your key, check signature.</li>
+            <li><strong>Tree proof</strong>: the leaf is proven inside the on-chain address by the exit dry run.</li>
+          </ul>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">Honest by construction</h3>
+          <p>
+            A missing script fails its checks; nothing is synthesized to make
+            the card look good. A vault whose funding is already spent says
+            "there is nothing left to exit" instead of claiming enforcement.
+            The exported JSON carries the raw public evidence: the full public key,
+            the exit leaf in hex and script form, and the funding outpoint.
+          </p>
+          <p class="pocket-meta-footer">Evidence: 16 tests in <code>packages/core/test/exit-certificate.test.ts</code>, including hex disassembly of the real vault leaf and negative-script cases.</p>
+        </article>
+
+        <article class="docs-doc" id="doc-conscience">
+          <p class="pocket-eyebrow">BEFORE THE MONEY MOVES</p>
+          <h1 class="pocket-title">Spend Conscience &amp; Fee Transparency</h1>
+          <p class="pocket-lede">
+            Your own rules, checked before every send, and a fee you actually
+            choose. Both are quiet by default: until you switch rules on,
+            sending behaves exactly as it always did.
+          </p>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">Spend Conscience</h3>
+          <ul class="pocket-callout-list">
+            <li><strong>Per-send limit</strong> and a rolling <strong>24-hour limit</strong>, both your numbers.</li>
+            <li><strong>New recipient warning</strong> when an address is not one you have used or saved before.</li>
+            <li><strong>Large share warning</strong> when a send is a big slice of your spendable balance (threshold is yours).</li>
+          </ul>
+          <p>
+            When a rule flags a send, a sheet shows every rule with its real
+            numbers and offers "Looks right, send" or "Cancel". The rules never
+            block on their own: the decision stays yours, but a bad send has to
+            get past your own rules first.
+          </p>
+          <h3 style="margin: 20px 0 8px; font-weight: 750;">Fee transparency</h3>
+          <p>
+            The fee row is a real choice: Slow, Normal, and Fast presets from
+            the daemon's live estimates, plus a custom fee you type. The fee
+            you pick is the fee the send uses, and the review labels its
+            timing estimate as an estimate.
+          </p>
+          <p class="pocket-meta-footer">Evidence: 13 tests in <code>packages/core/test/spend-conscience.test.ts</code>, including boundary cases and the exact large-share comparison.</p>
+        </article>
+
         <article class="docs-doc" id="doc-recovery">
           <p class="pocket-eyebrow">DISASTER RECOVERY</p>
           <h1 class="pocket-title">Cold-Start Disaster Storage Wipe Recovery</h1>
@@ -911,6 +1007,9 @@ const callParams: SatVmCallParams = {
         { id: 'ripcord-exit', label: 'Unilateral Ripcord Exit' },
         { id: 'timelocks', label: 'BIP68 Relative Timelocks' },
         { id: 'test-pull', label: 'Dry-Run Test-Pull Engine' },
+        { id: 'sentinel', label: 'Sentinel Vault Health' },
+        { id: 'exit-certificate', label: 'Exit Readiness Certificate' },
+        { id: 'conscience', label: 'Spend Conscience & Fees' },
         { id: 'recovery', label: 'Disaster Storage Wipe' },
         { id: 'invariants', label: 'Security Invariants' },
         { id: 'sdk', label: '@ripcord/core SDK' },

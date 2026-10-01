@@ -32,3 +32,6 @@ evidence/
 !.env.example
 *.tgz
 e2e/*.png
+
+# Private internal deliverables (submission kit, evidence map, demo script)
+internal/

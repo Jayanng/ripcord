@@ -37,6 +37,11 @@ RIPCORD is experimental software targeting **Tachi regtest only**. It is not pro
 - Mnemonic-based cold-start recovery after browser storage deletion
 - Public-data persistence through memory and IndexedDB adapters
 - A responsive React/Vite web application for desktop and mobile browsers
+- **Sentinel vault health**: a watch-only score (0-100) with plain-English findings and breach alerts
+- **Exit Readiness Certificate**: four exportable checks proving the exit is enforced by Bitcoin consensus
+- **Spend Conscience**: the user's own pre-send limits and warnings, off by default
+- **Fee transparency**: Slow / Normal / Fast presets from live daemon estimates plus a custom fee
+- **Self-healing app**: stuck-database recovery, stale-service-worker purge, and honest degradation states
 
 ## Why RIPCORD exists
 
@@ -157,12 +162,24 @@ RIPCORD is self-custodial in the sense that user signing material is derived and
 
 The project follows these boundaries:
 
-1. Mnemonics and signing keys are never written to storage — no persistent key material exists.
+1. Mnemonics and signing keys are never written to storage. No persistent key material exists.
 2. Public vault records, funding outpoints, VTXO metadata, transaction hashes, and proof commitments may be persisted.
 3. Every send validates the sender key, recipient format, amount, fee, and selected inputs.
 4. Change is sent to the sender's user key, never to the vault address.
 5. Recovery binds reconstructed vaults to live daemon data and exact Bitcoin funding scripts.
 6. The wallet refuses to describe unverified data as confirmed custody.
+
+### The storage contrast, stated plainly
+
+Most wallet apps keep key material on the device: a seed file, a keystorage
+blob, or an encrypted vault unlocked by a PIN or biometrics. RIPCORD keeps
+none of it. There is no plaintext or encrypted key material at rest at any
+time, and unlocking is phrase-based: the 12 words are the wallet, typed in
+when needed and dropped from memory when the session or auto-lock ends. If
+the browser wipes every byte the app stored, nothing is lost: "Recover
+wallet" with the phrase rebuilds the vault records from live chain data.
+That recovery was exercised live by wiping the browser and restoring from
+the mnemonic against regtest.
 
 ## Network and dependencies
 
@@ -262,7 +279,7 @@ Conventional layer-2 Bitcoin solutions (primarily Lightning) introduced signific
 | **Routing Failures** | Zero routing hops; single-hop consensus | Multi-hop routing failure and fee spikes | None (centralized routing) |
 
 ### 1. No Inbound Liquidity Deadlocks
-On the Lightning Network, a newly generated wallet cannot receive satoshis until inbound liquidity is created—either by spending outgoing sats first or paying a liquidity provider for a leased channel. In TAURUS, Virtual UTXOs (VTXOs) are self-contained cryptographic commitments. Any user can receive sats instantly to their user Taproot address with zero pre-existing channels or inbound liquidity provisioning.
+On the Lightning Network, a newly generated wallet cannot receive satoshis until inbound liquidity is created, either by spending outgoing sats first or paying a liquidity provider for a leased channel. In TAURUS, Virtual UTXOs (VTXOs) are self-contained cryptographic commitments. Any user can receive sats instantly to their user Taproot address with zero pre-existing channels or inbound liquidity provisioning.
 
 ### 2. Elimination of Force-Closure Penalties and Toxic State
 Lightning channels require constant surveillance. If a node loses state synchronization (e.g., from backup restoration or crash) and broadcasts an outdated commitment transaction, justice penalty mechanisms can confiscate the user's entire channel balance. In TAURUS, off-chain state updates are committed to validator consensus trees. There are no penalty games, no toxic states, and no danger of losing funds through outdated state broadcast.
@@ -274,20 +291,23 @@ If Tachi consensus validators go offline or refuse coordination, the user does n
 
 RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Custody**. The bounty asks builders to create a mobile and desktop wallet experience that enables sovereign Bitcoin custody and spending through TAURUS vaults and VTXOs, with clear balances and a unilateral exit path.
 
-| Requirement | Satisfied | Scope and evidence |
-|---|:---:|---|
-| TAURUS-based non-custodial wallet | Verified | TAURUS/Tachi mechanics are exposed through the `@ripcord/core` package boundary. |
-| Create TAURUS/Tachi vaults | Verified | Deterministic vault construction with the live 5-of-7 regtest quorum. |
-| Onboard BTC into a vault | Verified | Live regtest L1 deposit flow with exact funding-script proof-of-reserves binding and registration. |
-| Manage VTXOs | Verified | Live regtest VTXO discovery, balance reporting, coin selection, ownership checks, and spend tracking. |
-| Spend sats off-chain | Verified | Real regtest VTXO transfers with live pending-to-committed activity. |
-| Smooth, Lightning-like experience | Verified | Responsive send flow, live status, confirmation feedback, fee visibility, and recovery messaging. |
-| Superior UX vs. Lightning | Verified | No channel management, no inbound liquidity deadlocks, no toxic states, and clean BIP68 CSV exit. |
-| Clear balance displays | Verified | On-chain vault reserves and spendable off-chain VTXO balances are shown separately. |
-| Unilateral exit flow | Verified | Exit construction, signing, BIP68 maturity inspection, destination validation, and controlled broadcast path are implemented and live-verified as a dry run. |
-| Timelock status | Verified | Live `unfunded`, `maturing`, `live`, and `spent` exit states with confirmation progress. |
-| Mobile and desktop wallet experience | Verified | Delivered as a responsive web application that works across mobile and desktop browsers. It is not a separate native iOS, Android, Windows, or macOS application. |
-| SatVM Smart Contracts (Grant Scope) | Verified | Forward-compatible `SatVmCallParams` and `SatVmExecutionReceipt` types in `@ripcord/core` with documentation. |
+What the bounty asked for and where it lives:
+
+| Requirement | Where it lives | Evidence |
+|---|---|---|
+| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; 444 tests passing on the live regtest daemon (6 gated, 1 pending a faucet refill) |
+| Create TAURUS/Tachi vaults | Create and Recover flows (Wallet tab) | Deterministic construction with the live 5-of-7 regtest quorum; fixture-address checks in the vault tests |
+| Onboard BTC into a vault | Two-step funding: L1 deposit then register (Wallet tab) | `deposit.test.ts`, `register.test.ts`, `lifecycle-*.test.ts`; exact funding-script proof-of-reserves binding |
+| Manage VTXOs | VTXO inventory card with spendable / locked / spent views | `coinselect.test.ts`, `indexer.test.ts`; live balance and ownership checks |
+| Spend sats off-chain | Send flow with review, Spend Conscience, and fee chooser | `payment.test.ts` live end-to-end transfers; `spend-conscience.test.ts` (13 tests) |
+| Smooth, Lightning-like experience | Instant sends, live activity stream, success moments, clear fees | Live regtest runs; pending-to-committed transitions in Activity |
+| Superior UX vs. Lightning | No channels, no inbound liquidity, no toxic state; clean CSV exit | `exit.test.ts`, `refund.test.ts` (dual exit paths) |
+| Clear balance displays | Balance card: vault reserves, spendable VTXOs, and the L1 settlement address verified on-chain | Live chain cross-checks (`health.test.ts`); zeroed balances after exit |
+| Unilateral exit flow | Exit tab: Ripcord exit with dry run, hold-to-confirm, and the Exit Readiness Certificate | `exit.test.ts`, `exit-run.test.ts`, `exit-certificate.test.ts` (16 tests); live-verified exit broadcast on regtest |
+| Timelock status | Exit tab maturity meter and certificate countdown | Live `unfunded` / `maturing` / `live` / `spent` states (`sentinel.test.ts` maturity wording) |
+| Mobile and desktop wallet experience | Responsive web app for mobile and desktop browsers | 390px mobile pass; it is not a separate native iOS, Android, Windows, or macOS application |
+| Vault monitoring and safety | Sentinel vault health (Wallet tab), watchtower drawer, auto-lock, address safety | `sentinel.test.ts` (20 tests), `phase4-polish.test.ts` (11 tests) |
+| SatVM Smart Contracts (Grant Scope) | Forward-compatible types in `@ripcord/core` | `SatVmCallParams` and `SatVmExecutionReceipt` with documentation |
 
 ## SatVM Smart Contract Programmability & Grant Roadmap
 
@@ -367,9 +387,15 @@ Regtest is a deliberate safety and verification boundary, not a substitute claim
 
 ## Known limitations
 
-RIPCORD is not production-ready.
+RIPCORD is not production-ready. The honest list:
 
 - Regtest only. There is no signet or mainnet support.
+- L1 confirmations run at the regtest cadence (about 10 minutes on mainnet-like timing; regtest blocks advance with network activity).
+- Epoch L1 settlement is not implemented daemon-side yet: payment receipts are daemon-attested, and the UI says exactly that.
+- VTXO expiry and rotation are unspecified in the protocol today; the wallet does not invent policy for them.
+- An exit sweeps the whole funding UTXO to the settlement address, minus the fixed exit fee. Partial exits do not exist.
+- The 24-hour Spend Conscience window counts sends made since that feature existed on the device; it is a device-local log, labeled as such in the UI.
+- The confirmation counter polls the chain while the row is visible; when the chain cannot be reached it says so instead of guessing.
 - The public daemon and its availability are external dependencies.
 - HAT/RIP data is daemon-attested where local commitment recomputation is unavailable.
 - The sampled regtest proof responses do not provide a usable PSBT payload for local HAT commitment recomputation.
