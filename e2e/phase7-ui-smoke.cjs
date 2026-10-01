@@ -1,6 +1,6 @@
 /**
  * Phase 7 smoke: watchtower sentinel surface.
- * 1. create wallet, verify the Watchtower panel renders LIVE daemon values
+ * 1. create wallet, verify the Sentinel panel + watchtower drawer render LIVE daemon values
  *    (mode, scan height, sweep threshold, bounty, receipts),
  * 2. verify the breach history renders honestly (empty state OR real receipts),
  * 3. verify the sentinel alert banner appears only when a breach exists,
@@ -21,10 +21,12 @@ const URL = 'http://localhost:4444/';
   await page.getByRole('button', { name: /Create identity/ }).click();
   await page.waitForTimeout(9000);
 
-  // === 1. Watchtower panel live values ===
-  const panel = page.locator('.watchtower-panel');
+  // === 1. Sentinel panel (watchtower merged into its details drawer) ===
+  const panel = page.locator('.sentinel-panel');
   console.log('PANEL_PRESENT:', await panel.count());
-  const mode = await page.locator('.watchtower-mode').innerText();
+  await page.locator('.sentinel-watchtower summary').click();
+  await page.waitForTimeout(300);
+  const mode = await page.locator('.sentinel-watchtower .vtxo-total-pill').innerText();
   console.log('MODE:', JSON.stringify(mode));
   const grid = (await page.locator('.watchtower-grid').innerText()).replace(/\n/g, ' | ');
   console.log('GRID:', JSON.stringify(grid.slice(0, 260)));

@@ -26,22 +26,31 @@ export function SentinelPanel() {
   const [alertsOn, setAlertsOn] = useState(() => alertsEnabled());
   const [permission, setPermission] = useState<AlertPermission>(() => notificationPermission());
   const lastBreachCount = useRef<number | null>(null);
+  const runningRef = useRef(false);
+  // Latest wallet state via ref: keeps runCheck identity stable (no churn on
+  // every health poll) while never reading stale values.
+  const walletRef = useRef(wallet);
+  walletRef.current = wallet;
 
   const runCheck = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setChecking(true);
     try {
+      const w = walletRef.current;
       const { fetchSentinelState, evaluateSentinel } = await import('@ripcord/core/sentinel');
       const { input } = await fetchSentinelState({
-        baseUrl: wallet.daemonUrl,
-        vaultIdHex: wallet.activeVault?.vaultIdHex,
-        allowInsecureHttp: wallet.daemonUrl.startsWith('http://'),
+        baseUrl: w.daemonUrl,
+        vaultIdHex: w.activeVault?.vaultIdHex,
+        allowInsecureHttp: w.daemonUrl.startsWith('http://'),
       });
       const merged: typeof input = {
         ...input,
-        exitReadiness: wallet.exitReadiness,
-        crossCheck: wallet.balanceCrossCheck,
-        liveValidators: wallet.health?.liveValidators,
-        quorumThreshold: wallet.health?.quorumThreshold,
+        exitReadiness: w.exitReadiness,
+        crossCheck: w.balanceCrossCheck,
+        liveValidators: w.health?.liveValidators,
+        quorumThreshold: w.health?.quorumThreshold,
+        l1Height: w.health?.l1Height ?? undefined,
       };
       const next = evaluateSentinel(merged);
       setReport(next);
@@ -55,9 +64,10 @@ export function SentinelPanel() {
       // the panel can never take the wallet down with it.
       setReport(null);
     } finally {
+      runningRef.current = false;
       setChecking(false);
     }
-  }, [wallet.daemonUrl, wallet.activeVault?.vaultIdHex, wallet.exitReadiness, wallet.balanceCrossCheck, wallet.health]);
+  }, []);
 
   // Cadence: on mount, every 60s while visible, on tab focus, and when the
   // watchtower reports new breach receipts (real-time angle).
@@ -100,7 +110,7 @@ export function SentinelPanel() {
     }
   };
 
-  const score = report?.score ?? 100;
+  const score = report ? report.score : null;
   const statusLabel = report
     ? report.status === 'paused'
       ? 'Paused'
@@ -111,10 +121,10 @@ export function SentinelPanel() {
           : 'Needs attention'
     : 'Checking…';
 
-  // Score ring geometry
+  // Score ring geometry (empty ring when the score is honestly unknown)
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
-  const dash = (score / 100) * circumference;
+  const dash = ((score ?? 0) / 100) * circumference;
 
   return (
     <section className="instrument sentinel-panel" aria-labelledby="sentinel-title" role="status" aria-live="polite">
@@ -122,13 +132,13 @@ export function SentinelPanel() {
         <div>
           <p className="eyebrow">RIPCORD SENTINEL</p>
           <h2 id="sentinel-title">Vault health</h2>
-          <p className="balance-subtitle">Watches your vault so you can walk away. Checks only. Nothing leaves this device.</p>
+          <p className="balance-subtitle">Watches your vault so you can walk away. Watch-only. No keys or signatures ever leave this device.</p>
         </div>
         <Icon name="shield" />
       </div>
 
       <div className="sentinel-body">
-        <div className="sentinel-ring" aria-label={`Vault health score ${score} of 100`}>
+        <div className="sentinel-ring" aria-label={score === null ? 'Vault health score unknown' : `Vault health score ${score} of 100`}>
           <svg width="88" height="88" viewBox="0 0 88 88" aria-hidden="true">
             <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--line)" strokeWidth="8" />
             <circle
@@ -136,13 +146,13 @@ export function SentinelPanel() {
               cy="44"
               r={radius}
               fill="none"
-              stroke={score >= 80 ? 'var(--primary, #F36633)' : score >= 50 ? '#D97706' : '#DC2626'}
+              stroke={score === null ? 'var(--line-strong, #94A3B8)' : score >= 80 ? 'var(--confirmed, #059669)' : score >= 50 ? '#D97706' : '#DC2626'}
               strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={`${dash} ${circumference - dash}`}
               transform="rotate(-90 44 44)"
             />
-            <text x="44" y="50" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text-hi, #0F172A)">{score}</text>
+            <text x="44" y="50" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text-hi, #0F172A)">{score ?? '–'}</text>
           </svg>
           <span className={`sentinel-status sentinel-status-${report?.status ?? 'checking'}`}>{statusLabel}</span>
         </div>

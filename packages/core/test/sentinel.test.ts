@@ -134,10 +134,56 @@ describe('sentinel: evaluateSentinel (pure)', () => {
     expect(report.status).toBe('alert');
   });
 
-  it('daemon unreachable -> status paused (never crashes, never claims all-clear)', () => {
+  it('daemon unreachable -> status paused with an honest unknown score, never 100', () => {
     const report = evaluateSentinel(baseInput({ daemonReachable: false, watchtowerStatus: null }));
     expect(report.status).toBe('paused');
     expect(report.findings.some(x => x.code === 'DAEMON_UNREACHABLE')).toBe(true);
+    expect(report.score).toBeNull();
+  });
+
+  it('an active alert is never masked by the paused state', () => {
+    const report = evaluateSentinel(baseInput({
+      daemonReachable: false,
+      watchtowerStatus: null,
+      crossCheck: { snapshotSats: 1n, chainBalanceSats: 2n, chainVtxoCount: 0, matches: false, chainReachable: true },
+    }));
+    expect(report.status).toBe('alert');
+    expect(report.summary).toContain('attention');
+  });
+
+  it('spent vault funding never reports all clear', () => {
+    const exit: ExitReadiness = { status: 'spent', confirmations: 0, requiredConfirmations: 1008, confirmationsRemaining: 0 };
+    const report = evaluateSentinel(baseInput({ exitReadiness: exit }));
+    expect(report.findings.some(x => x.code === 'VAULT_SPENT')).toBe(true);
+    expect(report.status).not.toBe('all-clear');
+  });
+
+  it('unreadable receipt history is unknown, not clean', () => {
+    const report = evaluateSentinel(baseInput({ receiptsUnreachable: true }));
+    expect(report.status).toBe('attention');
+    expect(report.findings.some(x => x.title.includes('receipt history could not be read'))).toBe(true);
+    expect(report.findings.some(x => x.code === 'ALL_CLEAR')).toBe(false);
+  });
+
+  it('watchtower scan lagging behind the chain is flagged', () => {
+    const report = evaluateSentinel(baseInput({
+      l1Height: 2000,
+      watchtowerStatus: { ...STATUS_OK, lastScannedHeight: 1900 },
+    }));
+    expect(report.status).toBe('attention');
+    expect(report.findings.some(x => x.title.includes('behind the chain'))).toBe(true);
+  });
+
+  it('all-clear detail claims only what was actually checked', () => {
+    const partial = evaluateSentinel(baseInput({ crossCheck: null, exitReadiness: null, watchtowerStatus: null }));
+    expect(partial.findings[0].detail).toContain('what we could check');
+    const full = evaluateSentinel(baseInput({
+      crossCheck: { snapshotSats: 1n, chainBalanceSats: 1n, chainVtxoCount: 0, matches: true, chainReachable: true },
+      exitReadiness: { status: 'unfunded', confirmations: 0, requiredConfirmations: 2, confirmationsRemaining: 0 },
+    }));
+    const allClear = full.findings.find(x => x.code === 'ALL_CLEAR');
+    expect(allClear).toBeTruthy();
+    expect(allClear?.detail).toContain('all look healthy');
   });
 
   it('score floors at 0 with stacked alerts', () => {

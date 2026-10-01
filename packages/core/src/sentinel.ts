@@ -9,7 +9,8 @@
  * writes to storage. It answers one question honestly: "is anything about
  * this vault worth the user's attention right now?"
  */
-import { fetchWatchtowerStatus, fetchWatchtowerReceipts } from './health.js';
+import { fetchWatchtowerStatus } from './health.js';
+import { joinDaemonUrl } from './net.js';
 import type {
   WatchtowerStatus,
   WatchtowerBreachReceipt,
@@ -27,6 +28,7 @@ export type SentinelFindingCode =
   | 'EXIT_MATURING'
   | 'BALANCE_MISMATCH'
   | 'BALANCE_INDETERMINATE'
+  | 'VAULT_SPENT'
   | 'QUORUM_LOW'
   | 'DAEMON_UNREACHABLE';
 
@@ -47,12 +49,17 @@ export interface SentinelInput {
   readonly liveValidators?: number;
   readonly quorumThreshold?: number;
   readonly daemonReachable: boolean;
+  /** Current L1 height, used to spot a lagging watchtower scan. */
+  readonly l1Height?: number;
+  /** True when the receipts endpoint could not be read (unknown, not empty). */
+  readonly receiptsUnreachable?: boolean;
 }
 
 export interface SentinelReport {
   readonly checkedAt: number;
   readonly status: 'all-clear' | 'attention' | 'alert' | 'paused';
-  readonly score: number;
+  /** 0-100, or null when nothing could be checked (honest unknown). */
+  readonly score: number | null;
   readonly findings: readonly SentinelFinding[];
   /** One-line summary for the panel header. */
   readonly summary: string;
@@ -133,6 +140,44 @@ export function evaluateSentinel(input: SentinelInput, now: number = Date.now())
         title: 'Your exit path is maturing normally.',
         detail: `${e.confirmationsRemaining} of ${e.requiredConfirmations} confirmations done, matures in ${eta}.`,
       });
+    } else if (e.status === 'spent') {
+      findings.push({
+        code: 'VAULT_SPENT',
+        severity: 'attention',
+        title: 'Your vault funding has been spent on Bitcoin L1.',
+        detail: 'Expected if you finished an exit yourself. If you did not, open the exit screen and act now.',
+      });
+    }
+  }
+
+  if (input.receiptsUnreachable) {
+    findings.push({
+      code: 'WATCHTOWER_STALE',
+      severity: 'attention',
+      title: 'The watchtower receipt history could not be read.',
+      detail: 'We cannot confirm the breach history right now. Nothing is confirmed wrong; we simply could not check.',
+    });
+  }
+
+  // Watchtower's own liveness: unusual mode or a scan lagging far behind L1.
+  if (input.watchtowerStatus) {
+    const mode = input.watchtowerStatus.mode;
+    if (mode && !['detection', 'responder', 'initiator'].includes(mode)) {
+      findings.push({
+        code: 'WATCHTOWER_STALE',
+        severity: 'attention',
+        title: 'The watchtower is in an unusual mode.',
+        detail: `It reports "${mode}". Surveillance may not be running normally.`,
+      });
+    }
+    if (typeof input.l1Height === 'number'
+      && input.watchtowerStatus.lastScannedHeight < input.l1Height - 12) {
+      findings.push({
+        code: 'WATCHTOWER_STALE',
+        severity: 'attention',
+        title: 'The watchtower scan is behind the chain.',
+        detail: `It has scanned to block ${input.watchtowerStatus.lastScannedHeight} while the chain is at ${input.l1Height}. It will catch up, but recent activity is unwatched.`,
+      });
     }
   }
 
@@ -167,26 +212,37 @@ export function evaluateSentinel(input: SentinelInput, now: number = Date.now())
   }
 
   if (findings.length === 0) {
+    const fullyChecked = input.watchtowerStatus !== null && input.crossCheck !== null && input.exitReadiness !== null;
     findings.push({
       code: 'ALL_CLEAR',
       severity: 'info',
       title: 'All clear.',
-      detail: 'Vault state, exit path, balances, and watchtower all look healthy.',
+      detail: fullyChecked
+        ? 'Vault state, exit path, balances, and watchtower all look healthy.'
+        : 'Nothing to flag in what we could check so far.',
     });
   }
 
-  const score = sentinelScore(findings);
   const paused = findings.some(f => f.code === 'DAEMON_UNREACHABLE');
   const alert = findings.some(f => f.severity === 'alert');
   const attention = findings.some(f => f.severity === 'attention');
-  const status: SentinelReport['status'] = paused ? 'paused' : alert ? 'alert' : attention ? 'attention' : 'all-clear';
+  // An active alert or finding must never be masked by the paused state.
+  const status: SentinelReport['status'] = alert ? 'alert' : attention ? 'attention' : paused ? 'paused' : 'all-clear';
+  // When nothing is wrong AND nothing could be checked, the honest score is
+  // "unknown", not 100.
+  const score = (alert || attention)
+    ? sentinelScore(findings)
+    : paused
+      ? null
+      : 100;
 
-  const summary = paused
-    ? 'Sentinel paused. We cannot check right now.'
-    : alert
-      ? `${findings.filter(f => f.severity === 'alert').length} finding${findings.filter(f => f.severity === 'alert').length === 1 ? '' : 's'} need${findings.filter(f => f.severity === 'alert').length === 1 ? 's' : ''} your attention.`
-      : attention
-        ? 'Minor findings. Nothing urgent.'
+  const alertCount = findings.filter(f => f.severity === 'alert').length;
+  const summary = alert
+    ? `${alertCount} finding${alertCount === 1 ? '' : 's'} need${alertCount === 1 ? 's' : ''} your attention.`
+    : attention
+      ? 'Minor findings. Nothing urgent.'
+      : paused
+        ? 'Sentinel paused. We cannot check right now.'
         : 'All clear.';
 
   return { checkedAt: now, status, score, findings, summary };
@@ -232,11 +288,42 @@ export async function fetchSentinelState(options: FetchSentinelStateOptions): Pr
     errors.push('watchtower status: the daemon did not answer');
   }
 
+  // Receipts are fetched RAW here (not via health.fetchWatchtowerReceipts):
+  // that helper swallows failures into [] which would fake a clean history.
+  // Here a failure stays visible as receiptsUnreachable.
   let receipts: WatchtowerBreachReceipt[] = [];
-  try {
-    receipts = await fetchWatchtowerReceipts(options.baseUrl, options.vaultIdHex, callOpts);
-  } catch (err) {
-    errors.push(`watchtower receipts: ${err instanceof Error ? err.message : String(err)}`);
+  let receiptsUnreachable = false;
+  const vaultHex = /^[0-9a-f]{64}$/i.test(options.vaultIdHex ?? '') ? (options.vaultIdHex as string) : '';
+  const receiptsPath = vaultHex
+    ? `tachi_watchtower/receipts?vault=${encodeURIComponent(vaultHex)}`
+    : 'tachi_watchtower/receipts';
+  const receiptsUrl = joinDaemonUrl(options.baseUrl, receiptsPath);
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetchImpl(receiptsUrl, { signal: AbortSignal.timeout(callOpts.timeoutMs ?? 8000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const json = (await response.json()) as { receipts?: Array<Record<string, unknown>> };
+      receipts = (json.receipts ?? []).map(row => ({
+        vaultId: String(row.vault_id ?? ''),
+        broadcastState: Number(row.broadcast_state ?? 0),
+        latestState: Number(row.latest_state ?? 0),
+        classification: String(row.classification ?? 'legitimate'),
+        spendTxid: String(row.spend_tx_id ?? ''),
+        spendVout: Number(row.spend_vout ?? 0),
+        detectedHeight: Number(row.detected_height ?? 0),
+        detectedAt: Number(row.detected_at ?? 0),
+      }));
+      receiptsUnreachable = false;
+      break;
+    } catch (err) {
+      if (attempt === 1) {
+        receiptsUnreachable = true;
+        errors.push(`watchtower receipts: ${err instanceof Error ? err.message : String(err)}`);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+    }
   }
 
   // A null status means the probe failed or the daemon answered non-200:
@@ -250,6 +337,7 @@ export async function fetchSentinelState(options: FetchSentinelStateOptions): Pr
       exitReadiness: null,
       crossCheck: null,
       daemonReachable,
+      receiptsUnreachable,
     },
     errors,
   };

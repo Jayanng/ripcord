@@ -12,6 +12,9 @@ export type AlertPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
 const SENT_ALERTS_KEY = 'ripcord:sentinel-alerts';
 const ENABLED_KEY = 'ripcord:sentinel-alerts-enabled';
+// In-memory mirror: if sessionStorage is unavailable (private browsing,
+// quota), we must still never announce the same finding twice.
+const sentMemory = new Set<string>();
 
 export function notificationPermission(): AlertPermission {
   if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
@@ -52,6 +55,7 @@ export function setAlertsEnabled(on: boolean): void {
  */
 export function announceOnce(key: string, title: string, body?: string): boolean {
   if (typeof window === 'undefined') return false;
+  if (sentMemory.has(key)) return false;
   let sent: string[] = [];
   try {
     sent = JSON.parse(window.sessionStorage.getItem(SENT_ALERTS_KEY) ?? '[]') as string[];
@@ -60,10 +64,11 @@ export function announceOnce(key: string, title: string, body?: string): boolean
   }
   if (sent.includes(key)) return false;
   sent.push(key);
+  sentMemory.add(key);
   try {
     window.sessionStorage.setItem(SENT_ALERTS_KEY, JSON.stringify(sent));
   } catch {
-    // best effort
+    // storage unavailable: the in-memory Set still prevents repeats
   }
 
   if (!alertsEnabled()) return false;
@@ -81,7 +86,7 @@ export function announceOnce(key: string, title: string, body?: string): boolean
   if (permission === 'denied') {
     // Browser notifications are blocked: say so once via toast so the
     // promise stays honest ("we will alert you in-app").
-    pushToast({ title, body: body ?? 'Notifications are off for this site — showing alerts here.', tone: 'error' });
+    pushToast({ title, body: body ?? 'Notifications are off for this site, so alerts show here.', tone: 'error' });
     return true;
   }
   pushToast({ title, body, tone: 'error' });
@@ -90,6 +95,7 @@ export function announceOnce(key: string, title: string, body?: string): boolean
 
 /** Test/ops helper: forget which alerts were announced this session. */
 export function resetAnnounced(): void {
+  sentMemory.clear();
   try {
     window.sessionStorage.removeItem(SENT_ALERTS_KEY);
   } catch {
