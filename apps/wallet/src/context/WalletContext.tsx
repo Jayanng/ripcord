@@ -200,8 +200,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     })[0] ?? null;
   }, [vaults, selectedVaultKey]);
 
+  // Flicker fix: tracks whether any preflight has completed. The boot
+  // skeleton is shown ONLY before the first completed load; later
+  // refreshes must update in place without blanking the UI.
+  const hasLoadedOnce = useRef(false);
+
   const runPreflight = useCallback(async (quiet = false) => {
-    if (!quiet) setBootState('checking');
+    if (!quiet && !hasLoadedOnce.current) setBootState('checking');
     try {
       // Capture the state generation BEFORE the store reads begin; if a
       // mutation lands while the reads are in flight, its handler already
@@ -242,6 +247,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setHealth(nextHealth);
       setWatchtowerStatus(wtStatus ?? nextHealth.watchtower ?? null);
       setVaultBreachReceipts(wtReceipts);
+      hasLoadedOnce.current = true;
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
       setLastRefreshedAt(Date.now());
 
@@ -268,6 +274,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         unreachable: true,
       });
 
+      hasLoadedOnce.current = true;
       if (!quiet) setBootState('unreachable');
       setLastRefreshedAt(Date.now());
     }
@@ -275,7 +282,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => runPreflight(false), [runPreflight]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  // Flicker fix: kick exactly ONE boot preflight when the app mounts.
+  // Depending on `refresh` re-ran a full 'checking' preflight (whole-UI
+  // skeleton) on every data update, which the user saw as constant flicker.
+  const runPreflightRef = useRef(runPreflight);
+  runPreflightRef.current = runPreflight;
+  useEffect(() => { void runPreflightRef.current(false); }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => void runPreflight(true), 30_000);
