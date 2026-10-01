@@ -53,12 +53,16 @@ export function ActivityRow({
   onProof: (receipt: PaymentReceipt) => void;
 }) {
   if ('epoch' in item && 'txHash' in item) {
+    // A payment whose recipient is one of our own keys is a self-transfer
+    // (a test move or consolidation), not a payment to someone else.
+    const toSelf = item.fromXOnly === item.toXOnly
+      || ownerKeys.some(key => key.toLowerCase() === item.toXOnly.toLowerCase());
     return (
       <article className="activity-row committed">
         <div>
           <div className="activity-title-group">
             <strong>{formatSats(item.amountSats)}</strong>
-            <span className="activity-tag vtxo">VTXO Payment</span>
+            <span className="activity-tag vtxo">{toSelf ? 'Payment to yourself' : 'VTXO Payment'}</span>
           </div>
           <a
             className="tx-link"
@@ -71,7 +75,7 @@ export function ActivityRow({
           </a>
         </div>
         <div>
-          <span>Epoch {item.epoch} · To: {truncate(item.toXOnly, 10, 8)}</span>
+          <span>{toSelf ? `Moved within your own balance · Epoch ${item.epoch}` : `Epoch ${item.epoch} · To: ${truncate(item.toXOnly, 10, 8)}`}</span>
           <div className="activity-actions">
             <a
               className="explorer-btn"
@@ -244,7 +248,7 @@ export function ActivityRow({
         <div>
           <div className="activity-title-group">
             <strong style={{ color: 'var(--text-lo)' }}>-{formatSats(item.amountSats)}</strong>
-            <span className="activity-tag" style={{ background: '#F1F5F9', color: '#64748B' }}>Spent VTXO</span>
+            <span className="activity-tag" style={{ background: '#F1F5F9', color: '#64748B' }}>VTXO used as input</span>
           </div>
           {txHash ? (
             <a
@@ -261,7 +265,7 @@ export function ActivityRow({
           )}
         </div>
         <div>
-          <span>{item.height ? `Spent at height ${item.height}` : 'Spent VTXO on chain'}</span>
+          <span>{item.height ? `Used as input in a payment, not a loss · height ${item.height}` : 'Used as input in a payment, not a loss'}</span>
           <div className="activity-actions">
             {txHash && (
               <a

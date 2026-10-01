@@ -128,6 +128,12 @@ export function ActivityFeed() {
     if (!query) return true;
     const exported = toExportable(item);
     return `${exported.kind} ${exported.reference} ${exported.detail} ${exported.amountSats}`.toLowerCase().includes(query);
+  }).sort((a, b) => {
+    // Read as a timeline: dated entries newest first, undated ledger rows
+    // (payments and spent VTXOs carry no wall-clock) grouped at the end.
+    const ta = timestampOf(a) ?? 0;
+    const tb = timestampOf(b) ?? 0;
+    return tb - ta;
   });
 
   const exportItems = () => filteredItems;
