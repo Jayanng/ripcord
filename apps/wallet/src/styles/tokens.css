@@ -3024,3 +3024,36 @@ details[open] .balance-details-chevron {
 .sentinel-watchtower summary { cursor: pointer; list-style: none; }
 .sentinel-watchtower summary::-webkit-details-marker { display: none; }
 .sentinel-watchtower[open] summary { margin-bottom: 4px; }
+
+/* Exit Readiness Certificate (Bounty #1, Phase 2) */
+.exit-cert {
+  margin: 24px 0 0;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-raised);
+  display: grid;
+  gap: 12px;
+}
+.exit-cert-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.exit-cert-head h3 { margin: 0; font: 750 15px var(--font-sans); letter-spacing: .02em; text-transform: uppercase; color: var(--text-hi); }
+.exit-cert-badge {
+  padding: 4px 10px; border-radius: 999px; font: 700 11.5px var(--font-mono); letter-spacing: .05em;
+}
+.exit-cert-badge.ok { background: color-mix(in srgb, #059669 14%, transparent); color: #059669; border: 1px solid color-mix(in srgb, #059669 35%, transparent); }
+.exit-cert-badge.warn { background: color-mix(in srgb, #D97706 14%, transparent); color: #D97706; border: 1px solid color-mix(in srgb, #D97706 35%, transparent); }
+.exit-cert-summary { margin: 0; color: var(--text-hi); font: 500 13.5px/1.55 var(--font-sans); }
+.exit-cert-checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.exit-cert-checks li { display: flex; gap: 10px; align-items: flex-start; }
+.exit-cert-checks li > div { display: grid; gap: 2px; }
+.exit-cert-checks strong { color: var(--text-hi); font: 650 13.5px var(--font-sans); }
+.exit-cert-checks span { color: var(--text-lo); font: 500 12.5px/1.5 var(--font-sans); }
+.exit-cert-mark { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font: 800 12px var(--font-sans); flex: 0 0 auto; margin-top: 1px; }
+.exit-cert-checks li.pass .exit-cert-mark { background: color-mix(in srgb, #059669 16%, transparent); color: #059669; }
+.exit-cert-checks li.fail .exit-cert-mark { background: color-mix(in srgb, #DC2626 14%, transparent); color: #DC2626; }
+.exit-cert-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.exit-cert-meta > div { display: grid; gap: 2px; }
+.exit-cert-meta dt { color: var(--text-lo); font: 600 10.5px var(--font-sans); text-transform: uppercase; letter-spacing: .07em; }
+.exit-cert-meta dd { margin: 0; color: var(--text-hi); font: 650 12.5px var(--font-mono); }
+.exit-cert-nudge { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent-lav, #7C3AED) 8%, transparent); color: var(--text-hi); font: 500 12.5px/1.5 var(--font-sans); }
+.exit-cert-actions { display: flex; gap: 10px; }

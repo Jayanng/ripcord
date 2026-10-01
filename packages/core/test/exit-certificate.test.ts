@@ -71,6 +71,53 @@ describe('exitCertificate: buildExitCertificate (pure)', () => {
     expect(cert.maturity.text).toContain('days');
   });
 
+  it('accepts the real leaf hex and disassembles it', () => {
+    // OP_2 OP_CHECKSEQUENCEVERIFY OP_DROP <64-byte push> OP_CHECKSIG
+    const hex = '52b27520' + USER_KEY_HEX + 'ac';
+    const cert = buildExitCertificate(vault({ exitScript: hex }), readiness(), { network: 'regtest', treeVerified: true, now: 0 });
+    expect(cert.checks.every(c => c.pass)).toBe(true);
+  });
+
+  it('fails when the CSV committed in the leaf differs from the vault declaration', () => {
+    const cert = buildExitCertificate(vault({ csvBlocks: 9 }), readiness(), { network: 'regtest', treeVerified: true, now: 0 });
+    const csv = cert.checks.find(c => c.id === 'timelock');
+    expect(csv?.pass).toBe(false);
+  });
+
+  it('a spent vault never claims an exit is possible', () => {
+    const spent: ExitReadiness = { status: 'spent', confirmations: 0, requiredConfirmations: 1008, confirmationsRemaining: 0 };
+    const cert = buildExitCertificate(vault(), spent, { network: 'regtest', treeVerified: true, now: 0 });
+    expect(cert.exitStillPossible).toBe(false);
+    expect(certificateSummaryText(cert)).toContain('nothing left to exit');
+  });
+
+  it('a missing exit leaf fails the script checks instead of inventing one', () => {
+    const cert = buildExitCertificate(vault({ exitScript: '' }), readiness(), { network: 'regtest', treeVerified: true, now: 0 });
+    expect(cert.checks.find(c => c.id === 'timelock')?.pass).toBe(false);
+    expect(cert.checks.find(c => c.id === 'key-binding')?.pass).toBe(false);
+    expect(cert.checks.find(c => c.id === 'script-shape')?.pass).toBe(false);
+  });
+
+  it('a negative CScriptNum CSV never validates the timelock', () => {
+    // 0x82 is CScriptNum -2; it must NOT pass for any positive declaration.
+    const script = '82 OP_NOP3 OP_DROP ' + USER_KEY_HEX + ' OP_CHECKSIG';
+    const cert = buildExitCertificate(vault({ csvBlocks: 130, exitScript: script }), readiness(), { network: 'regtest', treeVerified: true, now: 0 });
+    expect(cert.checks.find(c => c.id === 'timelock')?.pass).toBe(false);
+  });
+
+  it('unpolled maturity is unknown, never mature', () => {
+    const cert = buildExitCertificate(vault(), null, { network: 'regtest', treeVerified: true, now: 0 });
+    expect(cert.maturity.status).toBe('unknown');
+    expect(cert.maturity.text).toBe('not checked yet');
+  });
+
+  it('carries public evidence for independent verification', () => {
+    const cert = buildExitCertificate(vault(), readiness(), { network: 'regtest', treeVerified: true, fundingOutpoint: 'ab:1', now: 0 });
+    expect(cert.evidence.userKeyXOnly).toBe(USER_KEY_HEX);
+    expect(cert.evidence.exitLeafAsm).toContain('OP_CHECKSEQUENCEVERIFY');
+    expect(cert.evidence.fundingOutpoint).toBe('ab:1');
+  });
+
   it('exports as plain JSON-serializable data (no BigInt)', () => {
     const cert = buildExitCertificate(vault(), readiness(), { network: 'regtest', now: 0 });
     const round = JSON.parse(JSON.stringify(cert)) as ExitCertificate;

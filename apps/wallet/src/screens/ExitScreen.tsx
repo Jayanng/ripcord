@@ -1,3 +1,4 @@
+import { ExitCertificateCard } from '../components/ExitCertificateCard';
 import { ExitRing } from '../components/ExitRing';
 import { RipcordPanel } from '../components/RipcordPanel';
 import { RefundPanel } from '../components/RefundPanel';
@@ -27,6 +28,7 @@ export function ExitScreen() {
         <RefundPanel />
         <RipcordPanel />
       </div>
+      <ExitCertificateCard />
     </section>
   );
 }

@@ -216,38 +216,32 @@ export class IndexedDbStore implements RipcordStore {
           // never the address (siblings may share one).
           db.createObjectStore(VAULT_STORE);
         } else if (versionTx) {
-          // v1 -> v2 migration: the old store keyed by `address` (in-line).
-          // Re-key every row by funding identity IN PLACE. The previous
-          // implementation deleted and recreated the store inside an async
-          // callback; any exception mid-loop or suspended tab left the store
-          // EMPTY forever (silent wallet loss). Rows now survive every failure
-          // mode: a bad row keeps its old key, and nothing is ever deleted
-          // wholesale. Idempotent: rows already under the new key are skipped.
+          // v1 -> v2 migration: the old store keyed by `address` (IN-LINE
+          // keys). An object store's keyPath is immutable, so the store MUST
+          // be recreated to re-key rows; an in-place put(row, key) on an
+          // in-line store throws DataError and had already deleted the row.
+          //
+          // Safe sequence (second-eye review 2026-10-02):
+          // 1. Read ALL rows first, before anything is deleted.
+          // 2. Recreate the store out-of-line.
+          // 3. Re-insert each row inside its own try/catch so one bad row
+          //    cannot cost the rest (the old loop aborted mid-way on throw).
+          // The versionchange transaction is atomic: if this page dies at any
+          // point, the whole upgrade aborts and v1 data stays intact.
           const oldStore = versionTx.objectStore(VAULT_STORE);
           const getAll = oldStore.getAll();
-          const getKeys = oldStore.getAllKeys();
-          let ready = 0;
-          const rekey = () => {
-            ready += 1;
-            if (ready < 2) return;
+          getAll.onsuccess = () => {
             const rows = (getAll.result as unknown[]) ?? [];
-            const keys = (getKeys.result as Array<string | number>) ?? [];
-            for (let i = 0; i < rows.length; i += 1) {
+            db.deleteObjectStore(VAULT_STORE);
+            const fresh = db.createObjectStore(VAULT_STORE);
+            for (const row of rows) {
               try {
-                const row = rows[i] as VaultRecord;
-                const oldKey = String(keys[i] ?? '');
-                const newKey = vaultStoreKey(row);
-                if (oldKey && oldKey !== newKey) {
-                  oldStore.delete(oldKey);
-                  oldStore.put(row, newKey);
-                }
-              } catch {
-                // Keep the row under its old key rather than lose it.
+                fresh.put(row, vaultStoreKey(row as VaultRecord));
+              } catch (err) {
+                console.error('[store] v1->v2 re-key skipped a row:', err);
               }
             }
           };
-          getAll.onsuccess = rekey;
-          getKeys.onsuccess = rekey;
         }
         if (!db.objectStoreNames.contains(RECEIPT_STORE)) {
           db.createObjectStore(RECEIPT_STORE, { keyPath: 'txHash' });
