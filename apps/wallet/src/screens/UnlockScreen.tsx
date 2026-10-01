@@ -36,20 +36,24 @@ export function UnlockScreen() {
     try {
       const { deriveIdentity } = await import('@ripcord/core/keys');
       const trimmed = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
-      // Derive at the stored vault's key index so the identity matches the vault.
-      const vault = wallet.vaults[0];
-      const identity = vault
-        ? deriveIdentity(trimmed, 'regtest', vault.userKeyIndex)
-        : deriveIdentity(trimmed, 'regtest', 0);
-      // Verify the phrase matches the stored vault record (same key index).
-      const match = vault
-        ? identity.userKeyDescriptor.index === vault.userKeyIndex
-        : true;
-      if (!match) {
-        setError('This phrase does not match the stored vault on this device.');
+      // Real verification: the derived key must MATCH the stored vault's key.
+      // (Deriving at the vault's index and comparing the index proves nothing,
+      // that comparison was always true. The key itself is the proof.)
+      const vaults = wallet.vaults;
+      let matched: ReturnType<typeof deriveIdentity> | null = null;
+      for (const v of vaults) {
+        const id = deriveIdentity(trimmed, 'regtest', v.userKeyIndex);
+        const vaultKey = String(v.userKeyDescriptor?.publicKey ?? '').replace(/^0x/, '').toLowerCase().slice(-64);
+        if (vaultKey && id.xOnly.toLowerCase() === vaultKey) {
+          matched = id;
+          break;
+        }
+      }
+      if (vaults.length > 0 && !matched) {
+        setError('This phrase does not match the wallet stored on this device. Check each word, or use "Recover wallet" on the previous screen.');
         return;
       }
-      wallet.setIdentity(identity);
+      wallet.setIdentity(matched ?? deriveIdentity(trimmed, 'regtest', 0));
     } catch (e) {
       setError('Could not unlock: ' + (e instanceof Error ? e.message : String(e)));
     } finally {

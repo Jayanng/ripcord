@@ -61,6 +61,8 @@ interface WalletContextValue {
   dismissSentinel: () => void;
   /** Wall-clock ms of the last completed preflight (Phase 9, #23). */
   lastRefreshedAt: number | null;
+  /** True when this device's saved records could not be read at all. */
+  storeReadFailed: boolean;
   /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
   vtxoSnapshotLoaded: boolean;
   /**
@@ -205,6 +207,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // skeleton is shown ONLY before the first completed load; later
   // refreshes must update in place without blanking the UI.
   const hasLoadedOnce = useRef(false);
+  // True when the device database could not be read at all: the user must not
+  // be shown a silent "new user" experience in that case.
+  const [storeReadFailed, setStoreReadFailed] = useState(false);
 
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet && !hasLoadedOnce.current) setBootState('checking');
@@ -248,8 +253,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setStoredVaults(nextVaults);
             setReceipts(nextReceipts);
           }
+          setStoreReadFailed(false);
         } catch (storeError) {
           console.error('Failed to read from local store:', storeError);
+          setStoreReadFailed(true);
           hasLoadedOnce.current = true;
         }
       }
@@ -579,10 +586,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, vtxoSnapshotLoaded, claimedOutpointsFor,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

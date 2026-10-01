@@ -68,6 +68,10 @@
       "types": "./dist/exit.d.ts",
       "import": "./dist/exit.js"
     },
+    "./exit-certificate": {
+      "types": "./dist/exitCertificate.d.ts",
+      "import": "./dist/exitCertificate.js"
+    },
     "./refund": {
       "types": "./dist/refund.d.ts",
       "import": "./dist/refund.js"
