@@ -16,13 +16,30 @@ export function BalanceScreen({
   onReceive?: () => void;
   onExit?: () => void;
 }) {
-  const { identity } = useWallet();
+  const { identity, exitReadiness } = useWallet();
 
   return (
     <div className="balance-screen-stack" style={{ display: 'grid', gap: '20px' }}>
       {/* 1. SentinelAlertBanner (only when a sentinel alert exists) */}
       <SentinelAlertBanner onExit={() => onExit?.()} />
 
+      {/* Exit visibility: when the vault funding has been swept to L1, say so
+          loudly instead of showing stale numbers as if nothing happened. */}
+      {exitReadiness?.status === 'spent' && (
+        <div
+          role="status"
+          style={{
+            margin: '0 0 16px', padding: '16px 18px', borderRadius: 14,
+            background: 'rgba(5, 150, 105, 0.1)', border: '1px solid rgba(5, 150, 105, 0.35)',
+            color: 'var(--text-hi, #0F172A)', fontSize: 13.5, lineHeight: 1.55,
+          }}
+        >
+          <strong style={{ display: 'block', marginBottom: 4 }}>Exited to Bitcoin L1</strong>
+          This vault's funds have been swept back to your own L1 settlement address,
+          signed by your key alone. The vault is now closed and shows as spent. The
+          exit transaction is the proof; find it in Activity or on the Exit screen.
+        </div>
+      )}
       {/* 2 & 3. BalanceHero (single source of balance truth + quick actions row) */}
       <BalanceHero onSend={onSend} onReceive={onReceive} onRipcord={onExit} />
 

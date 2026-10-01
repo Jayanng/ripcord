@@ -6,10 +6,17 @@ import { formatSats, truncate, Icon, explorerTxUrl } from '../components/ui';
 import type { PaymentReceipt } from '@ripcord/core/types';
 
 export function ProofsScreen() {
-  const { receipts, activeVault, vaults } = useWallet();
+  const { receipts, activeVault, vaults, exitReadiness } = useWallet();
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentReceipt | null>(null);
 
   return <section className="proofs-container" aria-labelledby="proofs-title">
+    {exitReadiness?.status === 'spent' && (
+      <p className="flow-note" role="status">
+        Your exit to L1 is a Bitcoin transaction, not an off-chain transfer, so it
+        carries no HAT or RIP chain proof to fetch here. Its proof is the
+        transaction itself: open it from Activity or the Exit screen.
+      </p>
+    )}
     <div className="flow-heading">
       <p className="eyebrow">Cryptographic Evidence & Verifications</p>
       <h2 id="proofs-title">Proof before promise</h2>
