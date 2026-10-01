@@ -97,6 +97,29 @@ export class ErrorBoundary extends Component<Props, State> {
                 ? 'A newer version of Ripcord is available or required application assets could not be loaded.'
                 : 'An unexpected application error occurred while displaying this screen.'}
             </p>
+            {this.state.error && !isChunk && (
+              <p
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-lo, #64748B)',
+                  margin: 0,
+                  lineHeight: 1.45,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  background: '#F8FAFC',
+                  border: '1px solid var(--line, #E2E4E9)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  wordBreak: 'break-word',
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+                aria-label="Error details"
+              >
+                {String(this.state.error.message ?? this.state.error).slice(0, 600)}
+              </p>
+            )}
             <button
               type="button"
               onClick={this.handleReload}

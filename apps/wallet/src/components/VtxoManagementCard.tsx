@@ -50,6 +50,10 @@ export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps 
   const spendableCount = spendableVtxos.length;
   const lockedCount = lockedItems.length;
   const spentCount = spentItems.length;
+  // Headline counts LIVE (unspent) VTXOs only: the daemon re-issues a VTXO
+  // during registration (one per epoch), so including spent history in the
+  // title made a single funding read as "Your VTXOs (2)".
+  const liveCount = spendableCount + lockedCount;
 
   // Pre-calculate provenance mapping for all VTXOs
   const provenanceMap = useMemo(() => {
@@ -74,7 +78,7 @@ export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps 
         <summary className="section-heading vtxo-summary" aria-label="Toggle VTXO Inventory">
           <div>
             <p className="eyebrow">TAURUS INVENTORY</p>
-            <h2 id="vtxo-section-title">Your VTXOs ({totalCount})</h2>
+            <h2 id="vtxo-section-title">Your VTXOs ({liveCount})</h2>
           </div>
           <div className="vtxo-summary-right">
             <span className="vtxo-total-pill">{totalCount} total</span>
