@@ -38,6 +38,11 @@ export class TxQueue {
     return this.pending.length;
   }
 
+  /** True while a task is executing or queued: money is in motion. */
+  get busy(): boolean {
+    return this.running || this.pending.length > 0;
+  }
+
   /** Vtxo ids currently reserved by an in-flight task. */
   get reservedIds(): readonly string[] {
     return [...this.reserved.keys()];

@@ -5,6 +5,10 @@
 
 const CLEAR_DELAY_MS = 60_000;
 
+// Generation counter: a newer copy must cancel any older clear timer, so a
+// rapid re-copy is never wiped seconds later (second-eye review).
+let copyGeneration = 0;
+
 export async function copyAddressAndAutoClear(
   address: string,
   onCleared?: () => void,
@@ -14,7 +18,9 @@ export async function copyAddressAndAutoClear(
   } catch {
     return;
   }
+  const generation = ++copyGeneration;
   window.setTimeout(async () => {
+    if (generation !== copyGeneration) return; // a newer copy owns the clipboard now
     try {
       // Only clear if the clipboard still holds what we put there.
       const current = await navigator.clipboard.readText();

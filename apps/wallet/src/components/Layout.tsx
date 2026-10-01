@@ -36,13 +36,13 @@ export function Layout({
     const timer = createIdleTimer({
       timeoutMs: settings.minutes * 60_000,
       onIdle: () => {
-        if (document.querySelector('.sheet-backdrop')) { timer.reset(); return; } // mid-flow: re-arm
+        if (document.querySelector('.sheet-backdrop') || wallet.txQueue.busy) { timer.reset(); return; } // money or modal in motion: re-arm
         if (locked) return;
         locked = true;
         wallet.setIdentity(null);
         pushToast({
           title: 'Wallet locked',
-          body: `Locked after ${settings.minutes} minutes idle. Your keys left memory; enter your phrase to continue.`,
+          body: `Locked after ${settings.minutes} minutes idle. Enter your phrase to continue.`,
           tone: 'info',
         });
       },

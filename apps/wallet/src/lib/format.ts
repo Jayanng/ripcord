@@ -39,7 +39,10 @@ export function formatSats(value: bigint | number): string {
   const isNegative = value < 0;
   const abs = typeof value === 'bigint' ? (value < 0n ? -value : value) : Math.abs(Math.trunc(value));
   if (displayUnit === 'btc') {
-    return satsToBtcString(typeof abs === 'bigint' ? abs : BigInt(abs));
+    // Signed value through the exact core formatter: negatives keep their
+    // sign and the unit stays visible (second-eye review caught both).
+    const signed = typeof value === 'bigint' ? value : BigInt(Math.trunc(value));
+    return `${satsToBtcString(signed)} BTC`;
   }
   const str = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${isNegative ? '-' : ''}${str} sats`;

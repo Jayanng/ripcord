@@ -30,18 +30,18 @@ export function NetworkBadge() {
       className={`network-badge${paused ? ' paused' : ''}`}
       aria-label={
         paused
-          ? 'Live updates paused, retrying. Tap to retry now.'
+          ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
           : 'Network: Bitcoin regtest, live updates connected'
       }
       title={
         paused
-          ? 'Live updates paused. Tap to retry now.'
+          ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
           : 'Live updates connected on Bitcoin regtest'
       }
       onClick={() => void wallet.refresh()}
     >
       <span aria-hidden="true" />
-      {paused ? 'Live updates paused, retrying' : 'REGTEST'}
+      {paused ? 'Live updates paused, retrying automatically' : 'REGTEST'}
     </button>
   );
 }

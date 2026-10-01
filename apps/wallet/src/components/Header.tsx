@@ -38,6 +38,11 @@ export function Header({
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+  useEffect(() => {
+    const sync = () => setAutoLock(loadAutoLockSettings());
+    window.addEventListener('ripcord:autolock-changed', sync);
+    return () => window.removeEventListener('ripcord:autolock-changed', sync);
+  }, []);
   return <header className="topbar">
     <button className="brand brand-button" aria-label="Ripcord home" onClick={() => onChange('wallet')}>
       <span className="brand-mark" aria-hidden="true">

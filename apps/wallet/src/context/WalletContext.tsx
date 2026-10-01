@@ -224,6 +224,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setDisplayUnitModule(unit);
     setDisplayUnitState(unit);
   }, []);
+  // Keep the context mirror in sync even when the module is updated elsewhere.
+  useEffect(() => {
+    const sync = () => setDisplayUnitState(getDisplayUnit());
+    window.addEventListener('ripcord:unit-changed', sync);
+    return () => window.removeEventListener('ripcord:unit-changed', sync);
+  }, []);
 
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet && !hasLoadedOnce.current) setBootState('checking');

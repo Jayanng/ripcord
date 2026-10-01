@@ -3109,11 +3109,10 @@ button.network-badge.paused { border-color: rgba(217, 119, 6, 0.45); color: #B45
 button.network-badge.paused span { background: #D97706; }
 
 /* 4.3 Pull-to-refresh */
-.pull-to-refresh { position: relative; }
+.pull-to-refresh { position: relative; overscroll-behavior-y: contain; }
 .pull-indicator {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   overflow: hidden; color: var(--text-lo); font: 650 11.5px var(--font-sans);
-  transition: height 180ms ease-out;
 }
 .pull-cord {
   width: 14px; height: 14px; border-radius: 999px;
@@ -3122,15 +3121,17 @@ button.network-badge.paused span { background: #D97706; }
 .pull-indicator.refreshing .pull-cord { animation: cord-spin 900ms linear infinite; }
 @keyframes cord-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .pull-indicator { transition: none; }
   .pull-indicator.refreshing .pull-cord { animation: none; }
 }
+
+/* The browser's own pull-to-refresh must never reload the page: a reload
+   clears the RAM-only keys and would interrupt sends. */
+html { overscroll-behavior-y: contain; }
 
 /* 4.8 Focus visibility (both themes) + header wrapping on small phones */
 :focus-visible {
   outline: 2px solid var(--primary, #F36633);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 @media (max-width: 374px) {
   .topbar { flex-wrap: wrap; row-gap: 8px; }

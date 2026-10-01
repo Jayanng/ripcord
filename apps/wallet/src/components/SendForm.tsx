@@ -563,7 +563,11 @@ export function SendForm() {
     setResult('');
     const sendFee = reviewedFeeRef.current ?? feeSats;
     const vault = wallet.activeVault;
+    // Snapshot the identity now: the send and its receipt must complete even
+    // if the wallet locks mid-flight (auto-lock, second-eye review 2026-10-02).
+    const identity = wallet.identity;
     if (!vault?.registered || !vault.p2tr) return fail('form', 'No registered spendable vault is loaded for this identity');
+    if (!identity) return fail('form', 'Unlock the wallet before sending');
     const sats = Number(amount);
     if (!Number.isSafeInteger(sats) || sats < 1) return fail('amount', 'Enter a whole-sat amount of at least 1');
 
@@ -585,13 +589,13 @@ export function SendForm() {
             }
             const committed = await sendTransfer({
               vault: toSdkVault(vault),
-              senderXOnly: wallet.identity!.xOnly,
+              senderXOnly: identity.xOnly,
               recipientAddress: recipient,
               network: 'regtest',
               amountSats: BigInt(sats),
               feeSats: sendFee,
               baseUrl: wallet.daemonUrl,
-              userSigner: makeSigner(wallet.identity!.mnemonic, 'regtest', vault.userKeyIndex),
+              userSigner: makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex),
               queue: wallet.txQueue,
             });
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Fetching proof…`);
@@ -601,7 +605,7 @@ export function SendForm() {
               txHash: committed.txHash,
               epoch: committed.epoch,
               code: committed.code,
-              fromXOnly: wallet.identity!.xOnly,
+              fromXOnly: identity.xOnly,
               toXOnly: recipientXOnly,
               amountSats: BigInt(sats),
               feeSats: sendFee,

@@ -21,3 +21,7 @@ export * from './proofs.js';
 export * from './exit.js';
 export * from './refund.js';
 export * from './lifecycle.js';
+
+export * from './idleTimer.js';
+export * from './addressSafety.js';
+export * from './units.js';

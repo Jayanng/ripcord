@@ -37,6 +37,11 @@ export function findSuspiciousVariant(
 ): string | null {
   const value = input.trim();
   if (!value) return null;
+  // BIP-173: an all-uppercase address is valid (common from QR codes), so it
+  // is never a suspicious variant. Only mixed-case input (which is invalid
+  // and smells like a mangled paste) earns a warning.
+  const mixedCase = value !== value.toLowerCase() && value !== value.toUpperCase();
+  if (!mixedCase) return null;
   for (const saved of savedRecipients) {
     if (differsOnlyByCase(value, saved)) return saved.trim();
   }

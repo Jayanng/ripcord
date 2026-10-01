@@ -20,7 +20,9 @@ export function PullToRefresh({ onRefresh, children }: Props) {
 
   const onTouchStart = (event: React.TouchEvent) => {
     if (refreshing) return;
-    if ((container.current?.scrollTop ?? 0) > 0) return;
+    // The page scrolls on window, not the wrapper: only engage at the top.
+    const atTop = window.scrollY <= 0 && (container.current?.scrollTop ?? 0) <= 0;
+    if (!atTop) return;
     startY.current = event.touches[0].clientY;
   };
 
@@ -33,6 +35,12 @@ export function PullToRefresh({ onRefresh, children }: Props) {
     }
     // Dampened drag: half the finger distance, capped at the threshold.
     setPull(Math.min(THRESHOLD_PX, distance / 2));
+  };
+
+  const onTouchCancel = () => {
+    // System gestures interrupt the touch: never leave the indicator stuck.
+    startY.current = null;
+    setPull(0);
   };
 
   const onTouchEnd = () => {
@@ -57,6 +65,7 @@ export function PullToRefresh({ onRefresh, children }: Props) {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
     >
       <div
         className={`pull-indicator${refreshing ? ' refreshing' : ''}`}

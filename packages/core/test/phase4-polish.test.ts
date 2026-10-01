@@ -1,49 +1,103 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createIdleTimer, IDLE_DEFAULT_MS } from '../src/idleTimer.js';
 import { parseAddressHighlight, differsOnlyByCase, findSuspiciousVariant } from '../src/addressSafety.js';
 import { satsToBtcString, formatUnit } from '../src/units.js';
 
-describe('idleTimer', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+/**
+ * Manual clock through the timer's injectable dependencies (AGENTS.md Rule 2:
+ * zero mock APIs). Plain counters, deterministic time.
+ */
+function createManualClock() {
+  let nowMs = 0;
+  let seq = 0;
+  const pending = new Map<number, { at: number; fn: () => void }>();
+  return {
+    now: () => nowMs,
+    setTimer: (fn: () => void, ms: number) => {
+      const handle = ++seq;
+      pending.set(handle, { at: nowMs + ms, fn });
+      return handle;
+    },
+    clearTimer: (handle: unknown) => {
+      pending.delete(handle as number);
+    },
+    advance(ms: number) {
+      nowMs += ms;
+      const due = [...pending.entries()].filter(([, t]) => t.at <= nowMs);
+      for (const [handle, t] of due) {
+        pending.delete(handle);
+        t.fn();
+      }
+    },
+  };
+}
 
+describe('idleTimer', () => {
   it('fires after the timeout and not before', () => {
-    const onIdle = vi.fn();
-    createIdleTimer({ timeoutMs: IDLE_DEFAULT_MS, onIdle });
-    vi.advanceTimersByTime(IDLE_DEFAULT_MS - 1);
-    expect(onIdle).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(onIdle).toHaveBeenCalledTimes(1);
+    const clock = createManualClock();
+    let fired = 0;
+    createIdleTimer({
+      timeoutMs: IDLE_DEFAULT_MS,
+      onIdle: () => { fired += 1; },
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
+    clock.advance(IDLE_DEFAULT_MS - 1);
+    expect(fired).toBe(0);
+    clock.advance(1);
+    expect(fired).toBe(1);
   });
 
   it('reset() restarts the countdown', () => {
-    const onIdle = vi.fn();
-    const timer = createIdleTimer({ timeoutMs: 60_000, onIdle });
-    vi.advanceTimersByTime(50_000);
+    const clock = createManualClock();
+    let fired = 0;
+    const timer = createIdleTimer({
+      timeoutMs: 60_000,
+      onIdle: () => { fired += 1; },
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
+    clock.advance(50_000);
     timer.reset();
-    vi.advanceTimersByTime(50_000);
-    expect(onIdle).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(10_000);
-    expect(onIdle).toHaveBeenCalledTimes(1);
+    clock.advance(50_000);
+    expect(fired).toBe(0);
+    clock.advance(10_000);
+    expect(fired).toBe(1);
   });
 
   it('dispose() stops the timer (no fire after unmount)', () => {
-    const onIdle = vi.fn();
-    const timer = createIdleTimer({ timeoutMs: 10_000, onIdle });
+    const clock = createManualClock();
+    let fired = 0;
+    const timer = createIdleTimer({
+      timeoutMs: 10_000,
+      onIdle: () => { fired += 1; },
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
     timer.dispose();
-    vi.advanceTimersByTime(20_000);
-    expect(onIdle).not.toHaveBeenCalled();
+    clock.advance(20_000);
+    expect(fired).toBe(0);
   });
 
   it('fires exactly once per arm and survives repeated resets', () => {
-    const onIdle = vi.fn();
-    const timer = createIdleTimer({ timeoutMs: 10_000, onIdle });
+    const clock = createManualClock();
+    let fired = 0;
+    const timer = createIdleTimer({
+      timeoutMs: 10_000,
+      onIdle: () => { fired += 1; },
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
     for (let i = 0; i < 5; i += 1) {
-      vi.advanceTimersByTime(9_000);
+      clock.advance(9_000);
       timer.reset();
     }
-    vi.advanceTimersByTime(10_000);
-    expect(onIdle).toHaveBeenCalledTimes(1);
+    clock.advance(10_000);
+    expect(fired).toBe(1);
   });
 });
 
@@ -67,9 +121,13 @@ describe('addressSafety', () => {
     expect(differsOnlyByCase('bcrt1qabc', 'bcrt1qabd')).toBe(false);
   });
 
-  it('finds a mangled variant of a saved address, ignores strangers and exact matches', () => {
+  it('warns only on mixed-case mangling, never on valid casing', () => {
     const saved = ['bcrt1qsavedaddress000000000000000000000000000'];
-    expect(findSuspiciousVariant('BCRT1QSAVEDADDRESS000000000000000000000000000', saved)).toBe(saved[0]);
+    // Mixed case (invalid Bech32, smells like a mangled paste) -> warn.
+    const mixed = saved[0].slice(0, 5) + saved[0][5].toUpperCase() + saved[0].slice(6);
+    expect(findSuspiciousVariant(mixed, saved)).toBe(saved[0]);
+    // All-uppercase is valid Bech32 (QR standard) -> never a false alarm.
+    expect(findSuspiciousVariant('BCRT1QSAVEDADDRESS000000000000000000000000000', saved)).toBeNull();
     expect(findSuspiciousVariant(saved[0], saved)).toBeNull();
     expect(findSuspiciousVariant('bcrt1qsomeoneelse0000000000000000000000000000', saved)).toBeNull();
     expect(findSuspiciousVariant('', saved)).toBeNull();
