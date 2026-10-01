@@ -217,16 +217,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const currentStore = store ?? (typeof window !== 'undefined' && typeof indexedDB !== 'undefined' ? new IndexedDbStore({ dbName: 'ripcord-public-v1' }) : null);
       if (currentStore) {
         try {
-          const [nextVaults, nextReceipts] = await Promise.all([
+          // Stuck-storage guard: profiles carrying an older database can
+          // deadlock the read (IndexedDB upgrade-block). Never let storage
+          // hang the boot skeleton forever.
+          const storeRead = Promise.all([
             currentStore.getVaults(),
             currentStore.getReceipts(),
           ]);
+          const storeTimeout = new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('store read timed out')), 5000),
+          );
+          const [nextVaults, nextReceipts] = await Promise.race([storeRead, storeTimeout]);
           if (stateGen.current === readGen) {
             setStoredVaults(nextVaults);
             setReceipts(nextReceipts);
           }
         } catch (storeError) {
           console.error('Failed to read from local store:', storeError);
+          hasLoadedOnce.current = true;
         }
       }
 
@@ -293,6 +301,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const timer = window.setInterval(() => void runPreflight(true), 30_000);
     return () => window.clearInterval(timer);
   }, [runPreflight]);
+
+  // Boot watchdog: if any part of the boot chain hangs (stuck storage,
+  // stalled network), never leave the user staring at the skeleton. After
+  // 8s the shell renders in degraded state; a late preflight self-corrects.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setBootState(prev => (prev === 'checking' ? 'degraded' : prev));
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const recordActivity = useCallback((event: IndexerEvent) => {
     setActivity(current => [event, ...current].slice(0, 200));
