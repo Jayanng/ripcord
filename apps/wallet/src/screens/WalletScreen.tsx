@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { PullToRefresh } from '../components/PullToRefresh';
+import { useWallet } from '../context/WalletContext';
 import { BalanceScreen } from './BalanceScreen';
 import { SendScreen } from './SendScreen';
 import { ReceiveScreen } from './ReceiveScreen';
@@ -13,6 +15,7 @@ function readSubViewFromHash(): WalletSubView {
 }
 
 export function WalletScreen({ onExit }: { onExit?: () => void }) {
+  const wallet = useWallet();
   const [subView, setSubView] = useState<WalletSubView>(() => readSubViewFromHash());
 
   useEffect(() => {
@@ -36,11 +39,13 @@ export function WalletScreen({ onExit }: { onExit?: () => void }) {
       ) : subView === 'receive' ? (
         <ReceiveScreen onBack={() => navigateTo('balance')} />
       ) : (
-        <BalanceScreen
-          onSend={() => navigateTo('send')}
-          onReceive={() => navigateTo('receive')}
-          onExit={onExit}
-        />
+        <PullToRefresh onRefresh={() => wallet.refresh()}>
+          <BalanceScreen
+            onSend={() => navigateTo('send')}
+            onReceive={() => navigateTo('receive')}
+            onExit={onExit}
+          />
+        </PullToRefresh>
       )}
     </section>
   );

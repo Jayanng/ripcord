@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppTab } from './TabBar';
+import { useWallet } from '../context/WalletContext';
+import { loadAutoLockSettings, saveAutoLockSettings, cycleAutoLock, type AutoLockSettings } from '../lib/autolock';
 
 type Theme = 'light' | 'dark';
 
@@ -23,6 +25,8 @@ export function Header({
   navVisible?: boolean;
 }) {
   const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity'];
+  const wallet = useWallet();
+  const [autoLock, setAutoLock] = useState<AutoLockSettings>(() => loadAutoLockSettings());
   // Phase 10 (#31): dark mode on the existing token set.
   const [theme, setTheme] = useState<Theme>(() => {
     try {
@@ -74,6 +78,30 @@ export function Header({
         <span className="security-chip-dot" aria-hidden="true" />
         Keys never stored
       </span>
+      {/* Phase 4: display unit + auto-lock pills */}
+      <button
+        type="button"
+        className="theme-toggle"
+        aria-label={`Show amounts in ${wallet.displayUnit === 'sats' ? 'BTC' : 'sats'}`}
+        title="Display unit only. Data and sends stay in sats."
+        onClick={() => wallet.setDisplayUnit(wallet.displayUnit === 'sats' ? 'btc' : 'sats')}
+      >
+        {wallet.displayUnit === 'sats' ? 'sats' : 'BTC'}
+      </button>
+      <button
+        type="button"
+        className="theme-toggle"
+        aria-label={`Auto-lock: ${autoLock.enabled ? `locks after ${autoLock.minutes} minutes idle` : 'off'}. Click to change.`}
+        title="Locks the wallet after idle time by clearing the keys from memory. Keys are never stored."
+        onClick={() => {
+          const next = cycleAutoLock(autoLock);
+          setAutoLock(next);
+          saveAutoLockSettings(next);
+          window.dispatchEvent(new CustomEvent('ripcord:autolock-changed'));
+        }}
+      >
+        {autoLock.enabled ? `Lock ${autoLock.minutes}m` : 'Lock off'}
+      </button>
       {/* Phase 10 (#31): theme toggle */}
       <button
         type="button"

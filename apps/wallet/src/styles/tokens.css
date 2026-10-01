@@ -3057,3 +3057,83 @@ details[open] .balance-details-chevron {
 .exit-cert-meta dd { margin: 0; color: var(--text-hi); font: 650 12.5px var(--font-mono); }
 .exit-cert-nudge { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent-lav, #7C3AED) 8%, transparent); color: var(--text-hi); font: 500 12.5px/1.5 var(--font-sans); }
 .exit-cert-actions { display: flex; gap: 10px; }
+
+/* ===== Phase 4: sleek pass ===== */
+
+/* 4.1 Success micro-interaction (CSS-only, reduced-motion aware) */
+@keyframes success-pop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.success-moment .send-receipt-check { animation: success-pop 420ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both; }
+.success-moment { animation: success-pop 380ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .success-moment,
+  .success-moment .send-receipt-check { animation: none; }
+}
+
+/* 4.5 L1 confirmation counter */
+.conf-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-inset);
+  color: var(--text-lo);
+  font: 650 11px var(--font-mono);
+}
+
+/* 4.6 Address highlight (head/tail emphasized, middle dimmed) */
+.addr-highlight {
+  margin: 8px 0 2px; padding: 8px 12px; border-radius: 10px;
+  background: var(--bg-inset); border: 1px solid var(--line);
+  font: 600 12px var(--font-mono); word-break: break-all; line-height: 1.6;
+}
+.addr-highlight .addr-head,
+.addr-highlight .addr-tail { color: var(--text-hi); font-weight: 800; }
+.addr-highlight .addr-mid { color: var(--text-lo); }
+
+/* 4.4 Network pill (button reset + paused state) */
+.network-pill-row { display: flex; justify-content: center; padding: 0 16px; margin-top: -6px; }
+button.network-badge {
+  cursor: pointer; font: inherit; appearance: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg-raised);
+  color: var(--text-lo); font: 650 11px var(--font-sans);
+}
+button.network-badge span {
+  width: 8px; height: 8px; border-radius: 999px; background: #059669;
+}
+button.network-badge.paused { border-color: rgba(217, 119, 6, 0.45); color: #B45309; background: rgba(217, 119, 6, 0.08); }
+button.network-badge.paused span { background: #D97706; }
+
+/* 4.3 Pull-to-refresh */
+.pull-to-refresh { position: relative; }
+.pull-indicator {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  overflow: hidden; color: var(--text-lo); font: 650 11.5px var(--font-sans);
+  transition: height 180ms ease-out;
+}
+.pull-cord {
+  width: 14px; height: 14px; border-radius: 999px;
+  border: 2px solid var(--primary, #F36633); border-top-color: transparent;
+}
+.pull-indicator.refreshing .pull-cord { animation: cord-spin 900ms linear infinite; }
+@keyframes cord-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pull-indicator { transition: none; }
+  .pull-indicator.refreshing .pull-cord { animation: none; }
+}
+
+/* 4.8 Focus visibility (both themes) + header wrapping on small phones */
+:focus-visible {
+  outline: 2px solid var(--primary, #F36633);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+@media (max-width: 374px) {
+  .topbar { flex-wrap: wrap; row-gap: 8px; }
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .security-chip { order: 3; }
+}

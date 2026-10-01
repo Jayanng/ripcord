@@ -20,6 +20,11 @@ export function ExitSuccessModal({ txid, amountSats, destination, onClose }: Pro
 
   useEffect(() => {
     close.current?.focus();
+    try {
+      navigator.vibrate?.(30);
+    } catch {
+      // haptics are optional
+    }
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();

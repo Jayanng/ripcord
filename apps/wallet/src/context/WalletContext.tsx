@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { purgeServiceWorkersAndCaches } from '../lib/selfHeal';
 import { readExitRecord, writeExitRecord } from '../lib/exitRecord';
+import { getDisplayUnit, setDisplayUnit as setDisplayUnitModule, type DisplayUnit } from '../lib/format';
 import { IndexedDbStore, vaultStoreKey, type RipcordStore } from '@ripcord/core/store';
 import { TxQueue } from '@ripcord/core';
 import { deriveIdentity } from '@ripcord/core/keys';
@@ -66,6 +67,9 @@ interface WalletContextValue {
   storeReadFailed: boolean;
   /** Verified Bitcoin balance at the user's L1 settlement address (null until known). */
   l1BalanceSats: bigint | null;
+  /** Display unit for amounts (sats or BTC). Display-only; data stays in sats. */
+  displayUnit: DisplayUnit;
+  setDisplayUnit: (unit: DisplayUnit) => void;
   /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
   vtxoSnapshotLoaded: boolean;
   /**
@@ -215,6 +219,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [storeReadFailed, setStoreReadFailed] = useState(false);
   // Real Bitcoin balance at the user's L1 settlement address (verified live).
   const [l1BalanceSats, setL1BalanceSats] = useState<bigint | null>(null);
+  const [displayUnit, setDisplayUnitState] = useState<DisplayUnit>(() => getDisplayUnit());
+  const setDisplayUnit = useCallback((unit: DisplayUnit) => {
+    setDisplayUnitModule(unit);
+    setDisplayUnitState(unit);
+  }, []);
 
   const runPreflight = useCallback(async (quiet = false) => {
     if (!quiet && !hasLoadedOnce.current) setBootState('checking');
@@ -674,10 +683,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, vtxoSnapshotLoaded, claimedOutpointsFor,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

@@ -1,3 +1,4 @@
+import { copyAddressAndAutoClear } from '../lib/clipboard';
 import { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { QrCode } from '../components/QrCode';
@@ -57,7 +58,15 @@ export function ReceiveScreen({ onBack }: { onBack?: () => void } = {}) {
 
   const copy = async (text: string, label = 'Address') => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyAddressAndAutoClear(text, () => {
+        void import('../lib/toasts').then(({ pushToast }) =>
+          pushToast({
+            title: 'Clipboard cleared',
+            body: 'The copied address was removed from the clipboard after 60 seconds.',
+            tone: 'info',
+          }),
+        );
+      });
       setCopyState(`${label} copied`);
       window.setTimeout(() => setCopyState(''), 3000);
     } catch {

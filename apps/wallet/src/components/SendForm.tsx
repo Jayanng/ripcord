@@ -4,6 +4,8 @@ import { useBalance } from '../hooks/useBalance';
 import { formatSats, truncate, Icon } from './ui';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
 import { evaluateSpend, hasActiveRules, type ConscienceCheck, type ConscienceSettings as ConscienceSettingsType } from '@ripcord/core/spend-conscience';
+import { parseAddressHighlight, findSuspiciousVariant } from '@ripcord/core/address-safety';
+import { copyAddressAndAutoClear } from '../lib/clipboard';
 import { loadConscienceSettings, recordSpend, sentLast24hSats } from '../lib/conscience';
 import { ConscienceSheet } from './ConscienceSheet';
 import { ConscienceSettings } from './ConscienceSettings';
@@ -267,13 +269,17 @@ function SendReviewModal({
   }, [onBack]);
 
   const copyRecipient = async () => {
-    try {
-      await navigator.clipboard.writeText(recipient);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore clipboard error
-    }
+    await copyAddressAndAutoClear(recipient, () => {
+      void import('../lib/toasts').then(({ pushToast }) =>
+        pushToast({
+          title: 'Clipboard cleared',
+          body: 'The copied address was removed from the clipboard after 60 seconds.',
+          tone: 'info',
+        }),
+      );
+    });
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
   };
 
   const totalSats = amountSats + feeSats;
@@ -622,6 +628,11 @@ export function SendForm() {
               }),
             );
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
+            try {
+              navigator.vibrate?.(30);
+            } catch {
+              // haptics are optional
+            }
           } finally {
             setBusy(false);
           }
@@ -687,6 +698,25 @@ export function SendForm() {
           </small>
         )}
         <small className="form-help">Enter a regtest SegWit or Taproot user receive address.</small>
+        {recipient.trim().length > 12 && (() => {
+          const parts = parseAddressHighlight(recipient);
+          return (
+            <div className="addr-highlight" aria-label={`Address starts with ${parts.head} and ends with ${parts.tail}`}>
+              <span className="addr-head">{parts.head}</span>
+              <span className="addr-mid">{parts.mid}</span>
+              <span className="addr-tail">{parts.tail}</span>
+            </div>
+          );
+        })()}
+        {(() => {
+          const variant = findSuspiciousVariant(recipient, [...saved, ...recent].map(r => r.address));
+          return variant ? (
+            <p className="inline-error" role="alert">
+              This looks like your saved address {truncate(variant, 12, 10)} but with different letters (upper
+              vs lower case). Check it character by character before sending.
+            </p>
+          ) : null;
+        })()}
         {error?.field === 'recipient' && (
           <p id="send-recipient-error" className="inline-error" role="alert">
             {error.message}
@@ -863,7 +893,7 @@ export function SendForm() {
           </p>
         )}
         {result && (
-          <div className="send-receipt" role="status">
+          <div className="send-receipt success-moment" role="status">
             <div className="send-receipt-check" aria-hidden="true">
               <Icon name="check" />
             </div>

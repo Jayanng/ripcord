@@ -135,6 +135,18 @@
     "./lifecycle": {
       "types": "./dist/lifecycle.d.ts",
       "import": "./dist/lifecycle.js"
+    },
+    "./idle-timer": {
+      "types": "./dist/idleTimer.d.ts",
+      "import": "./dist/idleTimer.js"
+    },
+    "./address-safety": {
+      "types": "./dist/addressSafety.d.ts",
+      "import": "./dist/addressSafety.js"
+    },
+    "./units": {
+      "types": "./dist/units.d.ts",
+      "import": "./dist/units.js"
     }
   },
   "scripts": {

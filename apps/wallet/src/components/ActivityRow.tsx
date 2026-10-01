@@ -1,6 +1,7 @@
 import type { IndexerEvent } from '@ripcord/core/indexer';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { formatSats, truncate, explorerTxUrl, explorerBlockUrl } from './ui';
+import { ConfirmationsBadge } from './ConfirmationsBadge';
 
 export interface VaultDepositActivity {
   kind: 'tx:deposit';
@@ -125,6 +126,7 @@ export function ActivityRow({
         </div>
         <div>
           <span>{item.committed ? `Confirmed on L1 · outpoint vout ${item.vout}` : 'Broadcasting / Confirming on L1'}</span>
+          <ConfirmationsBadge txid={item.txHash} vout={item.vout} />
           <div className="activity-actions">
             <a
               className="explorer-btn"
@@ -177,6 +179,7 @@ export function ActivityRow({
         </div>
         <div>
           <span>Exited to Bitcoin L1 · funds at your settlement address</span>
+          <ConfirmationsBadge txid={item.txHash} vout={0} />
           <div className="activity-actions">
             <a
               className="explorer-btn"
