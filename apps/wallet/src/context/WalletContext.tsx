@@ -291,6 +291,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setBootState(nextHealth.daemonOk ? 'ready' : nextHealth.unreachable ? 'unreachable' : 'degraded');
       setLastRefreshedAt(Date.now());
 
+
       // Balance cross-check (Deliverable 3)
       if (identity) {
         const snapshotSats = liveVtxos.filter(v => !v.spent && !v.locked).reduce((sum, v) => sum + v.amountSats, 0n);
@@ -328,6 +329,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const runPreflightRef = useRef(runPreflight);
   runPreflightRef.current = runPreflight;
   useEffect(() => { void runPreflightRef.current(false); }, []);
+
+  // Exit visibility (2026-10-02, user-reported): exit maturity must be known
+  // on every screen, not only the Exit tab, or a cold start on the wallet
+  // screen shows stale pre-exit balances for a spent vault. Dedicated effect
+  // (not preflight-embedded): the preflight closure sees the pre-store-load
+  // vault list on its first run and would skip. Watches the active funded
+  // vault and re-checks every 30s.
+  useEffect(() => {
+    const vault = activeVault;
+    if (!vault?.funding) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const { inspectExitMaturity } = await import('@ripcord/core/exit');
+        const maturity = await inspectExitMaturity(vault, BITCOIN_RPC_BASE);
+        if (!cancelled) setExitReadiness(vaultRecordKey(vault), maturity);
+      } catch {
+        // Maturity polling must never break the UI.
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void runPreflight(true), 30_000);

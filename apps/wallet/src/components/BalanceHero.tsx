@@ -12,7 +12,7 @@ export interface BalanceHeroProps {
 
 export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps = {}) {
   const balance = useBalance();
-  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded, receipts, balanceCrossCheck } = useWallet();
+  const { vaults, bootState, refresh, lastRefreshedAt, vtxoSnapshotLoaded, receipts, balanceCrossCheck, exitReadiness } = useWallet();
   const [refreshing, setRefreshing] = useState(false);
   // Phase 9 (#22): skeletons until the first VTXO snapshot lands - the honest
   // "still loading" signal. After that, real values (including zeros) show.
@@ -39,14 +39,18 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
       <div>
         <p className="eyebrow">TAURUS Custody Split</p>
         <h2 id="balance-title">Your balance</h2>
-        <p className="balance-subtitle">Vault and spending balances are tracked separately.</p>
+        <p className="balance-subtitle">
+          {balance.exited
+            ? 'Your vault exited to Bitcoin L1. These balances are zero on purpose: your funds are at your settlement address.'
+            : 'Vault and spending balances are tracked separately.'}
+        </p>
       </div>
       <Icon name="shield" />
     </div>
     {/* Phase 10 (#27): always-on proof badge - reserves + inclusion at a glance */}
     <div className="proof-badge-row" aria-label="Proof status">
       <span className={`proof-badge ${balanceCrossCheck?.matches === false ? 'warn' : ''}`} title="L1 reserves cross-checked against the live chain snapshot">
-        {balanceCrossCheck
+        {balance.exited ? 'Vault exited to L1' : balanceCrossCheck
           ? balanceCrossCheck.chainReachable
             ? balanceCrossCheck.matches === true
               ? 'L1 Reserves Verified'
@@ -69,7 +73,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         <div className="balance-primary">
           <span>SPENDABLE BALANCE</span>
           {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>0 sats</strong>}
-          <small className="balance-friendly-helper">Nothing here yet. Fund your wallet to get started.</small>
+          <small className="balance-friendly-helper">{balance.exited ? 'Your exit settled. Your funds are at your L1 address. Fund a new vault round when you want back in.' : 'Nothing here yet. Fund your wallet to get started.'}</small>
           {onReceive && (
             <div style={{ marginTop: '14px' }}>
               <button type="button" className="test-pull balance-fund-cta" onClick={onReceive}>
@@ -122,7 +126,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
         <div className="balance-primary">
           <span>OFF-CHAIN · SPENDABLE NOW</span>
           {firstLoad ? <Skeleton width="58%" height={26} radius={8} /> : <strong>{formatSats(balance.offChainSats)}</strong>}
-          <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : 'Nothing here yet. Fund your wallet to get started.'}</small>
+          <small>{balance.vtxoCount ? `across ${balance.vtxoCount} VTXOs` : balance.exited ? 'Your exit settled. Your funds are at your L1 address. Fund a new vault round when you want back in.' : 'Nothing here yet. Fund your wallet to get started.'}</small>
         </div>
 
         {/* Pending incoming credits (Scope 2) */}

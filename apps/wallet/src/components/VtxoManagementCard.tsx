@@ -12,7 +12,7 @@ export interface VtxoManagementCardProps {
 }
 
 export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps = {}) {
-  const { liveVtxos, spentVtxos, lockedVtxos, vaults, receipts, identity } = useWallet();
+  const {liveVtxos, spentVtxos, lockedVtxos, vaults, receipts, identity, exitReadiness } = useWallet();
   const [filter, setFilter] = useState<VtxoFilter>('all');
   const [selectedVtxo, setSelectedVtxo] = useState<VtxoRecordItem | null>(null);
 
@@ -87,6 +87,13 @@ export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps 
         </summary>
 
         <div className="vtxo-content">
+          {exitReadiness?.status === 'spent' && (
+            <p className="flow-note" role="status">
+              Vault exited to Bitcoin L1. These VTXOs are void: their backing left
+              the vault and the funds are at your settlement address. The rows stay
+              as public history.
+            </p>
+          )}
           {totalCount === 0 ? (
             <div className="empty-state vtxo-empty-state">
               <span className="empty-glyph">⌁</span>
