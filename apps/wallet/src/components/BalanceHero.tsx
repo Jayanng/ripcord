@@ -146,7 +146,7 @@ export function BalanceHero({ onSend, onReceive, onRipcord }: BalanceHeroProps =
           <div>
             <span>PENDING INCOMING · NOT COMMITTED</span>
             <strong style={balance.pendingIncomingSats > 0n ? { color: 'var(--pending)' } : undefined}>
-              {balance.pendingIncomingSats > 0n ? `+${formatSats(balance.pendingIncomingSats)}` : '0 sats'}
+              {balance.pendingIncomingSats > 0n ? `+${formatSats(balance.pendingIncomingSats)}` : formatSats(0n)}
             </strong>
           </div>
           {balance.pendingIncomingSats > 0n && <small>Awaiting block commit</small>}

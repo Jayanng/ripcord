@@ -1,7 +1,8 @@
 /**
  * L1 confirmation polling (Bounty #1, Phase 4): bounded, read-only.
- * gettxout returns the live confirmation count for an unspent output;
- * null means the output is spent or unknown (shown as "final").
+ * gettxout returns the live confirmation count for an unspent output; the
+ * discriminated result keeps 'spent' (the chain's answer) separate from
+ * 'unknown' (we could not check).
  */
 
 interface RpcResponse {
@@ -32,12 +33,16 @@ export async function fetchConfirmations(
     });
     if (!response.ok) return { state: 'unknown' };
     const data = (await response.json()) as RpcResponse;
+    // JSON-RPC errors arrive inside HTTP 200: they are 'unknown', never
+    // proof that an output is spent (second-pass review).
+    if (data.error) return { state: 'unknown' };
     const confirmations = data.result?.confirmations;
     if (typeof confirmations === 'number' && confirmations >= 0) {
       return { state: 'confirmed', confirmations };
     }
-    // The RPC answered successfully with no UTXO: the output is spent.
-    return { state: 'spent' };
+    // The RPC answered cleanly with result null: the chain says this output
+    // does not exist in the UTXO set, which means spent.
+    return data.result === null ? { state: 'spent' } : { state: 'unknown' };
   } catch {
     return { state: 'unknown' };
   }

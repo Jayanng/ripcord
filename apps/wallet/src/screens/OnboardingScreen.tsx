@@ -96,9 +96,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const completeFunding = async (explicitInput?: import('@ripcord/core/types').ExplicitSpendableInput) => {
     if (!wallet.identity || !wallet.activeVault) return;
     const activeVault = wallet.activeVault;
+    // Snapshot before the long funding awaits (auto-lock can clear the live
+    // identity mid-flow; this flow sits outside the tx queue and modals).
+    const identityAtStart = wallet.identity;
     if (activeVault.vaultIdHex && (activeVault.registered || activeVault.funding)) {
       setFlow('complete');
-      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:faucet:${identityAtStart.l1Address}`);
       clearSavedDepositTxid(activeVault);
       return;
     }
@@ -134,7 +137,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         vaultIdHex: result.vaultId,
         registered: true,
       });
-      localStorage.removeItem(`ripcord:faucet:${wallet.identity.l1Address}`);
+      localStorage.removeItem(`ripcord:faucet:${identityAtStart.l1Address}`);
       clearSavedDepositTxid(activeVault);
     } catch (e) {
       const isSlow = isDaemonSlowError(e);

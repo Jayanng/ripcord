@@ -4,7 +4,8 @@ import { fetchConfirmations, type ConfirmationsResult } from '../lib/confirmatio
 
 /**
  * L1 confirmation counter (Phase 4): polls gettxout while visible (30s,
- * bounded and read-only). "final" when the output is spent or unknown.
+ * bounded and read-only). Shows the chain's answer, and says plainly when
+ * the status could not be checked.
  */
 export function ConfirmationsBadge({ txid, vout }: { txid: string; vout: number }) {
   const wallet = useWallet();
