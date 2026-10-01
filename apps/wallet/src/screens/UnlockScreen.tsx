@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { identityForVault } from '../context/WalletContext';
+import { wipeAllAppData } from '../lib/selfHeal';
 
 /**
  * Lock screen shown when stored vault records exist but the in-memory keys
@@ -13,6 +14,21 @@ export function UnlockScreen() {
   const [mnemonic, setMnemonic] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const lostKeys = async () => {
+    const confirmed = window.confirm(
+      'Start over on this device?\n\n' +
+      'This forgets the vault records stored here. Funds in a wallet whose 12-word phrase is truly lost cannot be recovered by anyone.\n\n' +
+      'If you still have your phrase somewhere, cancel and enter it instead - or use "Recover wallet" after resetting.',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await wipeAllAppData();
+    } finally {
+      window.location.reload();
+    }
+  };
 
   const unlock = async () => {
     setBusy(true);
@@ -75,6 +91,18 @@ export function UnlockScreen() {
         <span className="balance-friendly-helper" style={{ display: 'block', marginTop: '10px', fontSize: '12px' }}>
           Keys are never written to disk. Unlocking re-derives them from your phrase.
         </span>
+        <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '12px', opacity: 0.65 }}>Phrase gone?</span>
+          <button
+            type="button"
+            className="secondary-action-compact"
+            onClick={() => void lostKeys()}
+            disabled={busy}
+            style={{ minHeight: 44, minWidth: 44 }}
+          >
+            Start over on this device
+          </button>
+        </div>
       </div>
     </div>
   );
