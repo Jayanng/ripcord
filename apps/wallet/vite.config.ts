@@ -192,20 +192,10 @@ export default defineConfig({
       protocolImports: true,
     }),
     ripcordHtmlPlugin(),
-    VitePWA({
-      scope: '/app',
-      registerType: 'autoUpdate',
-      includeAssets: ['ripcord-mark.svg'],
-      manifest: false,
-      workbox: {
-        navigateFallback: '/app.html',
-        navigateFallbackAllowlist: [/^\/app/],
-        globIgnores: ['landing/**', 'docs/**', 'index.html', 'build-id.json'],
-        runtimeCaching: [],
-        skipWaiting: true,
-        clientsClaim: true,
-      },
-    }),
+    // SW removed deliberately: the precache service worker was the root
+    // cause of clients being stranded on stale app shells. The wallet has
+    // no offline requirement; network-first with immutable hashed assets
+    // is simpler and cannot wedge. Old clients heal via kill-switch sw.js.
     ripcordRoutingPlugin(),
   ],
   build: {
