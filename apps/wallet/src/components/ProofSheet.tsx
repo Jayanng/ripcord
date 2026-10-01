@@ -80,7 +80,24 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
   };
 
   const missingProofs = !live.hat || !live.rip;
-  return <div className="sheet-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="proof-title"><header><div><p className="eyebrow">Cryptographic receipt</p><h2 id="proof-title">Proof chain</h2></div><button ref={close} aria-label="Close proof" onClick={onClose}><Icon name="close" /></button></header><div className="proof-chain"><ProofStep label="Transaction" value={<a href={explorerTxUrl(live.txHash)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>{truncate(live.txHash, 14, 10)} ↗</a>} detail={`epoch ${live.epoch} · code ${live.code}`} /><ProofStep label="HAT" value={live.hat ? truncate(live.hat.proof, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.hat ? 'daemon commitment included' : 'tap the fetch button to attest'} /><ProofStep label="Verkle" value={live.rip?.hatInStateDiff ? 'HAT found in state diff' : 'Not verified'} detail="normalized inclusion comparison" /><ProofStep label="RIP chain" value={live.rip ? live.rip.chainLength === 0 ? 'self-proof' : `${live.rip.chainLength} epochs` : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.rip ? `origin ${live.rip.originEpoch} → final ${live.rip.finalEpoch}` : 'tap the fetch button to attest'} /><ProofStep label="Final root" value={live.rip ? truncate(live.rip.finalRoot, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail="daemon-attested; encoding preserved" /></div><div className="proof-diagram" aria-label="Proof chain diagram">
+  // The daemon answers "tx has no inputs; hat/rip proofs require a spent
+  // VTXO" for VTXO mints (deposit registration) - their proof is the L1
+  // confirmation itself. Present that state honestly instead of dead
+  // fetch buttons and empty proof rows.
+  const depositMode = !live.hat && !live.rip && /no inputs/i.test(fetchError ?? '');
+  return <div className="sheet-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="proof-title"><header><div><p className="eyebrow">Cryptographic receipt</p><h2 id="proof-title">Proof chain</h2></div><button ref={close} aria-label="Close proof" onClick={onClose}><Icon name="close" /></button></header><div className="proof-chain"><ProofStep label="Transaction" value={<a href={explorerTxUrl(live.txHash)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>{truncate(live.txHash, 14, 10)} ↗</a>} detail={`epoch ${live.epoch} · code ${live.code}`} /></div>
+  {depositMode ? (
+    <div className="proof-deposit-note" role="note" style={{ marginTop: '12px', background: '#F8FAFC', border: '1px solid var(--line, #E2E4E9)', borderRadius: '10px', padding: '12px 14px' }}>
+      <strong style={{ display: 'block', marginBottom: '4px' }}>Deposit/mint receipt — L1 proof applies</strong>
+      <span style={{ fontSize: '13px', color: 'var(--text-lo, #64748B)' }}>
+        This is a vault deposit (VTXO mint). Mints have no inputs, so ledger proofs (HAT, RIP) do not exist for them — their proof is the on-chain confirmation of the deposit transaction, viewable on the explorer above.
+        HAT and RIP proofs appear on off-chain transfers instead.
+      </span>
+    </div>
+  ) : (
+    <>
+    <div className="proof-chain"><ProofStep label="HAT" value={live.hat ? truncate(live.hat.proof, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.hat ? 'daemon commitment included' : 'tap the fetch button to attest'} /><ProofStep label="Verkle" value={live.rip?.hatInStateDiff ? 'HAT found in state diff' : 'Not verified'} detail="normalized inclusion comparison" /><ProofStep label="RIP chain" value={live.rip ? live.rip.chainLength === 0 ? 'self-proof' : `${live.rip.chainLength} epochs` : fetching ? 'Fetching…' : 'Not fetched yet'} detail={live.rip ? `origin ${live.rip.originEpoch} → final ${live.rip.finalEpoch}` : 'tap the fetch button to attest'} /><ProofStep label="Final root" value={live.rip ? truncate(live.rip.finalRoot, 14, 10) : fetching ? 'Fetching…' : 'Not fetched yet'} detail="daemon-attested; encoding preserved" /></div>
+        <div className="proof-diagram" aria-label="Proof chain diagram">
           <p className="eyebrow">Chain of evidence</p>
           <div className="proof-diagram-row">
             <div className={`proof-node ${live.hat ? 'proved' : ''}`}><span>Tx hash</span><strong>{truncate(live.txHash, 8, 6)}</strong></div>
@@ -92,8 +109,10 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
             <div className={`proof-node ${live.rip ? 'proved' : ''}`}><span>Epoch root</span><strong>{live.rip ? truncate(live.rip.finalRoot, 8, 6) : 'n/a'}</strong></div>
           </div>
         </div>
+        </>
+        )}
         <div className="proof-export-row">
-          {missingProofs && (
+          {missingProofs && !depositMode && (
             <button type="button" className="secondary-action" onClick={fetchProofs} disabled={fetching}>
               {fetching ? 'Fetching proof from daemon…' : 'Fetch proof from daemon'}
             </button>
