@@ -3,6 +3,10 @@ import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
 import { formatSats, truncate, Icon } from './ui';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
+import { evaluateSpend, hasActiveRules, type ConscienceCheck, type ConscienceSettings as ConscienceSettingsType } from '@ripcord/core/spend-conscience';
+import { loadConscienceSettings, recordSpend, sentLast24hSats } from '../lib/conscience';
+import { ConscienceSheet } from './ConscienceSheet';
+import { ConscienceSettings } from './ConscienceSettings';
 import { isUserAddress } from '@ripcord/core/types';
 import {
   classifyAddress,
@@ -209,6 +213,7 @@ function SendReviewModal({
   amountSats,
   feeSats,
   hasLiveFee,
+  feeNote,
   offChainBalance,
   isPending,
   onConfirm,
@@ -218,6 +223,7 @@ function SendReviewModal({
   amountSats: bigint;
   feeSats: bigint;
   hasLiveFee: boolean;
+  feeNote?: string;
   offChainBalance: bigint;
   isPending: boolean;
   onConfirm: () => void;
@@ -272,9 +278,7 @@ function SendReviewModal({
 
   const totalSats = amountSats + feeSats;
   const remainingSats = offChainBalance >= totalSats ? offChainBalance - totalSats : 0n;
-  const feeLabel = hasLiveFee
-    ? `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (recommended)`
-    : '1 sat (default)';
+  const feeLabel = `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (${feeNote ?? (hasLiveFee ? 'recommended' : 'default')})`;
   // FIX #14: pre-send safety card - network match, address type, amount in words.
   const safety = classifyAddress(recipient);
 
@@ -323,6 +327,9 @@ function SendReviewModal({
             <strong>{formatSats(amountSats)}</strong>
             <span>Network fee</span>
             <strong>{feeLabel}</strong>
+            <span style={{ gridColumn: '1 / -1', color: 'var(--text-lo)', fontSize: '11.5px', textAlign: 'right' }}>
+              Estimate: next block on regtest (blocks advance with network activity).
+            </span>
             <span>Total</span>
             <strong>{formatSats(totalSats)}</strong>
             <span>Remaining balance</span>
@@ -387,6 +394,17 @@ export function SendForm() {
   // FIX #11: Review state
   const [showReview, setShowReview] = useState(false);
 
+  // Phase 3: Spend Conscience (off by default; identical sends until opted in)
+  const [conscience, setConscience] = useState<ConscienceSettingsType>(() => loadConscienceSettings());
+  const [showConscience, setShowConscience] = useState(false);
+  const [conscienceChecks, setConscienceChecks] = useState<ConscienceCheck[]>([]);
+
+  // Phase 3: fee transparency (Slow / Normal / Fast + custom). Default stays
+  // the daemon's recommended fee: same behavior as before this phase.
+  const [feeEstimate, setFeeEstimate] = useState<{ slow: bigint; normal: bigint; fast: bigint } | null>(null);
+  const [feeChoice, setFeeChoice] = useState<'slow' | 'normal' | 'fast' | 'custom'>('fast');
+  const [customFee, setCustomFee] = useState('');
+
   // FIX #12: Scanner state
   const [showScanner, setShowScanner] = useState(false);
 
@@ -405,7 +423,8 @@ export function SendForm() {
   const [probedFee, setProbedFee] = useState<bigint | null>(null);
 
   useEffect(() => {
-    if (wallet.health?.feeRecommendedSats && wallet.health.feeRecommendedSats > 0n) return;
+    // Always fetch the three-way estimate: health's recommended value alone
+    // cannot fill the Slow/Normal/Fast presets.
     let active = true;
     const controller = new AbortController();
     fetch(joinDaemonUrl(wallet.daemonUrl, 'tachi_feeEstimate'), { signal: controller.signal })
@@ -419,6 +438,15 @@ export function SendForm() {
           data.MinFeeSat;
         if (typeof rec === 'number' && rec > 0) {
           setProbedFee(BigInt(rec));
+        }
+        const floor1 = (n: unknown) =>
+          typeof n === 'number' && Number.isFinite(n) && n >= 1 ? BigInt(Math.floor(n)) : 1n;
+        if (data && typeof data === 'object') {
+          setFeeEstimate({
+            slow: floor1(data.min_fee_sat ?? data.MinFeeSat),
+            normal: floor1(data.avg_fee_sat ?? data.AvgFeeSat),
+            fast: floor1(data.recommended_fee_sat ?? data.RecommendedFeeSat),
+          });
         }
       })
       .catch(() => {});
@@ -436,10 +464,27 @@ export function SendForm() {
       : null;
 
   const hasLiveFee = liveFeeSats !== null;
-  const feeSats = hasLiveFee ? liveFeeSats : 1n;
-  const feeDisplay = hasLiveFee
-    ? `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (recommended)`
-    : '1 sat (default)';
+  const customFeeSats = (() => {
+    const parsed = Number(customFee);
+    return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 100_000 ? BigInt(parsed) : null;
+  })();
+  const feeSats = (() => {
+    if (feeChoice === 'custom' && customFeeSats !== null) return customFeeSats;
+    if (feeEstimate) {
+      return feeChoice === 'slow' ? feeEstimate.slow : feeChoice === 'normal' ? feeEstimate.normal : feeEstimate.fast;
+    }
+    return hasLiveFee ? liveFeeSats : 1n;
+  })();
+  const feeNote =
+    feeChoice === 'custom'
+      ? 'your custom fee'
+      : feeChoice === 'fast' && hasLiveFee
+        ? 'recommended'
+        : feeChoice === 'fast'
+          ? 'fast'
+          : feeChoice;
+  const feeDisplay = `${feeSats} ${feeSats === 1n ? 'sat' : 'sats'} (${feeNote})`;
+  const lastChecksRef = useRef<ConscienceCheck[] | null>(null);
 
   const fail = (field: Field, message: string) => {
     setError({ field, message });
@@ -551,6 +596,12 @@ export function SendForm() {
               window: 0,
             });
             await wallet.saveReceipt(receipt);
+            recordSpend({
+              at: Date.now(),
+              amountSats: String(sats),
+              recipient: String(recipient),
+              allPassed: (lastChecksRef.current ?? []).every(c => c.pass),
+            });
             recordRecipient(recipient);
             setRecent(loadRecentRecipients());
             void import('../lib/toasts').then(({ pushToast }) =>
@@ -749,6 +800,44 @@ export function SendForm() {
             {error.message}
           </p>
         )}
+        <div role="group" aria-label="Network fee choice" style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {(['slow', 'normal', 'fast'] as const).map(name => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={feeChoice === name}
+                onClick={() => setFeeChoice(name)}
+                style={{
+                  padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                  border: `1px solid ${feeChoice === name ? 'var(--primary, #F36633)' : 'var(--line)'}`,
+                  background: feeChoice === name ? 'color-mix(in srgb, var(--primary, #F36633) 12%, transparent)' : 'transparent',
+                  color: 'var(--text-hi)', font: '650 12.5px var(--font-sans)',
+                }}
+              >
+                {name === 'slow' ? 'Slow' : name === 'normal' ? 'Normal' : 'Fast'}
+                {name === 'fast' && hasLiveFee ? ' · recommended' : ''}
+                {feeEstimate ? ` · ${feeEstimate[name].toString()} sat${feeEstimate[name] === 1n ? '' : 's'}` : ''}
+              </button>
+            ))}
+            <input
+              type="number"
+              min={1}
+              max={100000}
+              placeholder="Custom sats"
+              aria-label="Custom network fee in sats"
+              value={customFee}
+              onChange={e => {
+                setCustomFee(e.target.value);
+                setFeeChoice('custom');
+              }}
+              style={{ width: '130px', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-inset)', color: 'var(--text-hi)', font: '600 13px var(--font-mono)' }}
+            />
+          </div>
+          <small style={{ display: 'block', marginTop: '8px', color: 'var(--text-lo)', fontSize: '12px' }}>
+            Estimate: next block on regtest (blocks advance with network activity). The fee you pick is the fee the send uses.
+          </small>
+        </div>
         <div className="send-summary" aria-label={`Network fee: ${feeDisplay}`}>
           <span>Network fee:</span>
           <strong title={`Network fee: ${feeSats} sats (recommended)`}>{feeDisplay}</strong>
@@ -778,6 +867,8 @@ export function SendForm() {
         )}
       </form>
 
+      <ConscienceSettings settings={conscience} onChange={setConscience} />
+
       {showReview && (
         <SendReviewModal
           recipient={recipient}
@@ -786,11 +877,38 @@ export function SendForm() {
           hasLiveFee={hasLiveFee}
           offChainBalance={balance.offChainSats}
           isPending={isPending}
+          feeNote={feeNote}
           onConfirm={() => {
             setShowReview(false);
-            void executeSend();
+            const checks = hasActiveRules(conscience)
+              ? evaluateSpend(BigInt(amount || '0'), recipient, conscience, {
+                  spendableSats: balance.offChainSats,
+                  savedRecipients: [...saved, ...recent].map(r => r.address),
+                  sentLast24hSats: sentLast24hSats(),
+                })
+              : [];
+            lastChecksRef.current = checks;
+            if (checks.length > 0) {
+              setConscienceChecks(checks);
+              setShowConscience(true);
+            } else {
+              void executeSend();
+            }
           }}
           onBack={() => setShowReview(false)}
+        />
+      )}
+
+      {showConscience && (
+        <ConscienceSheet
+          recipient={recipient}
+          amountSats={BigInt(amount || '0')}
+          checks={conscienceChecks}
+          onProceed={() => {
+            setShowConscience(false);
+            void executeSend();
+          }}
+          onCancel={() => setShowConscience(false)}
         />
       )}
 

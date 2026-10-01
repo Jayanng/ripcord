@@ -72,6 +72,10 @@
       "types": "./dist/exitCertificate.d.ts",
       "import": "./dist/exitCertificate.js"
     },
+    "./spend-conscience": {
+      "types": "./dist/spendConscience.d.ts",
+      "import": "./dist/spendConscience.js"
+    },
     "./refund": {
       "types": "./dist/refund.d.ts",
       "import": "./dist/refund.js"
