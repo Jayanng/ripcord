@@ -33,6 +33,46 @@ export async function purgeServiceWorkersAndCaches(): Promise<void> {
 }
 
 /**
+ * Wipes ALL local app data on this device: service workers, caches,
+ * IndexedDB databases, localStorage and sessionStorage. The app then
+ * starts completely fresh (stored wallets are removed - recovery
+ * phrases restore them).
+ */
+export async function wipeAllAppData(): Promise<void> {
+  await purgeServiceWorkersAndCaches();
+
+  if (typeof indexedDB !== 'undefined') {
+    try {
+      const dbs = typeof indexedDB.databases === 'function' ? await indexedDB.databases() : [];
+      await Promise.all(
+        dbs
+          .filter((d): d is IDBDatabaseInfo & { name: string } => Boolean(d.name))
+          .map(
+            (d) =>
+              new Promise<void>((resolve) => {
+                const req = indexedDB.deleteDatabase(d.name);
+                req.onsuccess = () => resolve();
+                req.onerror = () => resolve();
+                req.onblocked = () => resolve();
+              }),
+          ),
+      );
+    } catch {
+      // databases() unsupported: try the known app database directly
+      await new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase('ripcord-public-v1');
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+        req.onblocked = () => resolve();
+      });
+    }
+  }
+
+  try { window.localStorage.clear(); } catch { /* ignore */ }
+  try { window.sessionStorage.clear(); } catch { /* ignore */ }
+}
+
+/**
  * Renders a lightweight, persistent banner indicating an update is available.
  * Shown when reload loop prevention prevents an automatic reload.
  */

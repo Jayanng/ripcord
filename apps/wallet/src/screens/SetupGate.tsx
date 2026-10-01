@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { OnboardingScreen } from './OnboardingScreen';
 import { RecoveryScreen } from './RecoveryScreen';
+import { wipeAllAppData } from '../lib/selfHeal';
 
 export type SetupTab = 'create' | 'recover';
 
@@ -28,6 +29,20 @@ export function SetupGate({ initialTab, onEnterWallet }: { initialTab?: SetupTab
     window.location.hash = `#/${nextTab}`;
   };
 
+  const [wiping, setWiping] = useState(false);
+  const startFresh = async () => {
+    const confirmed = window.confirm(
+      'Start fresh? This deletes local wallets and app data on this device. Recovery phrases restore any wallet.',
+    );
+    if (!confirmed) return;
+    setWiping(true);
+    try {
+      await wipeAllAppData();
+    } finally {
+      window.location.reload();
+    }
+  };
+
   return <div className="setup-gate auth-container">
     <div className="auth-header">
       <p className="eyebrow">Setup Gate · Local Custody</p>
@@ -53,6 +68,18 @@ export function SetupGate({ initialTab, onEnterWallet }: { initialTab?: SetupTab
           onClick={() => selectTab('recover')}
         >
           Recover wallet
+        </button>
+      </div>
+      <div className="start-fresh-row" style={{ marginTop: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+        <span style={{ fontSize: '12px', opacity: 0.65 }}>Trouble with an old install?</span>
+        <button
+          type="button"
+          className="secondary-action-compact"
+          onClick={() => void startFresh()}
+          disabled={wiping}
+          style={{ minHeight: 44, minWidth: 44 }}
+        >
+          {wiping ? 'Wiping local data…' : 'Start fresh'}
         </button>
       </div>
     </div>
