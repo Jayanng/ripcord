@@ -587,6 +587,70 @@ export function findAdoptableMintNote<T extends { amountSats: bigint; spent: boo
  * never counted. Backing is the sum of vault funding values whose funding
  * outpoint is still unspent on L1.
  */
+/**
+ * One hash, one row (activity feed fix 2026-10-03).
+ *
+ * The indexer emits `tx:pending` and then `tx:committed` for the same
+ * transaction; a feed that renders both shows every transfer twice and reads
+ * like double-counting. Once any non-pending representation of a hash exists,
+ * its pending row is stale and is dropped. Entries without a hash (blocks,
+ * receipts) pass through untouched.
+ */
+export function dedupeActivityByHash<T>(items: readonly T[]): T[] {
+  type Row = { kind?: string; txHash?: string };
+  const rows = items as ReadonlyArray<Row>;
+  const committedHashes = new Set<string>();
+  for (const item of rows) {
+    if (item.txHash && item.kind !== 'tx:pending') committedHashes.add(item.txHash.toLowerCase());
+  }
+  return items.filter((_, i) => {
+    const item = rows[i];
+    return !(item.kind === 'tx:pending' && item.txHash && committedHashes.has(item.txHash.toLowerCase()));
+  });
+}
+
+/**
+ * Spent-VTXO rows carry a block height but no wall clock (the daemon reports
+ * no timestamp on regtest), which dumped them into an "Undated" bucket at the
+ * end of the feed. When a block event for the same height exists, borrow its
+ * timestamp so the spend sorts with its own block instead of floating.
+ */
+export function alignSpentVtxoTimes<T>(items: readonly T[]): T[] {
+  type Row = { kind?: string; height?: number; receivedAt?: number; createdAt?: number };
+  const rows = items as ReadonlyArray<Row>;
+  const timeByHeight = new Map<number, number>();
+  for (const item of rows) {
+    if (item.kind === 'block:new' && typeof item.height === 'number' && typeof item.receivedAt === 'number') {
+      if (!timeByHeight.has(item.height)) timeByHeight.set(item.height, item.receivedAt);
+    }
+  }
+  return items.map((item, i) => {
+    const row = rows[i];
+    if (row.kind !== 'vtxo:spent') return item;
+    const at = typeof row.height === 'number' ? timeByHeight.get(row.height) : undefined;
+    return at !== undefined && row.receivedAt === undefined && row.createdAt === undefined
+      ? ({ ...row, receivedAt: at } as T)
+      : item;
+  });
+}
+
+/**
+ * When is a funding-resume row legitimate? (activity fix 2026-10-03)
+ *
+ * The saved deposit txid is an in-flight broadcast marker so a pre-registration
+ * deposit stays visible across reloads. The moment the vault's real funding
+ * txid is known, the canonical deposit row is the truth and the resume row is
+ * a phantom second deposit. Second deposit rounds get their own vault record,
+ * so suppressing it here can never hide a real deposit.
+ */
+export function shouldShowResumeDepositRow(
+  savedTxid: string | null | undefined,
+  registeredFundingTxid: string | null | undefined,
+): boolean {
+  if (!savedTxid || !/^[0-9a-f]{64}$/i.test(savedTxid)) return false;
+  return !registeredFundingTxid;
+}
+
 export function reconcileSpendableSats(
   noteSats: bigint,
   backingSats: bigint,

@@ -4,6 +4,7 @@ import { loadSpendLog } from '../lib/conscience';
 import { vaultRecordKey } from '../context/WalletContext';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
+import { alignSpentVtxoTimes, dedupeActivityByHash, shouldShowResumeDepositRow } from '@ripcord/core/lifecycle';
 import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type ExitActivity, type ConscienceActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
@@ -62,7 +63,10 @@ export function ActivityFeed() {
 
   if (activeVault) {
     const savedDeposit = readSavedDepositTxid(activeVault);
-    if (savedDeposit && /^[0-9a-f]{64}$/i.test(savedDeposit) && savedDeposit.toLowerCase() !== activeVault.funding?.txid?.toLowerCase()) {
+    // The resume row exists only to keep a pre-registration deposit visible.
+    // Once the real funding txid is known it is a phantom second deposit
+    // (activity fix 2026-10-03); the rule lives in shouldShowResumeDepositRow.
+    if (savedDeposit && shouldShowResumeDepositRow(savedDeposit, activeVault.funding?.txid)) {
       onChainItems.push({
         kind: 'tx:deposit',
         txHash: savedDeposit,
@@ -132,7 +136,15 @@ export function ActivityFeed() {
     owner: v.owner,
   }));
 
-  const items: ActivityItem[] = [...activity, ...dedupedReceipts, ...dedupedOnChain, ...spentItems];
+  // One hash, one row; spent VTXOs sort with their own block (activity fixes
+  // 2026-10-03): pending rows collapse once committed, and spends stop
+  // floating into the Undated bucket.
+  const items: ActivityItem[] = dedupeActivityByHash(alignSpentVtxoTimes([
+    ...activity,
+    ...dedupedReceipts,
+    ...dedupedOnChain,
+    ...spentItems,
+  ]) as ActivityItem[]);
   const ownerKeys = identity ? [identity.xOnly.toLowerCase(), identity.userKeyDescriptor.publicKey.toLowerCase()] : [];
 
   // Phase 8 (#15): filter tabs + search over the evidence stream.

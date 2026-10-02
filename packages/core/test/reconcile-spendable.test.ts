@@ -8,7 +8,7 @@
  * (AGENTS.md Rule 2).
  */
 import { describe, expect, it } from 'vitest';
-import { findAdoptableMintNote, reconcileSpendableSats } from '../src/lifecycle.js';
+import { alignSpentVtxoTimes, dedupeActivityByHash, findAdoptableMintNote, reconcileSpendableSats, shouldShowResumeDepositRow } from '../src/lifecycle.js';
 
 const BASE = process.env.RIPCORD_TEST_DAEMON ?? 'https://rpc-regtest.tachibtc.com/';
 const DEMO_MNEMONIC = 'flight group arrange hybrid wrong image advice crisp discover glue erupt cousin';
@@ -69,6 +69,66 @@ describe('received notes are backed by the sender, not capped by ours', () => {
     expect(reconciled.unbackedSats).toBe(39_998n);
     const spendable = receivedSats + reconciled.spendableSats;
     expect(spendable).toBe(30_000n);
+  });
+});
+
+describe('activity feed: one hash, one row; spends sort with their block', () => {
+  it('drops a stale pending row once the same hash is committed', () => {
+    const items = [
+      { kind: 'tx:committed', txHash: 'aa'.repeat(32) },
+      { kind: 'tx:pending', txHash: 'aa'.repeat(32) },
+      { kind: 'tx:pending', txHash: 'bb'.repeat(32) },
+      { kind: 'block:new', height: 7 },
+    ];
+    const out = dedupeActivityByHash(items);
+    expect(out).toHaveLength(3);
+    expect(out.filter(i => i.kind === 'tx:pending' && i.txHash === 'bb'.repeat(32))).toHaveLength(1);
+    expect(out.filter(i => i.kind === 'tx:pending' && i.txHash === 'aa'.repeat(32))).toHaveLength(0);
+  });
+
+  it('keeps a genuinely pending transaction while nothing supersedes it', () => {
+    const items = [
+      { kind: 'tx:pending', txHash: 'cc'.repeat(32) },
+      { kind: 'tx:deposit', txHash: 'dd'.repeat(32) },
+    ];
+    expect(dedupeActivityByHash(items)).toHaveLength(2);
+  });
+
+  it('borrows the block timestamp for a spent VTXO at the same height', () => {
+    const items = [
+      { kind: 'block:new', height: 953217, receivedAt: 1_700_000_000_000 },
+      { kind: 'vtxo:spent', height: 953217 },
+      { kind: 'vtxo:spent', height: 42 },
+    ];
+    const out = alignSpentVtxoTimes(items);
+    expect((out[1] as { receivedAt?: number }).receivedAt).toBe(1_700_000_000_000);
+    expect((out[2] as { receivedAt?: number }).receivedAt).toBeUndefined();
+  });
+
+  it('never overwrites a timestamp the item already carries', () => {
+    const items = [
+      { kind: 'block:new', height: 5, receivedAt: 111 },
+      { kind: 'vtxo:spent', height: 5, createdAt: 222 },
+    ];
+    const out = alignSpentVtxoTimes(items);
+    expect((out[1] as { createdAt?: number }).createdAt).toBe(222);
+    expect((out[1] as { receivedAt?: number }).receivedAt).toBeUndefined();
+  });
+});
+
+describe('resume-deposit row is legitimate only before funding is known', () => {
+  it('shows the resume row while the deposit is still pre-registration', () => {
+    expect(shouldShowResumeDepositRow('ab'.repeat(32), undefined)).toBe(true);
+    expect(shouldShowResumeDepositRow('ab'.repeat(32), null)).toBe(true);
+  });
+
+  it('suppresses it the moment the real funding txid is known (the phantom-deposit bug)', () => {
+    expect(shouldShowResumeDepositRow('ab'.repeat(32), 'cd'.repeat(32))).toBe(false);
+  });
+
+  it('ignores a missing or malformed saved txid', () => {
+    expect(shouldShowResumeDepositRow(null, undefined)).toBe(false);
+    expect(shouldShowResumeDepositRow('not-a-txid', undefined)).toBe(false);
   });
 });
 
