@@ -304,7 +304,7 @@ What the bounty asked for and where it lives:
 
 | Requirement | Where it lives | Evidence |
 |---|---|---|
-| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; 444 tests passing on the live regtest daemon (6 gated, 1 pending a faucet refill) |
+| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; 492 tests measured live against the regtest daemon (484 passing, 6 gated on environment or faucet conditions, 2 sensitive to live faucet/epoch state) |
 | Create TAURUS/Tachi vaults | Create and Recover flows (Wallet tab) | Deterministic construction with the live 5-of-7 regtest quorum; fixture-address checks in the vault tests |
 | Onboard BTC into a vault | Two-step funding: L1 deposit then register (Wallet tab) | `deposit.test.ts`, `register.test.ts`, `lifecycle-*.test.ts`; exact funding-script proof-of-reserves binding |
 | Manage VTXOs | VTXO inventory card with spendable / locked / spent views | `coinselect.test.ts`, `indexer.test.ts`; live balance and ownership checks |
@@ -312,7 +312,7 @@ What the bounty asked for and where it lives:
 | Smooth, Lightning-like experience | Instant sends, live activity stream, success moments, clear fees | Live regtest runs; pending-to-committed transitions in Activity |
 | Superior UX vs. Lightning | No channels, no inbound liquidity, no toxic state; clean CSV exit | `exit.test.ts`, `refund.test.ts` (dual exit paths) |
 | Clear balance displays | Balance card: vault reserves, spendable VTXOs, and the L1 settlement address verified on-chain | Live chain cross-checks (`health.test.ts`); zeroed balances after exit |
-| Unilateral exit flow | Exit tab: Ripcord exit with dry run, hold-to-confirm, and the Exit Readiness Certificate | `exit.test.ts`, `exit-run.test.ts`, `exit-certificate.test.ts` (16 tests); live-verified exit broadcast on regtest |
+| Unilateral exit flow | Exit tab: Ripcord exit with dry run, hold-to-confirm, and the Exit Readiness Certificate | `exit.test.ts`, `exit-run.test.ts`, `exit-certificate.test.ts` (16 of them in the certificate suite); live-verified exit broadcast on regtest |
 | Timelock status | Exit tab maturity meter and certificate countdown | Live `unfunded` / `maturing` / `live` / `spent` states (`sentinel.test.ts` maturity wording) |
 | Mobile and desktop wallet experience | Responsive web app for mobile and desktop browsers | 390px mobile pass; it is not a separate native iOS, Android, Windows, or macOS application |
 | Vault monitoring and safety | Sentinel vault health (Wallet tab), watchtower drawer, auto-lock, address safety | `sentinel.test.ts` (20 tests), `phase4-polish.test.ts` (11 tests) |

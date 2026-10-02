@@ -15,7 +15,7 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 | `./payment` `./coinselect` `./queue` | VTXO sends with per-input scripts, coin selection, serializing TxQueue |
 | `./indexer` `./proofs` `./health` | Live indexing + receipts, HAT/RIP proofs, daemon health/watchtower reads |
 | `./exit` `./refund` `./recovery` | Unilateral exit assessment/execution, cooperative refunds, recovery |
-| `./net` `./errors` `./store` `./types` `./bytes` | Daemon URL joining & fetch failure diagnosis, friendly error mapping, pluggable stores, txid byte order + JSON serialization, types |
+| `./net` `./errors` `./store` `./types` `./bytes` `./search` | Daemon URL joining & fetch failure diagnosis, friendly error mapping, pluggable stores, txid byte order + JSON serialization, types, live chain search |
 | `./sentinel` `./exit-certificate` `./spend-conscience` | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine |
 | `./idle-timer` `./address-safety` `./units` | Injectable idle timer (auto-lock), address highlight and mangled-paste checks, sats/BTC formatting |
 
