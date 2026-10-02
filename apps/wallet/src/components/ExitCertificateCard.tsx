@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { buildExitCertificate, certificateSummaryText, type ExitCertificate } from '@ripcord/core/exit-certificate';
+import { buildExitCertificate, certificateSummaryText, certificateToJson, type ExitCertificate } from '@ripcord/core/exit-certificate';
+import { proveExitTree, findFundingSpender, buildSweepEvidence, type ExitSweepEvidence } from '@ripcord/core/exit';
 
 /**
  * Exit Readiness Certificate (Bounty #1, Phase 2).
@@ -44,6 +45,34 @@ export function ExitCertificateCard() {
     };
   }, [vault, identity]);
 
+  // Sweep evidence read from the node: the transaction that spent the funding
+  // outpoint (audit fix 2026-10-02). Generic discovery, nothing hardcoded.
+  const [sweep, setSweep] = useState<ExitSweepEvidence | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setSweep(null);
+    // Only scan for the spender once the funding is actually spent: scanning
+    // earlier wastes node calls and finds nothing to report (review fix).
+    if (!vault?.funding || !identity || readiness?.status !== 'spent') return;
+    void (async () => {
+      try {
+        const spender = await findFundingSpender(wallet.baseUrl, vault.funding!);
+        if (!cancelled && spender) {
+          setSweep(buildSweepEvidence({
+            funding: vault.funding!,
+            spender,
+            destination: identity.l1Address,
+          }));
+        }
+      } catch {
+        if (!cancelled) setSweep(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vault, identity, wallet.baseUrl, readiness?.status]);
+
   const cert: ExitCertificate | null = useMemo(() => {
     if (!vault || !identity || !userKeyHex) return null;
     try {
@@ -58,7 +87,8 @@ export function ExitCertificateCard() {
         readiness ?? null,
         {
           network: 'regtest',
-          treeVerified: Boolean(readiness?.dryRun),
+          treeProof: proveExitTree(vault),
+          sweep,
           fundingOutpoint: funding,
         },
       );
@@ -66,12 +96,12 @@ export function ExitCertificateCard() {
       // The engine never throws by design; a null card beats a broken screen.
       return null;
     }
-  }, [vault, identity, userKeyHex, readiness]);
+  }, [vault, identity, userKeyHex, readiness, sweep]);
 
   if (!vault || !identity || !cert) return null;
 
   const exportJson = () => {
-    const blob = new Blob([JSON.stringify(cert, null, 2)], { type: 'application/json' });
+    const blob = new Blob([certificateToJson(cert)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -81,7 +111,7 @@ export function ExitCertificateCard() {
   };
 
   const allPass = cert.passed === cert.checks.length;
-  const treePending = !cert.checks.find(c => c.id === 'tree-proof')?.pass;
+  const treePending = !cert.checks.find(c => c.id === 'tree-proof')?.pass && cert.maturity.status !== 'spent';
 
   return (
     <div className="exit-cert" aria-label="Exit Readiness Certificate">
@@ -105,9 +135,23 @@ export function ExitCertificateCard() {
       </ul>
       <dl className="exit-cert-meta">
         <div><dt>Maturity</dt><dd>{cert.maturity.text}</dd></div>
+        <div><dt>Confirmations</dt><dd>{cert.maturity.confirmations}</dd></div>
         <div><dt>Your key</dt><dd>{cert.userKeyFingerprint}</dd></div>
         <div><dt>Vault</dt><dd>{cert.vaultAddress.slice(0, 12)}…{cert.vaultAddress.slice(-6)}</dd></div>
+        {cert.csvBlocksNote && <div><dt>CSV timelock</dt><dd>{cert.csvBlocksNote}</dd></div>}
       </dl>
+      {cert.sweep && (
+        <dl className="exit-cert-meta exit-cert-sweep" aria-label="Exit transaction">
+          <div><dt>Sweep</dt><dd>{cert.sweep.sovereign ? 'Sovereign exit verified' : 'Spend found (not a verified sovereign exit)'}</dd></div>
+          <div><dt>Exit txid</dt><dd><code>{cert.sweep.exitTxid}</code></dd></div>
+          <div><dt>Destination</dt><dd><code>{cert.sweep.destination}</code></dd></div>
+          <div><dt>Amount</dt><dd>{cert.sweep.amountSats === null ? 'unknown' : `${cert.sweep.amountSats} sats`}</dd></div>
+          <div><dt>Fee</dt><dd>{cert.sweep.feeSats === null ? 'unknown' : `${cert.sweep.feeSats} sats`}</dd></div>
+          <div><dt>Block</dt><dd><code>{cert.sweep.blockHash ?? 'unconfirmed'}</code></dd></div>
+          <div><dt>Confirmations</dt><dd>{cert.sweep.confirmations}</dd></div>
+          <div><dt>Explorer</dt><dd><a href={cert.sweep.explorerUrl} target="_blank" rel="noreferrer">{cert.sweep.explorerUrl}</a></dd></div>
+        </dl>
+      )}
       {treePending && (
         <p className="exit-cert-nudge">
           {cert.maturity.status === 'unfunded'

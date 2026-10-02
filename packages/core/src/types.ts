@@ -237,6 +237,14 @@ export interface ExitReadiness {
     rawHex: string;
   };
   reason?: string;
+  /** When the funding is spent: the spending transaction, read from the node. */
+  spentBy?: {
+    txid: DisplayTxid;
+    confirmations: number;
+    destination: string | null;
+    amountSats: bigint | null;
+    feeSats: bigint | null;
+  } | null;
 }
 
 export interface PaymentReceipt {

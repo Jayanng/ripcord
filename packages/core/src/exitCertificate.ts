@@ -17,6 +17,7 @@
  * Pure data in, pure data out: no network, no side effects.
  */
 import type { ExitReadiness } from './types.js';
+import type { ExitSweepEvidence, ExitTreeProof } from './exit.js';
 import { maturityEtaText } from './sentinel.js';
 import { describeTapscript } from './vault.js';
 
@@ -35,6 +36,9 @@ export interface ExitCertificateEvidence {
   readonly userKeyXOnly: string;
   readonly exitLeafHex: string | null;
   readonly exitLeafAsm: string | null;
+  readonly exitLeafHashHex: string | null;
+  readonly exitControlBlockHex: string | null;
+  readonly taprootOutputKey: string | null;
   readonly fundingOutpoint: string | null;
 }
 
@@ -54,6 +58,12 @@ export interface ExitCertificate {
   };
   /** False when the funding is already spent: nothing can be exited. */
   readonly exitStillPossible: boolean;
+  /** True only when a node-verified sovereign sweep already moved funds to the user's L1 address. */
+  readonly exitCompleted: boolean;
+  /** Demo-only label when the declared CSV is below the production default (1008). */
+  readonly csvBlocksNote: string | null;
+  /** The sweep that spent the funding outpoint, verified against the node. */
+  readonly sweep: ExitSweepEvidence | null;
   readonly evidence: ExitCertificateEvidence;
   readonly network: string;
   readonly timestamp: number;
@@ -79,8 +89,14 @@ export interface BuildCertificateOptions {
   readonly network: string;
   /** Minimum acceptable CSV. 2 is the regtest vault configuration floor; Tachi's mainnet default is 1008. */
   readonly expectedMinCsv?: number;
-  /** Result of the dry-run tree verification (verifyUnilateralExitPsbt). */
+  /** Legacy session flag. Prefer `treeProof`, which works for spent vaults. */
   readonly treeVerified?: boolean;
+  /** Re-verified stored leaf + control block (proveExitTree). Passes for spent vaults. */
+  readonly treeProof?: ExitTreeProof | null;
+  /** Node-read evidence of the transaction that spent the funding outpoint. */
+  readonly sweep?: ExitSweepEvidence | null;
+  /** Explorer base for transaction links. */
+  readonly explorerTxBase?: string;
   /** The vault's funding outpoint when known (public chain data). */
   readonly fundingOutpoint?: string;
   readonly now?: number;
@@ -152,9 +168,22 @@ export function buildExitCertificate(
     && /^[0-9a-f]{64}$/i.test(tokens[3])
     && tokens[4] === 'OP_CHECKSIG';
 
-  // Check 4: the leaf is in the tap tree committed by the on-chain address
-  // (proven by the dry-run verification the wallet runs).
-  const treeOk = options.treeVerified === true;
+  // Check 4: the leaf is in the tap tree committed by the on-chain address.
+  // Re-derived from the STORED leaf + control block (proveExitTree): works for
+  // spent vaults and needs no dry run or session state (audit fix 2026-10-02).
+  const treeProof = options.treeProof ?? null;
+  const treeOk = treeProof?.verified === true || options.treeVerified === true;
+  const sweep = options.sweep ?? null;
+  const spent = readiness?.status === 'spent';
+  const treeDetail = treeOk
+    ? treeProof?.verified === true
+      ? 'The stored exit leaf and control block re-derive exactly to your vault address. The control block proves this leaf is committed by your vault address on Bitcoin.'
+      : 'The control block proves this leaf is committed by your vault address on Bitcoin.'
+    : treeProof?.reason
+      ? treeProof.reason
+      : spent
+        ? 'The stored taproot proof is missing from this device. Recover the wallet from its phrase to rebuild it.'
+        : 'Tree proof not verified yet. Run the exit dry-run to prove it.';
 
   const checks: ExitCertificateCheck[] = [
     {
@@ -189,13 +218,10 @@ export function buildExitCertificate(
       id: 'tree-proof',
       name: 'Leaf is proven inside the on-chain address',
       pass: treeOk,
-      detail: treeOk
-        ? 'The control block proves this leaf is committed by your vault address on Bitcoin.'
-        : 'Tree proof not verified yet. Run the exit dry-run to prove it.',
+      detail: treeDetail,
     },
   ];
 
-  const spent = readiness?.status === 'spent';
   const maturityText = !readiness
     ? 'not checked yet'
     : readiness.status === 'live'
@@ -203,8 +229,15 @@ export function buildExitCertificate(
       : readiness.status === 'maturing'
         ? maturityEtaText(readiness.confirmationsRemaining)
         : spent
-          ? 'funding already spent on L1'
+          ? sweep?.sovereign
+            ? `funding already spent on L1: swept by ${sweep.exitTxid} (${sweep.confirmations} confirmations)`
+            : 'funding already spent on L1'
           : 'not funded yet';
+  const maturityConfirmations = spent && sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
+  const csvBlocksNote =
+    vault.csvBlocks < 1008
+      ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (regtest). The production Tachi default is 1008 blocks.`
+      : null;
 
   return {
     vaultAddress: vault.address,
@@ -214,16 +247,22 @@ export function buildExitCertificate(
     passed: checks.filter(c => c.pass).length,
     maturity: {
       status: readiness ? readiness.status : 'unknown',
-      confirmations: readiness?.confirmations ?? 0,
+      confirmations: maturityConfirmations,
       required: readiness?.requiredConfirmations ?? 0,
       remaining: readiness?.confirmationsRemaining ?? 0,
       text: maturityText,
     },
     exitStillPossible: !spent,
+    exitCompleted: spent && sweep?.sovereign === true,
+    csvBlocksNote,
+    sweep,
     evidence: {
       userKeyXOnly: expectedKey,
       exitLeafHex: rawScript && !isAsm ? rawScript : null,
       exitLeafAsm: rawScript ? (isAsm ? rawScript : (tokens.length ? tokens.join(' ') : null)) : null,
+      exitLeafHashHex: treeProof?.exitLeafHashHex ?? null,
+      exitControlBlockHex: treeProof?.exitControlBlockHex ?? null,
+      taprootOutputKey: treeProof?.taprootOutputKey ?? null,
       fundingOutpoint: options.fundingOutpoint ?? null,
     },
     network: options.network,
@@ -235,6 +274,10 @@ export function buildExitCertificate(
 export function certificateSummaryText(cert: ExitCertificate): string {
   const total = cert.checks.length;
   if (!cert.exitStillPossible) {
+    const sweep = cert.sweep;
+    if (cert.exitCompleted && sweep) {
+      return `Exit Certificate: this vault already swept ${sweep.amountSats ?? 'an unknown number of'} sats to your L1 address in ${sweep.exitTxid} (${sweep.confirmations} confirmations). Script checks: ${cert.passed}/${total}.`;
+    }
     return `Exit Certificate: ${cert.passed}/${total} script checks pass, but this vault's funding has already been spent on Bitcoin L1. There is nothing left to exit.`;
   }
   if (cert.passed === total) {
@@ -243,7 +286,7 @@ export function certificateSummaryText(cert: ExitCertificate): string {
   return `Exit Certificate: ${cert.passed}/${total} checks pass. Fix the failed checks before relying on this exit path.`;
 }
 
-/** File-friendly export payload (already plain JSON-serializable data). */
+/** File-friendly export payload. BigInt fields (sweep amounts) serialize as numbers. */
 export function certificateToJson(cert: ExitCertificate): string {
-  return JSON.stringify(cert, null, 2);
+  return JSON.stringify(cert, (_k, v) => (typeof v === 'bigint' ? Number(v) : v), 2);
 }

@@ -21,6 +21,7 @@ import {
   verifyUnilateralExitPsbt,
   signUnilateralExitPsbtAsUser,
   finalizeUnilateralExitPsbt,
+  verifyVaultP2tr,
   type TaprootSigner,
 } from '@tachibtc/taurus-vault-core';
 import {
@@ -321,13 +322,7 @@ export async function inspectExitMaturity(
     };
   }
   if (fundingState.status === 'spent') {
-    return {
-      status: 'spent',
-      confirmations: 0,
-      requiredConfirmations: required,
-      confirmationsRemaining: 0,
-      reason: 'Funding outpoint is spent',
-    };
+    return spentReadiness(vault, baseUrl, required);
   }
 
   const confirmations = fundingState.confirmations;
@@ -370,13 +365,9 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
     };
   }
   if (fundingState.status === 'spent') {
-    return {
-      status: 'spent',
-      confirmations: 0,
-      requiredConfirmations: required,
-      confirmationsRemaining: 0,
-      reason: 'Funding outpoint is spent',
-    };
+    // Audit fix 2026-10-02: do not require a dry run for a spent outpoint;
+    // read the spending transaction from the node and report it.
+    return spentReadiness(params.vault, params.baseUrl, required);
   }
 
   if (params.identity.userKeyDescriptor.index !== params.vault.userKeyIndex) {
@@ -426,6 +417,46 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   };
 }
 
+
+/**
+ * The spent branch of maturity: read the spending transaction from the node
+ * instead of hardcoding confirmations 0 (audit fix 2026-10-02). The spending
+ * tx is discovered generically; nothing is typed in by hand.
+ */
+async function spentReadiness(
+  vault: VaultRecord,
+  baseUrl: string,
+  required: number,
+): Promise<ExitReadiness> {
+  let spentBy: ExitReadiness['spentBy'] = null;
+  let confirmations = 0;
+  try {
+    const spender = vault.funding ? await findFundingSpender(baseUrl, vault.funding) : null;
+    if (spender) {
+      confirmations = spender.confirmations;
+      const destination = spender.outputs.find(o => o.address)?.address ?? null;
+      const outputTotal = spender.outputs.reduce((sum, o) => sum + o.valueSats, 0n);
+      spentBy = {
+        txid: asDisplayTxid(spender.txid),
+        confirmations: spender.confirmations,
+        destination,
+        amountSats: spender.outputs[0]?.valueSats ?? null,
+        feeSats: vault.funding ? vault.funding.valueSats - outputTotal : null,
+      };
+    }
+  } catch {
+    // A node lookup failure reports spent without fabricating details.
+  }
+  return {
+    status: 'spent',
+    confirmations,
+    requiredConfirmations: required,
+    confirmationsRemaining: 0,
+    reason: spentBy ? `Funding outpoint is spent by ${spentBy.txid}` : 'Funding outpoint is spent',
+    spentBy,
+  };
+}
+
 /**
  * Broadcast a unilateral exit to Bitcoin L1 via `sendrawtransaction`.
  * Immature exits surface as `EXIT_IMMATURE` (non-BIP68-final).
@@ -468,3 +499,236 @@ export async function executeExit(params: ExecuteExitParams): Promise<{ txid: Di
   }
   return { txid: asDisplayTxid(sent.result) };
 }
+
+/**
+ * Evidence that a funding outpoint was really swept (2026-10-02 audit fix).
+ *
+ * The exit path was already real; these helpers make the CERTIFICATE report the
+ * sweep that confirmed. Discovery is generic: the spender is found by scanning
+ * the chain for the transaction that spends the funding outpoint. Nothing about
+ * a specific txid is hardcoded, and every field is read back from the node.
+ */
+
+export interface FundingSpender {
+  readonly txid: string;
+  readonly rawHex: string;
+  readonly confirmations: number;
+  readonly blockHash: string | null;
+  readonly inputs: ReadonlyArray<{ txid: string; vout: number }>;
+  readonly outputs: ReadonlyArray<{ address: string | null; valueSats: bigint }>;
+}
+
+export interface ExitSweepEvidence {
+  readonly label: 'sovereign-exit' | 'unverified-spend';
+  readonly exitTxid: string;
+  readonly exitRawHex: string;
+  readonly spentOutpoint: string;
+  readonly destination: string | null;
+  readonly amountSats: bigint | null;
+  readonly feeSats: bigint | null;
+  readonly blockHash: string | null;
+  readonly confirmations: number;
+  readonly explorerUrl: string;
+  /** True only when the input is exactly the funding outpoint and an output pays the user L1 address. */
+  readonly sovereign: boolean;
+  readonly note: string;
+}
+
+/** A funding outpoint can be spent only once; cache a FOUND spender forever.
+ * Never cache the absence: a not-yet-spent outpoint must be re-scanned later. */
+const spenderCache = new Map<string, FundingSpender>();
+
+function outpointKey(funding: { txid: string; vout: number }): string {
+  return `${funding.txid.toLowerCase()}:${funding.vout}`;
+}
+
+function satsFromBtc(value: unknown): bigint {
+  return typeof value === 'number' ? BigInt(Math.round(value * 100_000_000)) : 0n;
+}
+
+/**
+ * Find the transaction that spent a funding outpoint, straight from the node.
+ * Scans mempool first, then blocks from the funding height to the tip.
+ * Returns null when no spender exists in the scanned window.
+ */
+export async function findFundingSpender(
+  baseUrl: string,
+  funding: { txid: string; vout: number },
+): Promise<FundingSpender | null> {
+  const key = outpointKey(funding);
+  const cached = spenderCache.get(key);
+  if (cached) return cached;
+
+  const fundRaw = await bitcoinRpc(baseUrl, 'getrawtransaction', [funding.txid, true]);
+  const fundTx = fundRaw.result as { txid?: string; blockhash?: string; confirmations?: number } | null;
+  if (!fundTx || typeof fundTx.txid !== 'string') {
+    return null;
+  }
+
+  const matches = (tx: { txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }): boolean =>
+    (tx.vin ?? []).some(v =>
+      typeof v.txid === 'string' &&
+      v.txid.toLowerCase() === funding.txid.toLowerCase() &&
+      v.vout === funding.vout,
+    );
+
+  const readSpender = async (txid: string, blockHash: string | null): Promise<FundingSpender | null> => {
+    const [rawHexRes, verboseRes] = await Promise.all([
+      bitcoinRpc(baseUrl, 'getrawtransaction', [txid, false]),
+      bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]),
+    ]);
+    const verbose = verboseRes.result as {
+      confirmations?: number;
+      vin?: ReadonlyArray<{ txid?: string; vout?: number }>;
+      vout?: ReadonlyArray<{ value?: number; scriptPubKey?: { address?: string } }>;
+    } | null;
+    if (!verbose || typeof rawHexRes.result !== 'string') return null;
+    return {
+      txid,
+      rawHex: rawHexRes.result,
+      confirmations: typeof verbose.confirmations === 'number' ? verbose.confirmations : 0,
+      blockHash,
+      inputs: (verbose.vin ?? []).map(v => ({ txid: String(v.txid ?? ''), vout: Number(v.vout ?? -1) })),
+      outputs: (verbose.vout ?? []).map(o => ({
+        address: o.scriptPubKey?.address ?? null,
+        valueSats: satsFromBtc(o.value),
+      })),
+    };
+  };
+
+  // Unconfirmed spender first (cheapest).
+  try {
+    const mempool = await bitcoinRpc(baseUrl, 'getrawmempool', []);
+    for (const txid of (mempool.result as string[] | null) ?? []) {
+      const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
+      if (matches((t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> })) {
+        const spender = await readSpender(txid, null);
+        if (spender) spenderCache.set(key, spender);
+        return spender;
+      }
+    }
+  } catch {
+    // A mempool read failure must not lose the confirmed scan below.
+  }
+
+  // Confirmed spender: scan blocks from the funding height forward.
+  const info = await bitcoinRpc(baseUrl, 'getblockchaininfo', []);
+  const tip = Number((info.result as { blocks?: number } | null)?.blocks ?? 0);
+  const fundConf = typeof fundTx.confirmations === 'number' ? fundTx.confirmations : 0;
+  const fundingHeight = fundConf > 0 ? tip - fundConf + 1 : tip;
+  // Scan backward from the tip: recent spenders are near the top, and the
+  // bound plus per-block guards keep one transient node error from failing the
+  // whole check (review fix 2026-10-02).
+  const maxScan = 2_000;
+  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) {
+    try {
+      const hashRes = await bitcoinRpc(baseUrl, 'getblockhash', [h]);
+      const blockHash = hashRes.result as string | null;
+      if (!blockHash) continue;
+      const blockRes = await bitcoinRpc(baseUrl, 'getblock', [blockHash, 2]);
+      const block = blockRes.result as {
+        tx?: ReadonlyArray<{ txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }>;
+      } | null;
+      for (const tx of block?.tx ?? []) {
+        if (matches(tx)) {
+          const spender = await readSpender(String(tx.txid), blockHash);
+          if (spender) spenderCache.set(key, spender);
+          return spender;
+        }
+      }
+    } catch {
+      // Skip a block the node failed to serve; keep scanning.
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate a spender into sweep evidence. The label "sovereign-exit" is earned
+ * only when the input is exactly the funding outpoint (sole input) and an output
+ * pays the user's L1 address. Anything else stays "unverified-spend".
+ */
+export function buildSweepEvidence(args: {
+  funding: { txid: string; vout: number; valueSats: bigint };
+  spender: FundingSpender;
+  destination: string;
+  explorerTxBase?: string;
+}): ExitSweepEvidence {
+  const { funding, spender, destination } = args;
+  const explorerTxBase = args.explorerTxBase ?? 'https://explorer-regtest.tachibtc.com/tx/';
+  const spentOutpoint = `${funding.txid}:${funding.vout}`;
+  const inputOk =
+    spender.inputs.length === 1 &&
+    spender.inputs[0].txid.toLowerCase() === funding.txid.toLowerCase() &&
+    spender.inputs[0].vout === funding.vout;
+  const destOut = spender.outputs.find(o => o.address === destination) ?? null;
+  const outputTotal = spender.outputs.reduce((sum, o) => sum + o.valueSats, 0n);
+  const feeSats = funding.valueSats - outputTotal;
+  const sovereign = inputOk && destOut !== null && feeSats >= 0n;
+  return {
+    label: sovereign ? 'sovereign-exit' : 'unverified-spend',
+    exitTxid: spender.txid,
+    exitRawHex: spender.rawHex,
+    spentOutpoint,
+    destination: destOut ? destination : (spender.outputs[0]?.address ?? null),
+    amountSats: destOut ? destOut.valueSats : null,
+    feeSats: feeSats >= 0n ? feeSats : null,
+    blockHash: spender.blockHash,
+    confirmations: spender.confirmations,
+    explorerUrl: `${explorerTxBase}${spender.txid}`,
+    sovereign,
+    note: sovereign
+      ? `The funding outpoint was spent by a single transaction paying your L1 address. Input and output verified against the node.`
+      : `A transaction spends this funding outpoint but the payment does not match a sovereign exit (sole input to your L1 address). Do not treat it as one.`,
+  };
+}
+
+export interface ExitTreeProof {
+  readonly verified: boolean;
+  readonly method: 'stored-proof-reverified' | 'none';
+  readonly exitLeafHex: string | null;
+  readonly exitLeafHashHex: string | null;
+  readonly exitControlBlockHex: string | null;
+  readonly taprootOutputKey: string | null;
+  readonly internalKey: string | null;
+  readonly reason?: string;
+}
+
+/**
+ * Tree proof WITHOUT any chain state or dry run: re-derive the taproot output
+ * from the stored exit leaf + BIP-341 control block and assert it commits to
+ * the vault address. A spent vault can and must still pass.
+ */
+export function proveExitTree(vault: VaultRecord): ExitTreeProof {
+  const empty: ExitTreeProof = {
+    verified: false,
+    method: 'none',
+    exitLeafHex: vault.exitLeaf ?? null,
+    exitLeafHashHex: null,
+    exitControlBlockHex: null,
+    taprootOutputKey: null,
+    internalKey: null,
+  };
+  const p2tr = vault.p2tr;
+  if (!p2tr) {
+    return { ...empty, reason: 'Vault record has no stored taproot bundle to verify.' };
+  }
+  try {
+    verifyVaultP2tr(p2tr);
+  } catch (err) {
+    return { ...empty, reason: `Stored taproot bundle failed re-derivation: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (p2tr.address !== vault.address) {
+    return { ...empty, reason: 'Stored taproot bundle commits to a different address than this vault record.' };
+  }
+  return {
+    verified: true,
+    method: 'stored-proof-reverified',
+    exitLeafHex: Buffer.from(p2tr.exitLeaf.script).toString('hex'),
+    exitLeafHashHex: Buffer.from(p2tr.exitLeafHash).toString('hex'),
+    exitControlBlockHex: Buffer.from(p2tr.exitControlBlock).toString('hex'),
+    taprootOutputKey: Buffer.from(p2tr.taprootOutputKey).toString('hex'),
+    internalKey: Buffer.from(p2tr.internalKey).toString('hex'),
+  };
+}
+

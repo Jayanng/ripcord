@@ -14,7 +14,14 @@ export function ProofsScreen() {
       <p className="flow-note" role="status">
         Your exit to L1 is a Bitcoin transaction, not an off-chain transfer, so it
         carries no HAT or RIP chain proof to fetch here. Its proof is the
-        transaction itself: open it from Activity or the Exit screen.
+        transaction itself:{' '}
+        {exitReadiness?.spentBy?.txid ? (
+          <a href={explorerTxUrl(exitReadiness.spentBy.txid)} target="_blank" rel="noreferrer">
+            {explorerTxUrl(exitReadiness.spentBy.txid)}
+          </a>
+        ) : (
+          <>open it from Activity or the Exit screen.</>
+        )}
       </p>
     )}
     <div className="flow-heading">
