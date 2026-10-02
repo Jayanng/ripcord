@@ -300,8 +300,14 @@ export interface Quorum {
 }
 
 /**
- * Forward-compatible contract call parameters for SatVM smart contract interactions.
- * Supported by Tachi and TAURUS vault programmable covenant hooks.
+ * Forward-compatible contract call parameters for SatVM smart contract
+ * interactions. Phase 1 of the SatVM grant roadmap: a typed call shape so
+ * downstream apps can prepare today and switch later without breaking changes.
+ *
+ * Availability (verified 2026-10-02): no SatVM execution surface is exposed by
+ * the public Tachi regtest daemon, the npm registry, the developer docs, or the
+ * GitHub org. Targeting SatVM; nothing here executes against a contract engine
+ * yet.
  */
 export interface SatVmCallParams {
   contractAddress: string;

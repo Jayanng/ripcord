@@ -905,12 +905,14 @@ console.log('TxHash:', receipt.txHash);</code></pre>
               <h4 class="pocket-callout-title">Bounty Scope &amp; Verification Boundary</h4>
               <p style="margin: 0;">
                 <strong>Live on Tachi Regtest Today:</strong> Sovereign identity derivation, deterministic 5-of-7 TAURUS vault construction, L1 funding verification, off-chain VTXO transfers, inclusion receipts, and BIP68 unilateral exits.<br>
-                <strong>Phase 2 Grant Scope:</strong> Turing-complete SatVM contract execution. <code>@ripcord/core</code> provides the forward-compatible TypeScript types (<code>SatVmCallParams</code>, <code>SatVmExecutionReceipt</code>) and architectural specification so downstream applications can prepare for contract state evaluation without breaking changes.
+                <strong>Phase 2 Grant Scope:</strong> Turing-complete SatVM contract execution. <code>@ripcord/core/types</code> provides the forward-compatible TypeScript types (<code>SatVmCallParams</code>, <code>SatVmExecutionReceipt</code>) and architectural specification so downstream applications can prepare for contract state evaluation without breaking changes.
+                <br /><br />
+                <strong>Availability, verified 2026-10-02:</strong> the public Tachi regtest daemon exposes no SatVM execution endpoint (checked against the daemon RPC specification, the npm registry, the developer docs, and the Tachi GitHub organization). Nothing on this page executes against a contract engine today: RIPCORD ships the integration surface and waits for the engine rather than simulating one. Phase 2 begins when Tachi opens a SatVM testnet.
               </p>
             </div>
           </div>
           <p style="margin-top: 16px;">
-            While standard TAURUS vaults provide high-throughput peer-to-peer VTXO transfers, SatVM extends this architecture with programmable covenant state machines. Contracts evaluate off-chain against VTXO inputs and produce verifiable state roots committed to the Tachi History Authenticity Tree (HAT).
+            While standard TAURUS vaults provide high-throughput peer-to-peer VTXO transfers, SatVM is designed to extend this architecture with programmable covenant state machines. Contracts will evaluate off-chain against VTXO inputs and produce verifiable state roots committed to the Tachi History Authenticity Tree (HAT).
           </p>
 
           <h3 style="margin: 24px 0 12px; font-weight: 750;">How SatVM Integrates with TAURUS Custody</h3>
@@ -933,7 +935,7 @@ console.log('TxHash:', receipt.txHash);</code></pre>
               <span class="docs-code-title">SatVM Contract Call Pattern</span>
               <button type="button" class="docs-code-copy" onclick="copyCode(this)">Copy</button>
             </div>
-            <pre><code>import { SatVmCallParams, SatVmExecutionReceipt } from '@ripcord/core';
+            <pre><code>import { SatVmCallParams, SatVmExecutionReceipt } from '@ripcord/core/types';
 
 const callParams: SatVmCallParams = {
   contractAddress: 'satvm1qq...escrow_vault',

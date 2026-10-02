@@ -316,7 +316,7 @@ What the bounty asked for and where it lives:
 | Timelock status | Exit tab maturity meter and certificate countdown | Live `unfunded` / `maturing` / `live` / `spent` states (`sentinel.test.ts` maturity wording) |
 | Mobile and desktop wallet experience | Responsive web app for mobile and desktop browsers | 390px mobile pass; it is not a separate native iOS, Android, Windows, or macOS application |
 | Vault monitoring and safety | Sentinel vault health (Wallet tab), watchtower drawer, auto-lock, address safety | `sentinel.test.ts` (20 tests), `phase4-polish.test.ts` (11 tests) |
-| SatVM Smart Contracts (Grant Scope) | Forward-compatible types in `@ripcord/core` | `SatVmCallParams` and `SatVmExecutionReceipt` with documentation |
+| SatVM Smart Contracts (Grant Scope) | Forward-compatible types in `@ripcord/core/types` | `SatVmCallParams` and `SatVmExecutionReceipt` with documentation |
 
 ## SatVM Smart Contract Programmability & Grant Roadmap
 
@@ -349,7 +349,7 @@ The bounty rubric highlights SatVM integration as an optional differentiator for
 The `@ripcord/core` SDK exports `SatVmCallParams` and `SatVmExecutionReceipt`:
 
 ```ts
-import { SatVmCallParams, SatVmExecutionReceipt } from '@ripcord/core';
+import { SatVmCallParams, SatVmExecutionReceipt } from '@ripcord/core/types';
 
 // Prepare a contract invocation against a spendable VTXO
 const callParams: SatVmCallParams = {
@@ -371,6 +371,17 @@ const callParams: SatVmCallParams = {
 //   status: 'committed' | 'rejected';
 // };
 ```
+
+### Availability (verified 2026-10-02)
+
+Phase 1 is shipped and live-verified in RIPCORD: the typed interfaces compile,
+export from `@ripcord/core/types`, and are documented. Phase 2 begins the moment
+Tachi exposes a SatVM execution endpoint. Until then nothing in this section is
+simulated or mocked: the public regtest daemon RPC specification, the npm
+registry, the developer docs, and the Tachi GitHub organization were each
+checked on 2026-10-02 and none exposes a contract execution surface. The wallet
+therefore ships the integration surface (types, call shape, receipt shape) and
+waits for the engine rather than faking one.
 
 ### Grant Roadmap Milestones
 
