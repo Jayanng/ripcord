@@ -977,6 +977,12 @@ h3 {
   line-height: 1.55;
 }
 
+.deposit-unregistered-hint {
+  border-left-color: var(--pending);
+  background: #FFFBEB;
+  color: #92400E !important;
+}
+
 .inline-error {
   padding: 14px 18px;
   border-radius: 12px;

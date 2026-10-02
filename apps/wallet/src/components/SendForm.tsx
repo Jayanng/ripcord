@@ -529,7 +529,12 @@ export function SendForm() {
     if (!wallet.identity) return fail('form', 'Create or recover an identity first');
     const vault = wallet.activeVault;
     if (!vault?.registered || !vault.p2tr) {
-      return fail('form', 'No registered spendable vault is loaded for this identity');
+      return fail(
+        'form',
+        balance.onChainSats > 0n
+          ? 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once the deposit confirms on L1.'
+          : 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.',
+      );
     }
     const trimmed = recipient.trim();
     if (!isUserAddress(trimmed)) return fail('recipient', 'Enter a valid regtest SegWit address');
@@ -566,7 +571,14 @@ export function SendForm() {
     // Snapshot the identity now: the send and its receipt must complete even
     // if the wallet locks mid-flight (auto-lock, second-eye review 2026-10-02).
     const identity = wallet.identity;
-    if (!vault?.registered || !vault.p2tr) return fail('form', 'No registered spendable vault is loaded for this identity');
+    if (!vault?.registered || !vault.p2tr) {
+      return fail(
+        'form',
+        balance.onChainSats > 0n
+          ? 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once the deposit confirms on L1.'
+          : 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.',
+      );
+    }
     if (!identity) return fail('form', 'Unlock the wallet before sending');
     const sats = Number(amount);
     if (!Number.isSafeInteger(sats) || sats < 1) return fail('amount', 'Enter a whole-sat amount of at least 1');
@@ -810,6 +822,12 @@ export function SendForm() {
           </button>
         </div>
         {saveNote && <p className="flow-note" role="status">{saveNote}</p>}
+        {balance.offChainSats === 0n && balance.onChainSats > 0n && (
+          <p className="flow-note deposit-unregistered-hint" role="status">
+            Your deposit is on-chain but not registered yet, so it is not spendable.
+            Open Receive and tap &quot;Check and register deposit&quot; once it confirms on L1.
+          </p>
+        )}
         <div className="amount-label-row">
           <label htmlFor="send-amount">Amount in sats</label>
           <div className="amount-spendable-hint">
