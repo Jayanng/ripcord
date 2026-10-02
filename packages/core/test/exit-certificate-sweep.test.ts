@@ -133,6 +133,25 @@ describe('buildSweepEvidence (node-read, never hardcoded labels)', () => {
     expect(sweep.amountSats).toBe(39800n);
   });
 
+  it('requires the exit leaf in the spending witness when one is supplied', () => {
+    const dest = 'bcrt1quseruseruseruseruseruseruseruseruseruseruseruser';
+    const withLeaf = buildSweepEvidence({
+      funding: FUNDING,
+      spender: spenderTo(dest, 39800n, 200n),
+      destination: dest,
+      expectedLeafScriptHex: 'deadbeef',
+    });
+    expect(withLeaf.sovereign).toBe(true);
+    const wrongLeaf = buildSweepEvidence({
+      funding: FUNDING,
+      spender: spenderTo(dest, 39800n, 200n),
+      destination: dest,
+      expectedLeafScriptHex: 'cafebabe',
+    });
+    expect(wrongLeaf.sovereign).toBe(false);
+    expect(wrongLeaf.note).toContain('cooperative');
+  });
+
   it('refuses the sovereign label when the input is not exactly the funding outpoint', () => {
     const sweep = buildSweepEvidence({
       funding: FUNDING,
@@ -229,6 +248,38 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     );
     expect(cert.exitCompleted).toBe(false);
     expect(certificateSummaryText(cert)).toContain('waiting for confirmation');
+  });
+
+  it('mirrors the mandated export fields at the top level of the JSON', () => {
+    const { record } = makeVault();
+    const dest = 'bcrt1quseruseruseruseruseruseruseruseruseruseruseruser';
+    const sweep = buildSweepEvidence({ funding: FUNDING, spender: spenderTo(dest, 39800n, 200n), destination: dest });
+    const cert = buildExitCertificate(
+      { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
+      swept,
+      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+    );
+    const parsed = JSON.parse(certificateToJson(cert)) as Record<string, unknown>;
+    expect(parsed.exitTxid).toBe(sweep.exitTxid);
+    expect(typeof parsed.exitRawHex).toBe('string');
+    expect(parsed.spentOutpoint).toBe(`${FUNDING.txid}:0`);
+    expect(parsed.destination).toBe(dest);
+    expect(parsed.amountSats).toBe(39800);
+    expect(parsed.feeSats).toBe(200);
+    expect(parsed.blockHash).toBeTruthy();
+    expect(parsed.confirmations).toBe(110);
+  });
+
+  it('top-level export fields are null before any spend', () => {
+    const { record } = makeVault();
+    const cert = buildExitCertificate(
+      { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
+      null,
+      { network: 'regtest', treeProof: proveExitTree(record), fundingOutpoint: `${FUNDING.txid}:0` },
+    );
+    expect(cert.exitTxid).toBeNull();
+    expect(cert.confirmations).toBeNull();
+    expect(cert.sweep).toBeNull();
   });
 
   it('certificateToJson serializes bigint sweep fields without throwing', () => {

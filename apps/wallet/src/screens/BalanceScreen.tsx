@@ -1,5 +1,6 @@
 import { useWallet } from '../context/WalletContext';
 import { SentinelAlertBanner } from '../components/WatchtowerPanel';
+import { explorerTxUrl } from '../components/ui';
 import { SentinelPanel } from '../components/SentinelPanel';
 import { BalanceHero } from '../components/BalanceHero';
 import { VaultStatusCard } from '../components/VaultStatusCard';
@@ -56,6 +57,12 @@ export function BalanceScreen({
             : pendingSweep
               ? 'An exit transaction is waiting for confirmation in the mempool. Treat funds as swept only once it confirms. Find it in Activity or on the Exit screen.'
               : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction in Activity or on the Exit screen to verify where the funds went."}
+          {spentBy?.txid && (
+            <span style={{ display: 'block', marginTop: 6, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+              {sovereignSweep || pendingSweep ? 'Exit transaction: ' : 'Spending transaction: '}
+              <a href={explorerTxUrl(spentBy.txid)} target="_blank" rel="noreferrer">{spentBy.txid}</a>
+            </span>
+          )}
         </div>
         );
       })()}

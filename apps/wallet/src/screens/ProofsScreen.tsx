@@ -49,6 +49,12 @@ export function ProofsScreen() {
         </div>
         <Icon name="shield" />
       </div>
+      {exitReadiness?.status === 'spent' && (
+        <p className="flow-note" role="status">
+          This vault is spent. The funding outpoint below was consumed by the
+          exit, so these values are the historical record, not live holdings.
+        </p>
+      )}
       {activeVault ? (
         <dl className="docs-facts" style={{ marginTop: '14px' }}>
           <div><dt>Vault Address</dt><dd>{activeVault.address}</dd></div>

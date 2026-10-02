@@ -680,17 +680,26 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
             <li><strong>Timelock</strong>: the CSV committed inside the exit script equals the vault's declared timelock and cannot be shortened.</li>
             <li><strong>Your key</strong>: the exit leaf commits the key derived from your own recovery phrase, not whatever a stored record claims.</li>
             <li><strong>Script shape</strong>: the exit script is exactly the sovereign shape: wait, drop, your key, check signature.</li>
-            <li><strong>Tree proof</strong>: the leaf is proven inside the on-chain address by the exit dry run.</li>
+            <li><strong>Tree proof</strong>: the stored exit leaf and BIP-341 control block re-derive exactly to your on-chain address. This is verified on this device with no exit dry run needed, and it passes even for a vault whose funding is already spent.</li>
           </ul>
           <h3 style="margin: 20px 0 8px; font-weight: 750;">Honest by construction</h3>
           <p>
             A missing script fails its checks; nothing is synthesized to make
-            the card look good. A vault whose funding is already spent says
-            "there is nothing left to exit" instead of claiming enforcement.
-            The exported JSON carries the raw public evidence: the full public key,
-            the exit leaf in hex and script form, and the funding outpoint.
+            the card look good. A vault whose funding is already spent discovers
+            the spending transaction from the node: when it is a verified
+            sovereign sweep to your own L1 address, the certificate reports the
+            exit transaction, its amounts, and its confirmations; when it is not,
+            it says there is nothing left to exit instead of claiming
+            enforcement. The exported JSON carries the raw public evidence: the
+            full public key, the exit leaf in hex and script form, the leaf hash,
+            the control block, the taproot output key, the funding outpoint, and
+            the node-verified sweep evidence (exit transaction id and raw hex,
+            destination, amount, fee, block hash, confirmations, and the explorer
+            link). A sweep is only labelled a sovereign exit when the funding
+            outpoint is its sole input and every output pays your L1 address, and
+            only counts as done once it has at least one confirmation.
           </p>
-          <p class="pocket-meta-footer">Evidence: 16 tests in <code>packages/core/test/exit-certificate.test.ts</code>, including hex disassembly of the real vault leaf and negative-script cases.</p>
+          <p class="pocket-meta-footer">Evidence: 16 tests in <code>packages/core/test/exit-certificate.test.ts</code> (including hex disassembly of the real vault leaf and negative-script cases), 15 in <code>exit-certificate-sweep.test.ts</code>, and 5 live read-only checks in <code>exit-spender-live.test.ts</code> that verify the sweep evidence against the real daemon.</p>
         </article>
 
         <article class="docs-doc" id="doc-conscience">

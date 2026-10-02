@@ -8,10 +8,13 @@ import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { ProofOfReservesBadge } from './ProofOfReservesBadge';
 import { TapscriptInspector } from './TapscriptInspector';
 import { truncate } from './ui';
+import { proveExitTree } from '@ripcord/core/exit';
 
 export function RipcordPanel() {
   const { activeVault: vault, identity, setExitReadiness, recordActivity, refresh } = useWallet(); const { readiness, refreshMaturity, assess, execute } = useRipcord(); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [broadcastTxid, setBroadcastTxid] = useState(''); const [exitDone, setExitDone] = useState<{ txid: string } | null>(null);
   const status = readiness?.status ?? (vault?.funding ? 'maturing' : 'unfunded');
+  // Mandate: tree-proof must pass before broadcast (review pass 4).
+  const treeOk = Boolean(vault && proveExitTree(vault).verified);
   useEffect(() => {
     if (!vault?.funding) { if (vault) setExitReadiness(vaultRecordKey(vault), null); return; }
     let cancelled = false;
@@ -82,7 +85,7 @@ export function RipcordPanel() {
     {error && <p className="inline-error" role="alert">{error}</p>}
     {broadcastTxid && <p className="flow-note" role="status">Exit broadcast: <code>{broadcastTxid}</code>. Confirm it on the regtest explorer before treating funds as settled.</p>}
     {vault && <TapscriptInspector vault={vault} />}
-    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Verifying exit path…' : readiness?.dryRun ? 'Verify Exit Path (Dry Run) again' : 'Verify Exit Path (Dry Run)'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); writeExitRecord(vaultRecordKey(vault), { txid: result.txid, amountSats: String((vault.funding?.valueSats ?? 0n) - 200n), createdAt: Date.now() }); setExitDone({ txid: result.txid }); await refreshMaturity(vault); await refresh(); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
+    <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Verifying exit path…' : readiness?.dryRun ? 'Verify Exit Path (Dry Run) again' : 'Verify Exit Path (Dry Run)'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy || !treeOk} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); writeExitRecord(vaultRecordKey(vault), { txid: result.txid, amountSats: String((vault.funding?.valueSats ?? 0n) - 200n), createdAt: Date.now() }); setExitDone({ txid: result.txid }); await refreshMaturity(vault); await refresh(); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
     {exitDone && <ExitSuccessModal txid={exitDone.txid} amountSats={vault?.funding?.valueSats ? Number(vault.funding.valueSats) : 0} destination={readiness?.dryRun?.destination} onClose={() => setExitDone(null)} />}
   </section>;
 }

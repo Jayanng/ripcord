@@ -483,6 +483,17 @@ export async function executeExit(params: ExecuteExitParams): Promise<{ txid: Di
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
   const destAddress = requireDest(params.destAddress, params.vault.address);
 
+  // Mandate: tree-proof must pass BEFORE broadcast. The stored exit leaf and
+  // control block must re-derive to this vault's address first (review pass 4).
+  const treeProof = proveExitTree(params.vault);
+  if (!treeProof.verified) {
+    throw new RipcordError(
+      RipcordCode.INVALID_FORMAT,
+      treeProof.reason ?? 'Tree-proof failed: the stored exit leaf does not commit to this vault address',
+      { hint: 'Rebuild the vault record via recoverVaults before broadcasting an exit' },
+    );
+  }
+
   const fundingState = await inspectFunding(params.vault, params.baseUrl);
   if (fundingState.status === 'unfunded') {
     throw new RipcordError(
@@ -723,6 +734,13 @@ export function buildSweepEvidence(args: {
   spender: FundingSpender;
   destination: string;
   explorerTxBase?: string;
+  /**
+   * When the vault's exit leaf script is supplied, the sovereign label also
+   * requires those exact script bytes in the spending witness: a cooperative
+   * payout with the same shape must never be called a sovereign exit
+   * (review pass 4).
+   */
+  expectedLeafScriptHex?: string;
 }): ExitSweepEvidence {
   const { funding, spender, destination } = args;
   const explorerTxBase = args.explorerTxBase ?? 'https://explorer-regtest.tachibtc.com/tx/';
@@ -739,7 +757,10 @@ export function buildSweepEvidence(args: {
   // to a third party must never earn the sovereign label).
   const outputsOk =
     spender.outputs.length > 0 && spender.outputs.every(o => o.address === destination);
-  const sovereign = inputOk && outputsOk && destOut !== null && feeSats >= 0n;
+  const leafHex = (args.expectedLeafScriptHex ?? '').trim().toLowerCase();
+  const leafInWitness = leafHex.length > 0 && spender.rawHex.toLowerCase().includes(leafHex);
+  const leafOk = leafHex.length === 0 || leafInWitness;
+  const sovereign = inputOk && outputsOk && destOut !== null && feeSats >= 0n && leafOk;
   return {
     label: sovereign ? 'sovereign-exit' : 'unverified-spend',
     exitTxid: spender.txid,
@@ -753,8 +774,12 @@ export function buildSweepEvidence(args: {
     explorerUrl: `${explorerTxBase}${spender.txid}`,
     sovereign,
     note: sovereign
-      ? `The funding outpoint was spent by a single transaction paying your L1 address. Input and output verified against the node.`
-      : `A transaction spends this funding outpoint but the payment does not match a sovereign exit (sole input to your L1 address). Do not treat it as one.`,
+      ? leafHex.length > 0
+        ? `The funding outpoint was spent by a single transaction paying your L1 address, through your exit leaf. Input, output, and exit script verified against the node.`
+        : `The funding outpoint was spent by a single transaction paying your L1 address. Input and output verified against the node.`
+      : inputOk && outputsOk && destOut !== null && feeSats >= 0n && !leafOk
+        ? `The payout reaches your L1 address but the spending witness does not show your exit leaf (it may be a cooperative spend). Not labelled a sovereign exit.`
+        : `A transaction spends this funding outpoint but the payment does not match a sovereign exit (sole input to your L1 address). Do not treat it as one.`,
   };
 }
 

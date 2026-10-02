@@ -62,6 +62,9 @@ export function ExitCertificateCard() {
             funding: vault.funding!,
             spender,
             destination: identity.l1Address,
+            expectedLeafScriptHex: vault.p2tr
+              ? Buffer.from(vault.p2tr.exitLeaf.script).toString('hex')
+              : undefined,
           }));
         }
       } catch {

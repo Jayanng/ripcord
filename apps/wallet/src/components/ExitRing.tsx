@@ -11,7 +11,7 @@ export function ExitRing() {
   const csvBlocks = vault?.csvBlocks ?? 1;
   const confirmations = exitReadiness?.confirmations ?? 0;
   const percent =
-    status === 'live'
+    status === 'live' || status === 'spent'
       ? 100
       : status === 'maturing' && csvBlocks > 0
         ? Math.min(100, Math.round((confirmations / csvBlocks) * 100))
