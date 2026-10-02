@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>RIPCORD — launch film</title>
+    <script src="assets/js/gsap.min.js"></script>
+    <style>
+      /* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx3cwhsk.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxTcwhsk.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxPcwhsk.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx_cwhsk.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwhsk.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/y0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx3cwhsk.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxTcwhsk.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxPcwhsk.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx_cwhsk.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwhsk.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/y0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yyygA.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yyygA.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yyygA.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(assets/fonts/v12-LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+      body {
+        margin: 0;
+        background: #0f172a;
+        color: #fafaf8;
+        font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .inner {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* ---------- persistent background layer ---------- */
+      #bg-base {
+        position: absolute;
+        inset: 0;
+        background: #0f172a;
+      }
+      #bg-glow {
+        position: absolute;
+        top: -360px;
+        right: -300px;
+        width: 1200px;
+        height: 1200px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(243, 102, 51, 0.20) 0%, rgba(243, 102, 51, 0.06) 48%, rgba(15, 23, 42, 0) 72%);
+      }
+      #bg-glow-2 {
+        position: absolute;
+        bottom: -460px;
+        left: -340px;
+        width: 1100px;
+        height: 1100px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(74, 222, 128, 0.10) 0%, rgba(15, 23, 42, 0) 70%);
+      }
+      #bg-grid {
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(250, 250, 248, 0.07) 1.5px, transparent 1.5px);
+        background-size: 54px 54px;
+        mask-image: radial-gradient(ellipse 92% 82% at 50% 42%, #000 20%, transparent 86%);
+        -webkit-mask-image: radial-gradient(ellipse 92% 82% at 50% 42%, #000 20%, transparent 86%);
+      }
+      #bg-ring {
+        position: absolute;
+        top: 60px;
+        right: 70px;
+        width: 560px;
+        height: 560px;
+        border: 4px solid rgba(243, 102, 51, 0.30);
+        border-radius: 50%;
+      }
+      #bg-ring-2 {
+        position: absolute;
+        top: 150px;
+        right: 160px;
+        width: 380px;
+        height: 380px;
+        border: 3px solid rgba(250, 250, 248, 0.12);
+        border-radius: 50%;
+      }
+      .corner-mark {
+        position: absolute;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 20px;
+        font-weight: 500;
+        letter-spacing: 0.22em;
+        color: #808c9c;
+      }
+      #mark-tl { top: 46px; left: 150px; color: #e8734a; }
+      #mark-tr { top: 46px; right: 150px; }
+      #mark-bl { bottom: 58px; left: 150px; }
+      #mark-br { bottom: 58px; right: 150px; }
+      #progress {
+        position: absolute;
+        left: 150px;
+        bottom: 34px;
+        height: 4px;
+        width: 0;
+        background: #f36633;
+        border-radius: 2px;
+      }
+
+      /* ---------- shared type ---------- */
+      .huge {
+        position: absolute;
+        margin: 0;
+        font-size: 108px;
+        font-weight: 800;
+        letter-spacing: -0.042em;
+        line-height: 1.02;
+        color: #fafaf8;
+      }
+      .kicker {
+        position: absolute;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        font-weight: 500;
+        letter-spacing: 0.24em;
+        color: #e8734a;
+      }
+      .word {
+        display: inline-block;
+        opacity: 0;
+      }
+
+      /* ---------- F1 hook (kinetic-beat-slam) ---------- */
+      #s1-stage {
+        position: absolute;
+        inset: 0;
+        padding: 220px 150px;
+      }
+      .kbs-line {
+        position: relative;
+        font-size: 122px;
+        font-weight: 800;
+        letter-spacing: -0.042em;
+        line-height: 1.18;
+        color: #fafaf8;
+        opacity: 0;
+      }
+      .kbs-line .verb {
+        color: #f36633;
+      }
+      #s1-metronome {
+        position: absolute;
+        bottom: 120px;
+        left: 150px;
+        display: flex;
+        gap: 16px;
+      }
+      #s1-metronome i {
+        display: block;
+        width: 8px;
+        height: 34px;
+        background: #f36633;
+        opacity: 0.25;
+        border-radius: 2px;
+      }
+
+      /* ---------- F2 name reveal (gradient-text-sweep) ---------- */
+      #s2-wordmark {
+        position: absolute;
+        left: 150px;
+        top: 290px;
+        margin: 0;
+        font-size: 210px;
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 1;
+        background-image: linear-gradient(105deg, #fafaf8 0%, #fafaf8 40%, #ffd9c4 50%, #fafaf8 60%, #fafaf8 100%);
+        background-size: 300% 100%;
+        background-position: 100% 50%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      #s2-rule {
+        position: absolute;
+        left: 156px;
+        top: 560px;
+        width: 900px;
+        height: 10px;
+        background: #f36633;
+        border-radius: 5px;
+        transform-origin: left center;
+      }
+      #s2-tagline {
+        position: absolute;
+        left: 152px;
+        top: 620px;
+        width: 1300px;
+        font-size: 46px;
+        font-weight: 500;
+        line-height: 1.4;
+        color: #fafaf8;
+      }
+
+      /* ---------- F3 payments mechanism ---------- */
+      #s3-kicker { left: 150px; top: 200px; }
+      #s3-head { left: 150px; top: 252px; width: 1000px; }
+      #s3-counter-wrap {
+        position: absolute;
+        right: 170px;
+        top: 190px;
+        width: 430px;
+        text-align: right;
+      }
+      #s3-counter {
+        display: inline-block;
+        font-variant-numeric: tabular-nums;
+        font-size: 170px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: #de5d2f;
+        transform-origin: right center;
+      }
+      #s3-counter-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 26px;
+        letter-spacing: 0.22em;
+        color: #e8734a;
+        margin-top: 10px;
+      }
+      #s3-track {
+        position: absolute;
+        left: 150px;
+        top: 560px;
+        width: 1620px;
+        height: 250px;
+      }
+      .s3-node {
+        position: absolute;
+        top: 0;
+        z-index: 1;
+        width: 380px;
+        height: 250px;
+        border: 3px solid rgba(250, 250, 248, 0.28);
+        border-radius: 24px;
+        background: rgba(250, 250, 248, 0.05);
+        opacity: 0;
+      }
+      .s3-node .nl {
+        position: absolute;
+        left: 30px;
+        top: 30px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 22px;
+        letter-spacing: 0.2em;
+        color: rgba(250, 250, 248, 0.65);
+      }
+      .s3-node .nv {
+        position: absolute;
+        left: 30px;
+        bottom: 28px;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #fafaf8;
+      }
+      #s3-n1 { left: 0; }
+      #s3-n2 { left: 620px; }
+      #s3-n3 { left: 1240px; }
+      .s3-wire {
+        position: absolute;
+        z-index: 0;
+        top: 123px;
+        width: 240px;
+        height: 5px;
+        background: rgba(250, 250, 248, 0.22);
+        border-radius: 3px;
+      }
+      #s3-wire-a { left: 380px; }
+      #s3-wire-b { left: 1000px; }
+      #s3-token {
+        position: absolute;
+        z-index: 2;
+        top: 87px;
+        left: -34px;
+        width: 78px;
+        height: 78px;
+        border-radius: 50%;
+        background: #f36633;
+        box-shadow: 0 0 0 12px rgba(243, 102, 51, 0.22);
+        opacity: 0;
+      }
+
+      /* ---------- F4 proof receipt (waterfall-entry) ---------- */
+      #s4-kicker { left: 150px; top: 170px; }
+      #s4-head { left: 150px; top: 222px; width: 1240px; }
+      .s4-row {
+        position: absolute;
+        left: 150px;
+        width: 1180px;
+        height: 112px;
+        border: 3px solid rgba(250, 250, 248, 0.22);
+        border-radius: 20px;
+        background: rgba(250, 250, 248, 0.05);
+        opacity: 0;
+      }
+      .s4-row .rl {
+        position: absolute;
+        left: 36px;
+        top: 32px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 30px;
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        color: #fafaf8;
+      }
+      .s4-row .rp {
+        position: absolute;
+        right: 28px;
+        top: 26px;
+        padding: 10px 24px;
+        border: 2px solid #4ade80;
+        border-radius: 999px;
+        color: #4ade80;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 22px;
+        letter-spacing: 0.18em;
+        opacity: 0;
+      }
+      #s4-r1 { top: 472px; }
+      #s4-r2 { top: 592px; }
+      #s4-r3 { top: 712px; }
+      #s4-r4 { top: 832px; }
+      #s4-echo span {
+        display: block;
+      }
+      #s4-echo {
+        position: absolute;
+        left: 1390px;
+        top: 500px;
+        width: 380px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 26px;
+        letter-spacing: 0.14em;
+        line-height: 2.1;
+        color: rgba(250, 250, 248, 0.5);
+      }
+
+      /* ---------- F5 certificate (counting-dynamic-scale + svg-path-draw) ---------- */
+      #s5-kicker { left: 150px; top: 170px; }
+      #s5-head { left: 150px; top: 222px; width: 1100px; }
+      .s5-check {
+        position: absolute;
+        left: 150px;
+        width: 1050px;
+        height: 84px;
+        opacity: 0;
+      }
+      .s5-check .cd {
+        position: absolute;
+        left: 0;
+        top: 8px;
+        width: 62px;
+        height: 62px;
+        border-radius: 16px;
+        border: 3px solid rgba(250, 250, 248, 0.3);
+      }
+      .s5-check .cd i {
+        position: absolute;
+        left: 15px;
+        top: 21px;
+        width: 26px;
+        height: 14px;
+        border-left: 6px solid #4ade80;
+        border-bottom: 6px solid #4ade80;
+        transform: rotate(-45deg);
+        opacity: 0;
+      }
+      .s5-check .ct {
+        position: absolute;
+        left: 96px;
+        top: 20px;
+        font-size: 34px;
+        font-weight: 500;
+        color: #fafaf8;
+      }
+      #s5-c1 { top: 420px; }
+      #s5-c2 { top: 522px; }
+      #s5-c3 { top: 624px; }
+      #s5-c4 { top: 726px; }
+      #s5-ring {
+        position: absolute;
+        right: 190px;
+        top: 380px;
+        width: 460px;
+        height: 460px;
+      }
+      #s5-ring svg {
+        position: absolute;
+        inset: 0;
+      }
+      #s5-ring circle {
+        fill: none;
+        stroke: #f36633;
+        stroke-width: 14;
+        stroke-linecap: round;
+      }
+      #s5-count-wrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #s5-count {
+        display: inline-block;
+        font-variant-numeric: tabular-nums;
+        font-size: 150px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #de5d2f;
+      }
+      #s5-suffix {
+        display: inline-block;
+        font-size: 150px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #de5d2f;
+        opacity: 0;
+      }
+      #s5-export {
+        position: absolute;
+        right: 250px;
+        top: 890px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 27px;
+        letter-spacing: 0.22em;
+        color: #e8734a;
+        opacity: 0;
+      }
+
+      /* ---------- F6 sovereign exit (svg-path-draw) ---------- */
+      #s6-head { left: 150px; top: 190px; width: 1100px; }
+      #s6-scene {
+        position: absolute;
+        left: 150px;
+        top: 400px;
+        width: 1620px;
+        height: 430px;
+      }
+      #s6-vault {
+        position: absolute;
+        left: 30px;
+        top: 130px;
+        width: 170px;
+        height: 170px;
+        border: 5px solid #f36633;
+        border-radius: 50%;
+      }
+      #s6-vault-core {
+        position: absolute;
+        left: 78px;
+        top: 178px;
+        width: 74px;
+        height: 74px;
+        background: rgba(243, 102, 51, 0.4);
+        border-radius: 50%;
+      }
+      #s6-vault-label {
+        position: absolute;
+        left: 20px;
+        top: 330px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 23px;
+        letter-spacing: 0.2em;
+        color: rgba(250, 250, 248, 0.6);
+      }
+      #s6-block {
+        position: absolute;
+        right: 30px;
+        top: 120px;
+        width: 320px;
+        height: 190px;
+        border: 4px solid rgba(250, 250, 248, 0.35);
+        border-radius: 20px;
+        background: rgba(250, 250, 248, 0.06);
+      }
+      #s6-block-label {
+        position: absolute;
+        right: 34px;
+        top: 168px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 26px;
+        letter-spacing: 0.18em;
+        color: #fafaf8;
+      }
+      #s6-coin {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        background: #f36633;
+        box-shadow: 0 0 0 10px rgba(243, 102, 51, 0.25);
+        opacity: 0;
+        offset-path: path("M 115 215 C 420 60, 700 380, 1010 180 C 1130 135, 1180 215, 1268 215");
+        offset-rotate: 0deg;
+      }
+      #s6-landline {
+        position: absolute;
+        left: 152px;
+        top: 880px;
+        width: 1200px;
+        font-size: 44px;
+        font-weight: 500;
+        color: rgba(250, 250, 248, 0.88);
+      }
+
+      /* ---------- F7 pillars (waterfall-entry) ---------- */
+      #s7-kicker {
+        left: 150px;
+        top: 210px;
+      }
+      .s7-pillar {
+        position: absolute;
+        top: 360px;
+        width: 480px;
+        height: 380px;
+        border: 3px solid rgba(250, 250, 248, 0.24);
+        border-radius: 26px;
+        background: rgba(250, 250, 248, 0.05);
+        opacity: 0;
+      }
+      .s7-pillar .pt span {
+        display: block;
+      }
+      .s7-pillar .pt {
+        position: absolute;
+        left: 44px;
+        top: 280px;
+        font-size: 44px;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        line-height: 1.14;
+        color: #fafaf8;
+      }
+      .s7-pillar .pi svg {
+        position: absolute;
+        left: 22px;
+        top: 22px;
+        width: 52px;
+        height: 52px;
+      }
+      .s7-pillar .pi {
+        position: absolute;
+        left: 44px;
+        top: 60px;
+        width: 96px;
+        height: 96px;
+        border-radius: 24px;
+        background: rgba(243, 102, 51, 0.18);
+        border: 3px solid #f36633;
+      }
+      .s7-pillar .pd {
+        position: absolute;
+        left: 46px;
+        top: 190px;
+        width: 60px;
+        height: 8px;
+        background: #f36633;
+        border-radius: 4px;
+      }
+      #s7-p1 { left: 150px; }
+      #s7-p2 { left: 720px; }
+      #s7-p3 { left: 1290px; }
+      #s7-foot {
+        position: absolute;
+        left: 150px;
+        top: 810px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 27px;
+        letter-spacing: 0.22em;
+        color: rgba(250, 250, 248, 0.6);
+        opacity: 0;
+      }
+
+      /* ---------- F8 end card (logo-assemble-lockup, Brand_Outro parts-arrive) ---------- */
+      #s8-wordmark {
+        position: absolute;
+        left: 150px;
+        top: 300px;
+        font-size: 220px;
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 1;
+        color: #fafaf8;
+      }
+      #s8-wordmark .lt {
+        display: inline-block;
+        opacity: 0;
+      }
+      #s8-rule {
+        position: absolute;
+        left: 156px;
+        top: 590px;
+        width: 1020px;
+        height: 12px;
+        background: #f36633;
+        border-radius: 6px;
+        transform-origin: left center;
+      }
+      #s8-tagline {
+        position: absolute;
+        left: 152px;
+        top: 650px;
+        font-size: 48px;
+        font-weight: 500;
+        color: #fafaf8;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-duration="58"
+    >
+      <!-- persistent background layer -->
+      <div id="bg-base"></div>
+      <div id="bg-glow"></div>
+      <div id="bg-glow-2"></div>
+      <div id="bg-grid"></div>
+      <div id="bg-ring"></div>
+      <div id="bg-ring-2"></div>
+      <div id="mark-tl" class="corner-mark">RIPCORD</div>
+      <div id="mark-tr" class="corner-mark">LAUNCH FILM</div>
+      <div id="mark-bl" class="corner-mark">00:00:00</div>
+      <div id="mark-br" class="corner-mark">BUILT ON TAURUS VAULTS</div>
+      <div id="progress"></div>
+
+      <!-- F1 hook -->
+      <section id="s1" class="clip" data-start="0" data-duration="7.1" data-track-index="0">
+        <div id="s1-inner" class="inner">
+          <div id="s1-stage">
+            <div class="kbs-line" id="s1-p1">SELF-CUSTODY</div>
+            <div class="kbs-line" id="s1-p2">IS A PROMISE.</div>
+            <div class="kbs-line" id="s1-p3">RIPCORD <span class="verb">SHIPS RECEIPTS.</span></div>
+            <div id="s1-metronome"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- F2 name reveal -->
+      <section id="s2" class="clip" data-start="6.5" data-duration="5.6" data-track-index="1">
+        <div id="s2-inner" class="inner">
+          <h1 id="s2-wordmark">RIPCORD</h1>
+          <div id="s2-rule"></div>
+          <div id="s2-tagline">
+            <span class="word">Payments</span> <span class="word">feel</span> <span class="word">like</span>
+            <span class="word">Lightning.</span> <span class="word">Your</span> <span class="word">keys</span>
+            <span class="word">stay</span> <span class="word">yours.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- F3 payments mechanism -->
+      <section id="s3" class="clip" data-start="11.5" data-duration="9.1" data-track-index="2">
+        <div id="s3-inner" class="inner">
+          <div class="kicker" id="s3-kicker">THE MECHANISM</div>
+          <p class="huge" id="s3-head">SEND IN SECONDS</p>
+          <div id="s3-counter-wrap">
+            <span id="s3-counter">0</span>
+            <div id="s3-counter-label">STAGES TO SETTLED</div>
+          </div>
+          <div id="s3-track">
+            <div class="s3-node" id="s3-n1"><div class="nl">01 · SIGN</div><div class="nv">One signature</div></div>
+            <div class="s3-node" id="s3-n2"><div class="nl">02 · UPDATE</div><div class="nv">VTXO update</div></div>
+            <div class="s3-node" id="s3-n3"><div class="nl">03 · SETTLED</div><div class="nv">Seconds</div></div>
+            <div class="s3-wire" id="s3-wire-a"></div>
+            <div class="s3-wire" id="s3-wire-b"></div>
+            <div id="s3-token"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- F4 proof receipt -->
+      <section id="s4" class="clip" data-start="20" data-duration="9.6" data-track-index="3">
+        <div id="s4-inner" class="inner">
+          <div class="kicker" id="s4-kicker">THE RECEIPT</div>
+          <p class="huge" id="s4-head">EVERY SEND CARRIES ITS EVIDENCE</p>
+          <div class="s4-row" id="s4-r1"><div class="rl">HAT</div><div class="rp">VERIFIED</div></div>
+          <div class="s4-row" id="s4-r2"><div class="rl">VERKLE</div><div class="rp">VERIFIED</div></div>
+          <div class="s4-row" id="s4-r3"><div class="rl">RIP CHAIN</div><div class="rp">VERIFIED</div></div>
+          <div class="s4-row" id="s4-r4"><div class="rl">FINAL ROOT</div><div class="rp">VERIFIED</div></div>
+          <div id="s4-echo"><span>EACH ONE</span><span>CHECKABLE</span></div>
+        </div>
+      </section>
+
+      <!-- F5 certificate -->
+      <section id="s5" class="clip" data-start="29" data-duration="9.6" data-track-index="4">
+        <div id="s5-inner" class="inner">
+          <div class="kicker" id="s5-kicker">THE CERTIFICATE</div>
+          <p class="huge" id="s5-head">THE EXIT IS PROVEN FIRST</p>
+          <div class="s5-check" id="s5-c1"><div class="cd"><i></i></div><div class="ct">Timelock matches the vault</div></div>
+          <div class="s5-check" id="s5-c2"><div class="cd"><i></i></div><div class="ct">Exit leaf commits your key</div></div>
+          <div class="s5-check" id="s5-c3"><div class="cd"><i></i></div><div class="ct">Sovereign script shape</div></div>
+          <div class="s5-check" id="s5-c4"><div class="cd"><i></i></div><div class="ct">Leaf proven on-chain</div></div>
+          <div id="s5-ring">
+            <svg viewBox="0 0 460 460" aria-hidden="true">
+              <circle id="s5-arc" cx="230" cy="230" r="196" style="transform-origin: 230px 230px; transform: rotate(-90deg)" />
+            </svg>
+            <div id="s5-count-wrap"><span id="s5-count">0</span><span id="s5-suffix">/4</span></div>
+          </div>
+          <div id="s5-export">EXPORTABLE. RE-VERIFIABLE.</div>
+        </div>
+      </section>
+
+      <!-- F6 sovereign exit -->
+      <section id="s6" class="clip" data-start="38" data-duration="10.1" data-track-index="5">
+        <div id="s6-inner" class="inner">
+          <p class="huge" id="s6-head">WALK AWAY ANYTIME.</p>
+          <div id="s6-scene">
+            <div id="s6-vault"></div>
+            <div id="s6-vault-core"></div>
+            <div id="s6-vault-label">YOUR VAULT</div>
+            <div id="s6-block"></div>
+            <div id="s6-block-label">BITCOIN L1</div>
+            <div id="s6-coin"></div>
+          </div>
+          <div id="s6-landline"><span class="word">You</span> <span class="word">are</span> <span class="word">back</span> <span class="word">on</span> <span class="word">Bitcoin</span> <span class="word">L1.</span></div>
+        </div>
+      </section>
+
+      <!-- F7 pillars -->
+      <section id="s7" class="clip" data-start="47.5" data-duration="6.1" data-track-index="6">
+        <div id="s7-inner" class="inner">
+          <div class="kicker" id="s7-kicker">WHAT YOU GET</div>
+          <div class="s7-pillar" id="s7-p1"><div class="pi"><svg viewBox="0 0 48 48" fill="none" stroke="#fafaf8" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="27,6 12,27 23,27 21,42 36,21 25,21" /></svg></div><div class="pd"></div><div class="pt"><span>INSTANT</span><span>PAYMENTS</span></div></div>
+          <div class="s7-pillar" id="s7-p2"><div class="pi"><svg viewBox="0 0 48 48" fill="none" stroke="#fafaf8" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 38 L38 10" /><polyline points="20 10 38 10 38 28" /></svg></div><div class="pd"></div><div class="pt"><span>PROVABLE</span><span>EXITS</span></div></div>
+          <div class="s7-pillar" id="s7-p3"><div class="pi"><svg viewBox="0 0 48 48" fill="none" stroke="#fafaf8" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="24" r="8" /><path d="M25 24 L41 24 M35 24 L35 31 M30 24 L30 29" /></svg></div><div class="pd"></div><div class="pt"><span>ZERO</span><span>STORED KEYS</span></div></div>
+          <div id="s7-foot">PROOF BEFORE PROMISE</div>
+        </div>
+      </section>
+
+      <!-- F8 end card -->
+      <section id="s8" class="clip" data-start="53" data-duration="5" data-track-index="7">
+        <div id="s8-inner" class="inner">
+          <div id="s8-wordmark"><span class="lt">R</span><span class="lt">I</span><span class="lt">P</span><span class="lt">C</span><span class="lt">O</span><span class="lt">R</span><span class="lt">D</span></div>
+          <div id="s8-rule"></div>
+          <div id="s8-tagline">Payments feel like Lightning. Your keys stay yours.</div>
+        </div>
+      </section>
+
+      <!-- audio -->
+      <audio
+        id="bg-music"
+        src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="58"
+        data-media-start="19.15"
+        data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":1.0,"v":0.33},{"t":30,"v":0.36},{"t":52,"v":0.40},{"t":56,"v":0.36},{"t":58,"v":0}]}]}'
+      ></audio>
+      <audio id="sfx-slam1" src="assets/sfx/impactSoft_medium_001.ogg" data-start="0.9" data-duration="0.18" data-track-index="100" data-volume="0.55"></audio>
+      <audio id="sfx-slam2" src="assets/sfx/impactSoft_medium_002.ogg" data-start="2.7" data-duration="0.18" data-track-index="101" data-volume="0.55"></audio>
+      <audio id="sfx-slam3" src="assets/sfx/impactSoft_medium_003.ogg" data-start="4.5" data-duration="0.18" data-track-index="102" data-volume="0.6"></audio>
+      <audio id="sfx-bell-name" src="assets/sfx/impactBell_heavy_000.ogg" data-start="6.6" data-duration="1.2" data-track-index="103" data-volume="0.7"></audio>
+      <audio id="sfx-row1" src="assets/sfx/click1.ogg" data-start="21.2" data-duration="0.1" data-track-index="104" data-volume="0.45"></audio>
+      <audio id="sfx-row4" src="assets/sfx/click3.ogg" data-start="24.5" data-duration="0.1" data-track-index="105" data-volume="0.45"></audio>
+      <audio id="sfx-hit44" src="assets/sfx/impactSoft_medium_003.ogg" data-start="33.6" data-duration="0.18" data-track-index="106" data-volume="0.75"></audio>
+      <audio id="sfx-land" src="assets/sfx/impactSoft_medium_001.ogg" data-start="45.0" data-duration="0.18" data-track-index="107" data-volume="0.7"></audio>
+      <audio id="sfx-close" src="assets/sfx/bong_001.ogg" data-start="53.25" data-duration="0.6" data-track-index="108" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      var tl = gsap.timeline({ paused: true });
+
+      /* ---------- ambient background (finite, deterministic) ---------- */
+      tl.fromTo("#bg-ring", { scale: 1, rotation: 0 }, { scale: 1.07, rotation: 10, duration: 58, ease: "none" }, 0);
+      tl.fromTo("#bg-ring-2", { x: 0, y: 0 }, { x: -46, y: 30, duration: 58, ease: "none" }, 0);
+      tl.fromTo("#bg-glow", { scale: 1 }, { scale: 1.1, duration: 4.6, ease: "sine.inOut", yoyo: true, repeat: 11 }, 0);
+      tl.set(["#bg-ring", "#bg-ring-2"], { opacity: 0.22 }, 0);
+      tl.to(["#bg-ring", "#bg-ring-2"], { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 6.4);
+      tl.to(["#bg-ring", "#bg-ring-2"], { opacity: 0.22, duration: 0.6, ease: "power1.inOut" }, 11.4);
+      tl.to(["#bg-ring", "#bg-ring-2"], { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 28.9);
+      tl.to(["#bg-ring", "#bg-ring-2"], { opacity: 0.22, duration: 0.6, ease: "power1.inOut" }, 37.9);
+      tl.to(["#bg-ring", "#bg-ring-2"], { opacity: 0.8, duration: 0.8, ease: "power1.inOut" }, 52.9);
+
+      /* ---------- editorial frame: counting timecode + progress hairline ---------- */
+      var markBl = document.getElementById("mark-bl");
+      var progress = document.getElementById("progress");
+      for (var fr = 0; fr <= 58 * 2; fr++) {
+        tl.call(
+          (function (sec) {
+            return function () {
+              var mm = ("0" + Math.floor(sec / 60)).slice(-2);
+              var ss = ("0" + (sec % 60)).slice(-2);
+              markBl.textContent = "00:" + mm + ":" + ss;
+              progress.style.width = 1620 * (sec / 58) + "px";
+            };
+          })(Math.floor(fr / 2)),
+          [],
+          fr / 2
+        );
+      }
+
+      /* ---------- F1 hook: kinetic-beat-slam (PULSE 0.45 grid) ---------- */
+      tl.fromTo("#s1-p1", { scale: 1.5, filter: "blur(16px)", opacity: 0 }, { scale: 1, filter: "blur(0px)", opacity: 1, duration: 0.5, ease: "power4.out" }, 0.9);
+      tl.fromTo("#s1-p2", { x: -320, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: "expo.out" }, 2.7);
+      tl.fromTo("#s1-p3", { y: 90, rotation: 6, opacity: 0 }, { y: 0, rotation: 0, opacity: 1, duration: 0.55, ease: "circ.out" }, 4.5);
+      var ticks = document.querySelectorAll("#s1-metronome i");
+      for (var ti = 0; ti < ticks.length; ti++) {
+        tl.to(ticks[ti], { opacity: 1, duration: 0.08, yoyo: true, repeat: 1, ease: "none" }, 0.45 * (ti + 1));
+      }
+      tl.to("#s1-stage", { scale: 1.012, duration: 0.65, ease: "sine.inOut", yoyo: true, repeat: Math.max(0, Math.floor(1.3 / 1.3) - 1) }, 5.2);
+      tl.to("#s1-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 6.5);
+
+      /* ---------- F2 name reveal: gradient-text-sweep Form A + waterfall tagline ---------- */
+      tl.fromTo("#s2-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 6.5);
+      tl.fromTo("#s2-wordmark", { backgroundPosition: "100% 50%" }, { backgroundPosition: "0% 50%", duration: 2.2, ease: "none" }, 6.9);
+      tl.fromTo("#s2-wordmark", { scale: 0.94, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.7, ease: "power3.out", immediateRender: false }, 6.55);
+      tl.fromTo("#s2-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "expo.out" }, 7.5);
+      var tagWords = document.querySelectorAll("#s2-tagline .word");
+      var t2 = 7.7;
+      for (var w = 0; w < tagWords.length; w++) {
+        var isLight = w >= 4;
+        var yOff = w === 0 ? 78 : isLight ? 38 : 50;
+        var durW = w === 0 ? 0.18 : isLight ? 0.12 : 0.15;
+        tl.set(tagWords[w], { opacity: 1, y: yOff }, t2);
+        tl.to(tagWords[w], { y: 0, duration: durW, ease: "power4.out" }, t2);
+        t2 += durW - (w % 2 === 0 ? 0.016 : 0.032);
+      }
+      tl.to("#s2-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 11.5);
+
+      /* ---------- F3 payments: counting-dynamic-scale + waterfall cards + token race ---------- */
+      tl.fromTo("#s3-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 11.5);
+      tl.fromTo("#s3-head", { y: 64, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 11.9);
+      tl.fromTo("#s3-kicker", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 11.7);
+      var s3state = { v: 0 };
+      tl.to(s3state, {
+        v: 3,
+        duration: 1.4,
+        ease: "power3.out",
+        onUpdate: function () {
+          document.getElementById("s3-counter").textContent = String(Math.round(s3state.v));
+        }
+      }, 13.0);
+      tl.fromTo("#s3-counter", { scale: 0.5 }, { scale: 1, duration: 1.4, ease: "power3.out" }, 13.0);
+      tl.fromTo("#s3-counter-label", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 13.2);
+      var nStart = 13.2;
+      var nodeSel = ["#s3-n1", "#s3-n2", "#s3-n3"];
+      for (var n = 0; n < nodeSel.length; n++) {
+        tl.set(nodeSel[n], { opacity: 1, y: 64 - n * 12 }, nStart + n * 0.5);
+        tl.to(nodeSel[n], { y: 0, duration: 0.42 - n * 0.05, ease: "power4.out" }, nStart + n * 0.5);
+      }
+      tl.set("#s3-token", { opacity: 1 }, 15.0);
+      tl.fromTo("#s3-token", { x: 0 }, { x: 1330, duration: 3.0, ease: "power2.inOut" }, 15.0);
+      tl.to("#s3-token", { opacity: 0, duration: 0.3, ease: "power1.in" }, 17.7);
+      tl.to("#s3-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 20.0);
+
+      /* ---------- F4 proof rows: waterfall-entry ---------- */
+      tl.fromTo("#s4-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 20.0);
+      tl.fromTo("#s4-kicker", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 20.3);
+      tl.fromTo("#s4-head", { y: 64, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 20.5);
+      var rowStart = 21.2;
+      var rowSel = ["#s4-r1", "#s4-r2", "#s4-r3", "#s4-r4"];
+      for (var r = 0; r < rowSel.length; r++) {
+        tl.set(rowSel[r], { opacity: 1, y: 70 - r * 10 }, rowStart + r * 1.1);
+        tl.to(rowSel[r], { y: 0, duration: 0.44 - r * 0.05, ease: "power4.out" }, rowStart + r * 1.1);
+        tl.fromTo(rowSel[r] + " .rp", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.6)" }, rowStart + r * 1.1 + 0.35);
+      }
+      tl.fromTo("#s4-echo", { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.8, ease: "power2.out" }, 22.0);
+      tl.to("#s4-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 29.0);
+
+      /* ---------- F5 certificate: counting-dynamic-scale + svg-path-draw ---------- */
+      tl.fromTo("#s5-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 29.0);
+      tl.fromTo("#s5-kicker", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 29.3);
+      tl.fromTo("#s5-head", { y: 64, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 29.5);
+      var arc = document.getElementById("s5-arc");
+      var arcLen = 2 * Math.PI * 196;
+      arc.style.strokeDasharray = String(arcLen);
+      arc.style.strokeDashoffset = String(arcLen);
+      tl.to(arc, { strokeDashoffset: 0, duration: 3.0, ease: "power2.out" }, 30.6);
+      var s5state = { v: 0 };
+      tl.to(s5state, {
+        v: 4,
+        duration: 3.0,
+        ease: "power3.out",
+        onUpdate: function () {
+          document.getElementById("s5-count").textContent = String(Math.round(s5state.v));
+        }
+      }, 30.6);
+      tl.fromTo("#s5-count", { scale: 0.55 }, { scale: 1, duration: 3.0, ease: "power3.out" }, 30.6);
+      tl.fromTo("#s5-suffix", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.7)" }, 33.6);
+      var cStart = 30.6;
+      var checkSel = ["#s5-c1", "#s5-c2", "#s5-c3", "#s5-c4"];
+      for (var c = 0; c < checkSel.length; c++) {
+        tl.set(checkSel[c], { opacity: 1, y: 56 - c * 8 }, cStart + c * 0.72);
+        tl.to(checkSel[c], { y: 0, duration: 0.36, ease: "power4.out" }, cStart + c * 0.72);
+        tl.to(checkSel[c] + " .cd i", { opacity: 1, duration: 0.22, ease: "power1.out" }, cStart + c * 0.72 + 0.2);
+      }
+      tl.fromTo("#s5-export", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 34.2);
+      tl.to("#s5-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 38.0);
+
+      /* ---------- F6 sovereign exit: svg-path-draw + coin travel ---------- */
+      tl.fromTo("#s6-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 38.0);
+      tl.fromTo("#s6-head", { y: 64, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 38.4);
+      tl.fromTo("#s6-vault", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" }, 38.9);
+      tl.fromTo("#s6-vault-core", { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.6)" }, 39.1);
+      tl.fromTo("#s6-vault-label", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.out" }, 39.3);
+      tl.fromTo("#s6-block", { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" }, 39.1);
+      tl.fromTo("#s6-block-label", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.out" }, 39.3);
+      var routeSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      routeSvg.setAttribute("viewBox", "0 0 1620 430");
+      routeSvg.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%");
+      var route = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      route.setAttribute("d", "M 115 215 C 420 60, 700 380, 1010 180 C 1130 135, 1180 215, 1268 215");
+      route.setAttribute("fill", "none");
+      route.setAttribute("stroke", "rgba(243,102,51,0.55)");
+      route.setAttribute("stroke-width", "6");
+      route.setAttribute("stroke-linecap", "round");
+      routeSvg.appendChild(route);
+      document.getElementById("s6-scene").insertBefore(routeSvg, document.getElementById("s6-coin"));
+      var routeLen = route.getTotalLength();
+      route.style.strokeDasharray = String(routeLen);
+      route.style.strokeDashoffset = String(routeLen);
+      tl.to(route, { strokeDashoffset: 0, duration: 2.6, ease: "power2.out" }, 39.8);
+      tl.set("#s6-coin", { opacity: 1 }, 42.2);
+      tl.fromTo("#s6-coin", { offsetDistance: "0%" }, { offsetDistance: "100%", duration: 2.8, ease: "power2.inOut" }, 42.2);
+      tl.fromTo("#s6-block", { scale: 1 }, { scale: 1.06, duration: 0.22, ease: "power2.out", yoyo: true, repeat: 1, immediateRender: false }, 45.0);
+      tl.to("#s6-coin", { opacity: 0, duration: 0.3, ease: "power1.in" }, 45.05);
+      var landWords = document.querySelectorAll("#s6-landline .word");
+      var lw = 45.25;
+      for (var q = 0; q < landWords.length; q++) {
+        tl.set(landWords[q], { opacity: 1, y: q === 0 ? 60 : 40 }, lw);
+        tl.to(landWords[q], { y: 0, duration: q === 0 ? 0.17 : 0.13, ease: "power4.out" }, lw);
+        lw += (q === 0 ? 0.17 : 0.13) - 0.02;
+      }
+      tl.to("#s6-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 47.5);
+
+      /* ---------- F7 pillars: waterfall-entry ---------- */
+      tl.fromTo("#s7-inner", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.inOut" }, 47.5);
+      tl.fromTo("#s7-kicker", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 47.8);
+      var pillarSel = ["#s7-p1", "#s7-p2", "#s7-p3"];
+      var pStart = 48.2;
+      for (var p = 0; p < pillarSel.length; p++) {
+        tl.set(pillarSel[p], { opacity: 1, y: 76 - p * 14 }, pStart + p * 0.55);
+        tl.to(pillarSel[p], { y: 0, duration: 0.5 - p * 0.07, ease: "power4.out" }, pStart + p * 0.55);
+      }
+      tl.fromTo("#s7-foot", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 50.0);
+      tl.to("#s7-inner", { opacity: 0, duration: 0.6, ease: "power1.inOut" }, 53.0);
+
+      /* ---------- F8 end card: logo-assemble-lockup (parts-arrive) ---------- */
+      tl.fromTo("#s8-inner", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.inOut" }, 53.0);
+      var letters = document.querySelectorAll("#s8-wordmark .lt");
+      var lt = 53.25;
+      for (var l = 0; l < letters.length; l++) {
+        tl.set(letters[l], { opacity: 1, y: 84 - l * 4, rotation: l % 2 === 0 ? -4 : 4 }, lt + l * 0.11);
+        tl.to(letters[l], { y: 0, rotation: 0, duration: 0.42, ease: "power4.out" }, lt + l * 0.11);
+      }
+      tl.fromTo("#s8-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: "expo.out" }, 54.35);
+      tl.fromTo("#s8-tagline", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 54.6);
+      tl.fromTo("#s8-inner", { scale: 1 }, { scale: 1.015, duration: 3.2, ease: "none", immediateRender: false }, 54.8);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

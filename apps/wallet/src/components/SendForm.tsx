@@ -528,13 +528,18 @@ export function SendForm() {
     setResult('');
     if (!wallet.identity) return fail('form', 'Create or recover an identity first');
     const vault = wallet.activeVault;
-    if (!vault?.registered || !vault.p2tr) {
-      return fail(
-        'form',
-        balance.onChainSats > 0n
-          ? 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once the deposit confirms on L1.'
-          : 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.',
-      );
+        const vaultUnregistered = !vault?.registered || !vault.p2tr;
+    const unregisteredVaultMessage = (): string => {
+      if (balance.offChainSats > 0n) {
+        return 'You have received sats, but spending needs the vault registered on L1 first. Open Receive, send any amount to your vault address, then tap "Check and register deposit".';
+      }
+      if (balance.onChainSats > 0n) {
+        return 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once it confirms on L1.';
+      }
+      return 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.';
+    };
+    if (vaultUnregistered) {
+      return fail('form', unregisteredVaultMessage());
     }
     const trimmed = recipient.trim();
     if (!isUserAddress(trimmed)) return fail('recipient', 'Enter a valid regtest SegWit address');
@@ -571,15 +576,20 @@ export function SendForm() {
     // Snapshot the identity now: the send and its receipt must complete even
     // if the wallet locks mid-flight (auto-lock, second-eye review 2026-10-02).
     const identity = wallet.identity;
-    if (!vault?.registered || !vault.p2tr) {
-      return fail(
-        'form',
-        balance.onChainSats > 0n
-          ? 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once the deposit confirms on L1.'
-          : 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.',
-      );
-    }
     if (!identity) return fail('form', 'Unlock the wallet before sending');
+    const vaultUnregistered = !vault?.registered || !vault.p2tr;
+    const unregisteredVaultMessage = (): string => {
+      if (balance.offChainSats > 0n) {
+        return 'You have received sats, but spending needs the vault registered on L1 first. Open Receive, send any amount to your vault address, then tap "Check and register deposit".';
+      }
+      if (balance.onChainSats > 0n) {
+        return 'Your deposit is on-chain but not registered yet, so it is not spendable. Open Receive and tap "Check and register deposit" once it confirms on L1.';
+      }
+      return 'No spendable sats yet. Fund the wallet first, then register the deposit from the Receive screen.';
+    };
+    if (vaultUnregistered) {
+      return fail('form', unregisteredVaultMessage());
+    }
     const sats = Number(amount);
     if (!Number.isSafeInteger(sats) || sats < 1) return fail('amount', 'Enter a whole-sat amount of at least 1');
 
@@ -822,10 +832,22 @@ export function SendForm() {
           </button>
         </div>
         {saveNote && <p className="flow-note" role="status">{saveNote}</p>}
+        {!wallet.activeVault?.registered && balance.offChainSats > 0n && (
+          <p className="flow-note deposit-unregistered-hint" role="status">
+            Spending needs your vault registered on L1. In Receive, send any amount to your
+            vault address, then tap &quot;Check and register deposit&quot;.{' '}
+            <button type="button" className="secondary-action-compact" onClick={() => { window.location.hash = '#/receive'; }}>
+              Open Receive
+            </button>
+          </p>
+        )}
         {balance.offChainSats === 0n && balance.onChainSats > 0n && (
           <p className="flow-note deposit-unregistered-hint" role="status">
-            Your deposit is on-chain but not registered yet, so it is not spendable.
-            Open Receive and tap &quot;Check and register deposit&quot; once it confirms on L1.
+            You have sats on-chain that are not registered yet, so they are not spendable.
+            Tap &quot;Check and register deposit&quot; in Receive once they confirm on L1.{' '}
+            <button type="button" className="secondary-action-compact" onClick={() => { window.location.hash = '#/receive'; }}>
+              Open Receive
+            </button>
           </p>
         )}
         <div className="amount-label-row">
