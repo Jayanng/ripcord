@@ -117,7 +117,11 @@ export function ExitCertificateCard() {
   const treePending = !cert.checks.find(c => c.id === 'tree-proof')?.pass && cert.maturity.status !== 'spent';
 
   return (
-    <div className="exit-cert" aria-label="Exit Readiness Certificate">
+    <div
+      className="exit-cert"
+      aria-label="Exit Readiness Certificate"
+      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+    >
       <div className="exit-cert-head">
         <h3>Exit Readiness Certificate</h3>
         <span className={`exit-cert-badge ${allPass && cert.exitStillPossible ? 'ok' : 'warn'}`}>
