@@ -11,7 +11,10 @@ export function ProofsScreen() {
   // Only call it the user's own exit when the node-verified payout lands on
   // THEIR L1 address; otherwise stay neutral (review round 1).
   const sovereignSweep = Boolean(
-    spentBy?.txid && identity?.l1Address && spentBy.destination === identity.l1Address,
+    spentBy?.txid &&
+    identity?.l1Address &&
+    spentBy.destination === identity.l1Address &&
+    (spentBy.confirmations ?? 0) > 0,
   );
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentReceipt | null>(null);
 
@@ -20,7 +23,9 @@ export function ProofsScreen() {
       <p className="flow-note" role="status">
         {sovereignSweep
           ? 'Your exit to L1 is a Bitcoin transaction, not an off-chain transfer, so it carries no HAT or RIP chain proof to fetch here. Its proof is the transaction itself: '
-          : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction to verify the recipient: "}
+          : spentBy?.txid && (spentBy.confirmations ?? 0) === 0
+            ? 'An exit transaction is waiting for confirmation in the mempool. Treat funds as swept only once it confirms: '
+            : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction to verify the recipient: "}
         {spentBy?.txid ? (
           <a href={explorerTxUrl(spentBy.txid)} target="_blank" rel="noreferrer">
             {explorerTxUrl(spentBy.txid)}

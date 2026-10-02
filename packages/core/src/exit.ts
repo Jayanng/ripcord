@@ -434,20 +434,31 @@ async function spentReadiness(
     // The maturity poller must never stall on a deep block scan: give the
     // lookup a small time budget and move on with an honest null (review r1).
     const lookup = vault.funding ? findFundingSpender(baseUrl, vault.funding) : Promise.resolve(null);
-    const spender = await Promise.race([
-      lookup,
-      new Promise<null>(resolve => setTimeout(() => resolve(null), 1500)),
-    ]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const budget = new Promise<null>(resolve => {
+      timer = setTimeout(() => resolve(null), 1500);
+    });
+    const spender = await Promise.race([lookup, budget]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
     if (spender) {
       confirmations = spender.confirmations;
-      const targetOut = spender.outputs.find(o => o.address) ?? null;
+      // A destination is reported only when EVERY address-bearing output agrees
+      // (review round 2): if any funds moved to a third party, this is not the
+      // user's exit and the UI must stay neutral. Amount is the TOTAL paid to
+      // that address, never one output among several.
+      const addrs = [...new Set(spender.outputs.map(o => o.address).filter((a): a is string => Boolean(a)))];
+      const destination = addrs.length === 1 ? addrs[0] : null;
+      const amountSats = destination
+        ? spender.outputs.filter(o => o.address === destination).reduce((sum, o) => sum + o.valueSats, 0n)
+        : null;
       const outputTotal = spender.outputs.reduce((sum, o) => sum + o.valueSats, 0n);
       const fee = vault.funding ? vault.funding.valueSats - outputTotal : null;
       spentBy = {
         txid: asDisplayTxid(spender.txid),
         confirmations: spender.confirmations,
-        destination: targetOut ? targetOut.address : null,
-        amountSats: targetOut ? targetOut.valueSats : null,
+        destination,
+        amountSats,
         feeSats: fee !== null && fee >= 0n ? fee : null,
       };
     }
@@ -596,10 +607,14 @@ async function scanForSpender(
       if (typeof conf === 'number') {
         const updated = { ...cached, confirmations: conf };
         spenderCache.set(key, updated);
+        negativeCache.delete(key);
         return updated;
       }
-      // Tx vanished (RBF replacement): evict and rescan below.
+      // Tx vanished (RBF replacement): evict and rescan below. Clear the
+      // negative cooldown too, or a stale miss would suppress the rescan for
+      // the replacement transaction (review round 2).
       spenderCache.delete(key);
+      negativeCache.delete(key);
     } catch {
       return cached;
     }
@@ -651,7 +666,10 @@ async function scanForSpender(
       const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
       if (matches((t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> })) {
         const spender = await readSpender(txid, null);
-        if (spender) spenderCache.set(key, spender);
+        if (spender) {
+          spenderCache.set(key, spender);
+          negativeCache.delete(key);
+        }
         return spender;
       }
     }
@@ -680,7 +698,10 @@ async function scanForSpender(
       for (const tx of block?.tx ?? []) {
         if (matches(tx)) {
           const spender = await readSpender(String(tx.txid), blockHash);
-          if (spender) spenderCache.set(key, spender);
+          if (spender) {
+            spenderCache.set(key, spender);
+            negativeCache.delete(key);
+          }
           return spender;
         }
       }

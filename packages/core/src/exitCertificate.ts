@@ -227,9 +227,11 @@ export function buildExitCertificate(
       : readiness.status === 'maturing'
         ? maturityEtaText(readiness.confirmationsRemaining)
         : spent
-          ? sweep?.sovereign
+          ? sweep?.sovereign && sweep.confirmations > 0
             ? `funding already spent on L1: swept by ${sweep.exitTxid} (${sweep.confirmations} confirmations)`
-            : 'funding already spent on L1'
+            : sweep?.sovereign && sweep.confirmations === 0
+              ? `funding spend pending in the mempool: ${sweep.exitTxid} (0 confirmations)`
+              : 'funding already spent on L1'
           : 'not funded yet';
   const maturityConfirmations = sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
   const csvBlocksNote =

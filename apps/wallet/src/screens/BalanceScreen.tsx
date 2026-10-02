@@ -28,7 +28,16 @@ export function BalanceScreen({
       {exitReadiness?.status === 'spent' && (() => {
         const spentBy = exitReadiness.spentBy ?? null;
         const sovereignSweep = Boolean(
-          spentBy?.txid && identity?.l1Address && spentBy.destination === identity.l1Address,
+          spentBy?.txid &&
+          identity?.l1Address &&
+          spentBy.destination === identity.l1Address &&
+          (spentBy.confirmations ?? 0) > 0,
+        );
+        const pendingSweep = Boolean(
+          spentBy?.txid &&
+          identity?.l1Address &&
+          spentBy.destination === identity.l1Address &&
+          (spentBy.confirmations ?? 0) === 0,
         );
         return (
         <div
@@ -40,11 +49,13 @@ export function BalanceScreen({
           }}
         >
           <strong style={{ display: 'block', marginBottom: 4 }}>
-            {sovereignSweep ? 'Exited to Bitcoin L1' : 'Funding spent on Bitcoin L1'}
+            {sovereignSweep ? 'Exited to Bitcoin L1' : pendingSweep ? 'Exit waiting for confirmation' : 'Funding spent on Bitcoin L1'}
           </strong>
           {sovereignSweep
-            ? 'This vault\'s funds have been swept back to your own L1 settlement address, signed by your key alone. The vault is now closed and shows as spent. The exit transaction is the proof; find it in Activity or on the Exit screen.'
-            : 'This vault\'s funding outpoint has been spent on Bitcoin L1. Inspect the transaction in Activity or on the Exit screen to verify where the funds went.'}
+            ? "This vault's funds have been swept back to your own L1 settlement address. The vault is now closed and shows as spent. The exit transaction is the proof; find it in Activity or on the Exit screen."
+            : pendingSweep
+              ? 'An exit transaction is waiting for confirmation in the mempool. Treat funds as swept only once it confirms. Find it in Activity or on the Exit screen.'
+              : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction in Activity or on the Exit screen to verify where the funds went."}
         </div>
         );
       })()}
