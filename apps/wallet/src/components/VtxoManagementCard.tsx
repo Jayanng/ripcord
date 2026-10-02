@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { Icon } from './ui';
+import { Icon, formatSats } from './ui';
 import { VtxoRow } from './VtxoRow';
 import { VtxoDetailSheet } from './VtxoDetailSheet';
 import { deriveVtxoProvenance, type VtxoRecordItem } from '../lib/provenance';
+import { useBalance } from '../hooks/useBalance';
 
 export type VtxoFilter = 'all' | 'spendable' | 'locked' | 'spent';
 
@@ -13,6 +14,9 @@ export interface VtxoManagementCardProps {
 
 export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps = {}) {
   const {liveVtxos, spentVtxos, lockedVtxos, vaults, receipts, identity, exitReadiness } = useWallet();
+  // L1 reconciliation: unbacked credits must be labelled, never hidden and
+  // never counted as spendable (audit fix 2026-10-02).
+  const { unbackedSats } = useBalance();
   const [filter, setFilter] = useState<VtxoFilter>('all');
   const [selectedVtxo, setSelectedVtxo] = useState<VtxoRecordItem | null>(null);
 
@@ -74,6 +78,13 @@ export function VtxoManagementCard({ onFund: _onFund }: VtxoManagementCardProps 
 
   return (
     <>
+      {unbackedSats > 0n && (
+        <p className="inline-error" role="alert">
+          {formatSats(unbackedSats)} sats in this list exceed verified Bitcoin L1
+          vault reserves. They are excluded from your spendable balance. If this
+          vault has exited, the real coins are at your L1 settlement address.
+        </p>
+      )}
       <details className="instrument vtxo-management-card" open>
         <summary className="section-heading vtxo-summary" aria-label="Toggle VTXO Inventory">
           <div>

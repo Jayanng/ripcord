@@ -559,6 +559,42 @@ export function activeFundingRunCount(): number {
   return activeFundingRuns.size;
 }
 
+/**
+ * Adopt-match for the deposit mint (audit fix 2026-10-02).
+ *
+ * The old exact-amount match missed a second mint that was one sat lighter and
+ * let ONE deposit mint twice. The real variance is exactly one sat (the mint
+ * fee line), so the window is one sat below the expected amount: wide enough
+ * to catch the duplicate-mint shape, far too narrow to ever adopt a received
+ * payment or a change note by mistake.
+ */
+export function findAdoptableMintNote<T extends { amountSats: bigint; spent: boolean }>(
+  notes: readonly T[],
+  mintAmount: bigint,
+): T | undefined {
+  return notes.find(
+    item => !item.spent && item.amountSats <= mintAmount && item.amountSats + 1n >= mintAmount,
+  );
+}
+
+/**
+ * Off-chain credit must never exceed L1 backing (audit fix 2026-10-02).
+ *
+ * The daemon accepts duplicate deposit claims, so its note sum can exceed the
+ * coins actually reserved on Bitcoin L1. Spending unbacked credit passes the
+ * inflation to the next person, so the spendable figure is capped at the
+ * backing and the overage is reported separately as unbacked, never hidden and
+ * never counted. Backing is the sum of vault funding values whose funding
+ * outpoint is still unspent on L1.
+ */
+export function reconcileSpendableSats(
+  noteSats: bigint,
+  backingSats: bigint,
+): { spendableSats: bigint; unbackedSats: bigint } {
+  if (noteSats <= backingSats) return { spendableSats: noteSats, unbackedSats: 0n };
+  return { spendableSats: backingSats, unbackedSats: noteSats - backingSats };
+}
+
 /** Live deposit → L1 confirmation → VTXO mint → vault registration. */
 export async function fundVaultLifecycle(params: FundVaultLifecycleParams): Promise<FundVaultLifecycleResult> {
   const key = fundingRunKey(params.vault);
@@ -719,7 +755,7 @@ async function fundVaultLifecycleRun(params: FundVaultLifecycleParams): Promise<
     const mintAmount = deposit.amountSats - 1n;
     const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
     const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));
-    const recoveredVtxo = existing.vtxos.find(item => !item.spent && item.amountSats === mintAmount);
+    const recoveredVtxo = findAdoptableMintNote(existing.vtxos, mintAmount);
     let vtxoId: string;
     let mintTxHash = '';
     let mintEpoch = 0;
