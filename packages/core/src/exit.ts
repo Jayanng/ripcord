@@ -431,17 +431,24 @@ async function spentReadiness(
   let spentBy: ExitReadiness['spentBy'] = null;
   let confirmations = 0;
   try {
-    const spender = vault.funding ? await findFundingSpender(baseUrl, vault.funding) : null;
+    // The maturity poller must never stall on a deep block scan: give the
+    // lookup a small time budget and move on with an honest null (review r1).
+    const lookup = vault.funding ? findFundingSpender(baseUrl, vault.funding) : Promise.resolve(null);
+    const spender = await Promise.race([
+      lookup,
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 1500)),
+    ]);
     if (spender) {
       confirmations = spender.confirmations;
-      const destination = spender.outputs.find(o => o.address)?.address ?? null;
+      const targetOut = spender.outputs.find(o => o.address) ?? null;
       const outputTotal = spender.outputs.reduce((sum, o) => sum + o.valueSats, 0n);
+      const fee = vault.funding ? vault.funding.valueSats - outputTotal : null;
       spentBy = {
         txid: asDisplayTxid(spender.txid),
         confirmations: spender.confirmations,
-        destination,
-        amountSats: spender.outputs[0]?.valueSats ?? null,
-        feeSats: vault.funding ? vault.funding.valueSats - outputTotal : null,
+        destination: targetOut ? targetOut.address : null,
+        amountSats: targetOut ? targetOut.valueSats : null,
+        feeSats: fee !== null && fee >= 0n ? fee : null,
       };
     }
   } catch {
@@ -534,9 +541,20 @@ export interface ExitSweepEvidence {
   readonly note: string;
 }
 
-/** A funding outpoint can be spent only once; cache a FOUND spender forever.
- * Never cache the absence: a not-yet-spent outpoint must be re-scanned later. */
+/**
+ * Spender lookup state (review round 1, 2026-10-02):
+ * - single-flight: concurrent callers share ONE scan (the maturity poller runs
+ *   on a 15s/30s cadence and must never stack scans);
+ * - found spenders cache forever, but their confirmations are refreshed with one
+ *   light getrawtransaction on each read (a 0-conf mempool spender must not be
+ *   frozen at 0, and an RBF-replaced txid must fall back to a rescan);
+ * - not-found caches a cooldown timestamp, so an unlocatable spender is
+ *   re-scanned at most every NEGATIVE_COOLDOWN_MS, never every poll.
+ */
 const spenderCache = new Map<string, FundingSpender>();
+const negativeCache = new Map<string, number>();
+const inFlight = new Map<string, Promise<FundingSpender | null>>();
+const NEGATIVE_COOLDOWN_MS = 5 * 60_000;
 
 function outpointKey(funding: { txid: string; vout: number }): string {
   return `${funding.txid.toLowerCase()}:${funding.vout}`;
@@ -556,8 +574,38 @@ export async function findFundingSpender(
   funding: { txid: string; vout: number },
 ): Promise<FundingSpender | null> {
   const key = outpointKey(funding);
+  const running = inFlight.get(key);
+  if (running) return running;
+  const run = scanForSpender(baseUrl, funding, key).finally(() => {
+    inFlight.delete(key);
+  });
+  inFlight.set(key, run);
+  return run;
+}
+
+async function scanForSpender(
+  baseUrl: string,
+  funding: { txid: string; vout: number },
+  key: string,
+): Promise<FundingSpender | null> {
   const cached = spenderCache.get(key);
-  if (cached) return cached;
+  if (cached) {
+    try {
+      const fresh = await bitcoinRpc(baseUrl, 'getrawtransaction', [cached.txid, true]);
+      const conf = (fresh.result as { confirmations?: number } | null)?.confirmations;
+      if (typeof conf === 'number') {
+        const updated = { ...cached, confirmations: conf };
+        spenderCache.set(key, updated);
+        return updated;
+      }
+      // Tx vanished (RBF replacement): evict and rescan below.
+      spenderCache.delete(key);
+    } catch {
+      return cached;
+    }
+  }
+  const lastMiss = negativeCache.get(key);
+  if (lastMiss !== undefined && Date.now() - lastMiss < NEGATIVE_COOLDOWN_MS) return null;
 
   const fundRaw = await bitcoinRpc(baseUrl, 'getrawtransaction', [funding.txid, true]);
   const fundTx = fundRaw.result as { txid?: string; blockhash?: string; confirmations?: number } | null;
@@ -640,6 +688,7 @@ export async function findFundingSpender(
       // Skip a block the node failed to serve; keep scanning.
     }
   }
+  negativeCache.set(key, Date.now());
   return null;
 }
 
@@ -664,14 +713,19 @@ export function buildSweepEvidence(args: {
   const destOut = spender.outputs.find(o => o.address === destination) ?? null;
   const outputTotal = spender.outputs.reduce((sum, o) => sum + o.valueSats, 0n);
   const feeSats = funding.valueSats - outputTotal;
-  const sovereign = inputOk && destOut !== null && feeSats >= 0n;
+  // A sovereign exit pays the USER and nobody else: every output must land on
+  // the user L1 address (review r1: a 10-sat payment to the user plus the rest
+  // to a third party must never earn the sovereign label).
+  const outputsOk =
+    spender.outputs.length > 0 && spender.outputs.every(o => o.address === destination);
+  const sovereign = inputOk && outputsOk && destOut !== null && feeSats >= 0n;
   return {
     label: sovereign ? 'sovereign-exit' : 'unverified-spend',
     exitTxid: spender.txid,
     exitRawHex: spender.rawHex,
     spentOutpoint,
     destination: destOut ? destination : (spender.outputs[0]?.address ?? null),
-    amountSats: destOut ? destOut.valueSats : null,
+    amountSats: destOut ? outputTotal : null,
     feeSats: feeSats >= 0n ? feeSats : null,
     blockHash: spender.blockHash,
     confirmations: spender.confirmations,

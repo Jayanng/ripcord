@@ -67,7 +67,7 @@ export function RipcordPanel() {
                 <span>{confirmationLabel}</span>
                 <span className={`timelock-pct ${status === 'live' ? 'live' : ''}`}>{progressPercent}%</span>
               </div>
-              <div className="timelock-bar" role="progressbar" aria-valuenow={status === 'live' ? csvBlocks : status === 'unfunded' ? 0 : confirmations} aria-valuemin={0} aria-valuemax={csvBlocks}>
+              <div className="timelock-bar" role="progressbar" aria-valuenow={status === 'live' ? csvBlocks : status === 'unfunded' || status === 'spent' ? 0 : confirmations} aria-valuemin={0} aria-valuemax={csvBlocks}>
                 <div className={`timelock-fill ${status === 'live' ? 'live' : ''}`} style={{ width: `${progressPercent}%` }} />
               </div>
             </div>

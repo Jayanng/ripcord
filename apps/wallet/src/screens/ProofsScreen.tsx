@@ -6,18 +6,24 @@ import { formatSats, truncate, Icon, explorerTxUrl } from '../components/ui';
 import type { PaymentReceipt } from '@ripcord/core/types';
 
 export function ProofsScreen() {
-  const { receipts, activeVault, vaults, exitReadiness } = useWallet();
+  const { receipts, activeVault, vaults, exitReadiness, identity } = useWallet();
+  const spentBy = exitReadiness?.spentBy ?? null;
+  // Only call it the user's own exit when the node-verified payout lands on
+  // THEIR L1 address; otherwise stay neutral (review round 1).
+  const sovereignSweep = Boolean(
+    spentBy?.txid && identity?.l1Address && spentBy.destination === identity.l1Address,
+  );
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentReceipt | null>(null);
 
   return <section className="proofs-container" aria-labelledby="proofs-title">
     {exitReadiness?.status === 'spent' && (
       <p className="flow-note" role="status">
-        Your exit to L1 is a Bitcoin transaction, not an off-chain transfer, so it
-        carries no HAT or RIP chain proof to fetch here. Its proof is the
-        transaction itself:{' '}
-        {exitReadiness?.spentBy?.txid ? (
-          <a href={explorerTxUrl(exitReadiness.spentBy.txid)} target="_blank" rel="noreferrer">
-            {explorerTxUrl(exitReadiness.spentBy.txid)}
+        {sovereignSweep
+          ? 'Your exit to L1 is a Bitcoin transaction, not an off-chain transfer, so it carries no HAT or RIP chain proof to fetch here. Its proof is the transaction itself: '
+          : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction to verify the recipient: "}
+        {spentBy?.txid ? (
+          <a href={explorerTxUrl(spentBy.txid)} target="_blank" rel="noreferrer">
+            {explorerTxUrl(spentBy.txid)}
           </a>
         ) : (
           <>open it from Activity or the Exit screen.</>

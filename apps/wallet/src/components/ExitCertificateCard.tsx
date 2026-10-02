@@ -154,9 +154,8 @@ export function ExitCertificateCard() {
       )}
       {treePending && (
         <p className="exit-cert-nudge">
-          {cert.maturity.status === 'unfunded'
-            ? <>The tree proof appears once this vault holds confirmed funds on Bitcoin L1. Fund it first, then run <strong>Verify Exit Path (Dry Run)</strong> above.</>
-            : <>The tree proof completes when you run <strong>Verify Exit Path (Dry Run)</strong> above.</>}
+          This device has no verified taproot proof for this vault. Recover the
+          wallet from its phrase to rebuild the stored exit leaf and control block.
         </p>
       )}
       <div className="exit-cert-actions">

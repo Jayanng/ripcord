@@ -181,9 +181,7 @@ export function buildExitCertificate(
       : 'The control block proves this leaf is committed by your vault address on Bitcoin.'
     : treeProof?.reason
       ? treeProof.reason
-      : spent
-        ? 'The stored taproot proof is missing from this device. Recover the wallet from its phrase to rebuild it.'
-        : 'Tree proof not verified yet. Run the exit dry-run to prove it.';
+      : 'The taproot proof is missing from this device. Recover the wallet from its phrase to rebuild it.';
 
   const checks: ExitCertificateCheck[] = [
     {
@@ -233,7 +231,7 @@ export function buildExitCertificate(
             ? `funding already spent on L1: swept by ${sweep.exitTxid} (${sweep.confirmations} confirmations)`
             : 'funding already spent on L1'
           : 'not funded yet';
-  const maturityConfirmations = spent && sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
+  const maturityConfirmations = sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
   const csvBlocksNote =
     vault.csvBlocks < 1008
       ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (regtest). The production Tachi default is 1008 blocks.`
@@ -253,7 +251,9 @@ export function buildExitCertificate(
       text: maturityText,
     },
     exitStillPossible: !spent,
-    exitCompleted: spent && sweep?.sovereign === true,
+    // A mempool transaction has not swept anything under consensus yet:
+    // completion requires at least one confirmation (review round 1).
+    exitCompleted: spent && sweep?.sovereign === true && sweep.confirmations > 0,
     csvBlocksNote,
     sweep,
     evidence: {
@@ -277,6 +277,9 @@ export function certificateSummaryText(cert: ExitCertificate): string {
     const sweep = cert.sweep;
     if (cert.exitCompleted && sweep) {
       return `Exit Certificate: this vault already swept ${sweep.amountSats ?? 'an unknown number of'} sats to your L1 address in ${sweep.exitTxid} (${sweep.confirmations} confirmations). Script checks: ${cert.passed}/${total}.`;
+    }
+    if (sweep?.sovereign && sweep.confirmations === 0) {
+      return `Exit Certificate: an exit transaction is waiting for confirmation in the mempool (${sweep.exitTxid}, 0 confirmations). Treat funds as swept only once it confirms. Script checks: ${cert.passed}/${total}.`;
     }
     return `Exit Certificate: ${cert.passed}/${total} script checks pass, but this vault's funding has already been spent on Bitcoin L1. There is nothing left to exit.`;
   }

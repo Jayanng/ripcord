@@ -25,7 +25,12 @@ export function BalanceScreen({
 
       {/* Exit visibility: when the vault funding has been swept to L1, say so
           loudly instead of showing stale numbers as if nothing happened. */}
-      {exitReadiness?.status === 'spent' && (
+      {exitReadiness?.status === 'spent' && (() => {
+        const spentBy = exitReadiness.spentBy ?? null;
+        const sovereignSweep = Boolean(
+          spentBy?.txid && identity?.l1Address && spentBy.destination === identity.l1Address,
+        );
+        return (
         <div
           role="status"
           style={{
@@ -34,12 +39,15 @@ export function BalanceScreen({
             color: 'var(--text-hi, #0F172A)', fontSize: 13.5, lineHeight: 1.55,
           }}
         >
-          <strong style={{ display: 'block', marginBottom: 4 }}>Exited to Bitcoin L1</strong>
-          This vault's funds have been swept back to your own L1 settlement address,
-          signed by your key alone. The vault is now closed and shows as spent. The
-          exit transaction is the proof; find it in Activity or on the Exit screen.
+          <strong style={{ display: 'block', marginBottom: 4 }}>
+            {sovereignSweep ? 'Exited to Bitcoin L1' : 'Funding spent on Bitcoin L1'}
+          </strong>
+          {sovereignSweep
+            ? 'This vault\'s funds have been swept back to your own L1 settlement address, signed by your key alone. The vault is now closed and shows as spent. The exit transaction is the proof; find it in Activity or on the Exit screen.'
+            : 'This vault\'s funding outpoint has been spent on Bitcoin L1. Inspect the transaction in Activity or on the Exit screen to verify where the funds went.'}
         </div>
-      )}
+        );
+      })()}
       {/* 2 & 3. BalanceHero (single source of balance truth + quick actions row) */}
       <BalanceHero onSend={onSend} onReceive={onReceive} onRipcord={onExit} />
 

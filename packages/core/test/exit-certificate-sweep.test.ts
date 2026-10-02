@@ -54,7 +54,7 @@ function spenderTo(dest: string, amountSats: bigint, feeSats: bigint): FundingSp
     confirmations: 110,
     blockHash: 'dd'.repeat(32),
     inputs: [{ txid: FUNDING.txid, vout: FUNDING.vout }],
-    outputs: [{ address: dest, valueSats: amountSats }, { address: dest, valueSats: 0n }],
+    outputs: [{ address: dest, valueSats: amountSats }],
   };
 }
 
@@ -111,6 +111,26 @@ describe('buildSweepEvidence (node-read, never hardcoded labels)', () => {
     expect(sweep.sovereign).toBe(false);
     expect(sweep.label).toBe('unverified-spend');
     expect(sweep.amountSats).toBeNull();
+  });
+
+  it('refuses the sovereign label when any output pays a third party', () => {
+    const dest = 'bcrt1quseruseruseruseruseruseruseruseruseruseruseruser';
+    const mixed: FundingSpender = {
+      ...spenderTo(dest, 10n, 200n),
+      outputs: [
+        { address: dest, valueSats: 10n },
+        { address: 'bcrt1qattacker', valueSats: 39790n },
+      ],
+    };
+    const sweep = buildSweepEvidence({ funding: FUNDING, spender: mixed, destination: dest });
+    expect(sweep.sovereign).toBe(false);
+    expect(sweep.label).toBe('unverified-spend');
+  });
+
+  it('amountSats is the full amount paid to the destination', () => {
+    const dest = 'bcrt1quseruseruseruseruseruseruseruseruseruseruseruser';
+    const sweep = buildSweepEvidence({ funding: FUNDING, spender: spenderTo(dest, 39800n, 200n), destination: dest });
+    expect(sweep.amountSats).toBe(39800n);
   });
 
   it('refuses the sovereign label when the input is not exactly the funding outpoint', () => {
@@ -191,6 +211,24 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     expect(cert.csvBlocksNote).toContain('Demo-only');
     expect(cert.csvBlocksNote).toContain('1008');
     expect(cert.csvBlocks).toBe(2);
+  });
+
+  it('does not claim completion for a mempool (0-conf) sovereign sweep', () => {
+    const { record } = makeVault();
+    const dest = 'bcrt1quseruseruseruseruseruseruseruseruseruseruseruser';
+    const sweep = buildSweepEvidence({
+      funding: FUNDING,
+      spender: { ...spenderTo(dest, 39800n, 200n), confirmations: 0, blockHash: null },
+      destination: dest,
+    });
+    expect(sweep.sovereign).toBe(true);
+    const cert = buildExitCertificate(
+      { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
+      swept,
+      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+    );
+    expect(cert.exitCompleted).toBe(false);
+    expect(certificateSummaryText(cert)).toContain('waiting for confirmation');
   });
 
   it('certificateToJson serializes bigint sweep fields without throwing', () => {
