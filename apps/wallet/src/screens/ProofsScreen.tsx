@@ -27,7 +27,12 @@ export function ProofsScreen() {
             ? 'An exit transaction is waiting for confirmation in the mempool. Treat funds as swept only once it confirms: '
             : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction to verify the recipient: "}
         {spentBy?.txid ? (
-          <a href={explorerTxUrl(spentBy.txid)} target="_blank" rel="noreferrer">
+          <a
+            href={explorerTxUrl(spentBy.txid)}
+            target="_blank"
+            rel="noreferrer"
+            style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}
+          >
             {explorerTxUrl(spentBy.txid)}
           </a>
         ) : (

@@ -144,7 +144,7 @@ export function ExitCertificateCard() {
         {cert.csvBlocksNote && <div><dt>CSV timelock</dt><dd>{cert.csvBlocksNote}</dd></div>}
       </dl>
       {cert.sweep && (
-        <dl className="exit-cert-meta exit-cert-sweep" aria-label="Exit transaction">
+        <dl className="exit-cert-meta exit-cert-sweep" aria-label="Exit transaction" style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
           <div><dt>Sweep</dt><dd>{cert.sweep.sovereign ? 'Sovereign exit verified' : 'Spend found (not a verified sovereign exit)'}</dd></div>
           <div><dt>Exit txid</dt><dd><code>{cert.sweep.exitTxid}</code></dd></div>
           <div><dt>Destination</dt><dd><code>{cert.sweep.destination}</code></dd></div>
