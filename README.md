@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
-[![Status](https://img.shields.io/badge/status-experimental-yellow)](https://github.com/Jayanng/ripcord)
+[![Status](https://img.shields.io/badge/status-live%20on%20regtest-green)](https://github.com/Jayanng/ripcord)
 
 > **Proof before promise.**
 
@@ -14,7 +14,7 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 
 ## Current status
 
-RIPCORD is experimental software targeting **Tachi regtest only**. It is not production custody software and must not be used with funds that matter.
+RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest**. It is not production custody software and must not be used with funds that matter.
 
 - `@ripcord/core@0.2.0` is published on npm.
 - GitHub release `v0.2.0` is available.
@@ -110,7 +110,8 @@ The package exposes the root API and focused subpaths for:
 /recovery    /payment     /lifecycle    /proofs
 /deposit     /register    /coinselect   /queue
 /bytes       /net         /errors       /search
-/refund
+/refund      /sentinel    /exit-certificate
+/spend-conscience /idle-timer /address-safety /units
 ```
 
 ### Minimal example
@@ -208,7 +209,6 @@ Pinned protocol dependencies:
 ```text
 @tachibtc/taurus-vault-core        0.3.3
 @tachibtc/taurus-wallet-aggregator 0.4.3
-@tachibtc/tachi-sdk-ts             0.2.1
 ```
 
 Do not upgrade protocol dependencies without re-probing the live daemon and reviewing the verified API contract.
@@ -256,7 +256,7 @@ npm test
 ### Execution time and Bitcoin L1 block cadence
 
 - **Fast checks (`check:rules`, `typecheck`, `build`)**: Complete in seconds.
-- **Live full-lifecycle E2E tests (`npm test` / `vitest run test/e2e-full-flow.test.ts`)**: Typically take **15 to 20 minutes**.
+- **Live full-lifecycle E2E tests (`npm test` / `vitest run packages/core/test/e2e-full-flow.test.ts`)**: Typically take **15 to 20 minutes**.
   - RIPCORD adheres to a strict **zero-mock, live-only verification rule** (`scripts/check-architecture-rules.sh`).
   - Tests interact with the live public Tachi regtest Bitcoin daemon (`https://rpc-regtest.tachibtc.com`).
   - The public regtest network mines Bitcoin blocks automatically on an approximate **10-minute cadence**.
@@ -397,7 +397,7 @@ The bounty description does **not** require Bitcoin mainnet, signet, real BTC, o
 The accurate scope is:
 
 ```text
-Live-verified Tachi regtest wallet prototype
+Fully functional Tachi regtest wallet, live-verified against the public network
 Responsive mobile and desktop browser web application
 No mainnet or signet support
 No production custody claim
@@ -443,7 +443,7 @@ Start with:
 
 MIT. See [LICENSE](LICENSE).
 
-RIPCORD is experimental software. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
+RIPCORD runs on Tachi regtest. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
 
 ---
 

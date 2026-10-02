@@ -19,7 +19,7 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 | `./sentinel` `./exit-certificate` `./spend-conscience` | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine |
 | `./idle-timer` `./address-safety` `./units` | Injectable idle timer (auto-lock), address highlight and mangled-paste checks, sats/BTC formatting |
 
-The current release is **experimental and regtest-only**. It is not production custody software and must not be used with funds that matter.
+The current release is **fully functional on Tachi regtest**. It is not production custody software and must not be used with funds that matter.
 
 ## Install
 
@@ -100,7 +100,7 @@ npm test
 
 ### Test execution duration
 
-Unit tests, linting, typechecking, and architecture checks complete within seconds. The full end-to-end integration test (`test/e2e-full-flow.test.ts`) runs against the live public Tachi regtest network without mocks and takes **15 to 20 minutes**. This is expected behavior: the public Bitcoin regtest chain produces blocks on an approximate 10-minute cadence, and the test asserts real on-chain confirmations across the deposit and registration lifecycle.
+Unit tests, linting, typechecking, and architecture checks complete within seconds. The full end-to-end integration test (`packages/core/test/e2e-full-flow.test.ts`) runs against the live public Tachi regtest network without mocks and takes **15 to 20 minutes**. This is expected behavior: the public Bitcoin regtest chain produces blocks on an approximate 10-minute cadence, and the test asserts real on-chain confirmations across the deposit and registration lifecycle.
 
 ## License
 
@@ -112,5 +112,5 @@ MIT. See the repository `LICENSE` file.
 - Issues: https://github.com/Jayanng/ripcord/issues
 - Tachi: https://tachibtc.com/
 
-RIPCORD is experimental software. Review the repository's verified API and current test results before relying on any behavior.
+RIPCORD is live on Tachi regtest. Review the repository's verified API and current test results before relying on any behavior.
 
