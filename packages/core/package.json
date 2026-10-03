@@ -1,6 +1,6 @@
 {
   "name": "@ripcord/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Verified TypeScript core library for Tachi/Taurus Bitcoin vaults: keys, quorum, deposits, VTXO payments with per-input scripts, live indexing with receipts, proofs, and unilateral exit.",
   "license": "MIT",
   "repository": {

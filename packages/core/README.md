@@ -49,7 +49,12 @@ The package exports the root API and focused subpaths for `types`, `bytes`, `net
 
 ## Releases
 
-- **0.2.0** (2026-09-28) — current release, published to npm. Money-path
+- **0.2.1** (2026-10-03) — current release, published to npm. Exit
+  certificate reports the real sweep (top-level mandated export fields,
+  tree-proof gate before broadcast), spend reconciliation against L1
+  reserves, recoverVaults binding fix, activity feed dedupe helpers, and the
+  explorer base rewired to `regtest.tachibtcscan.com`. Source: tag `v0.2.1`.
+- **0.2.0** (2026-09-28) — previous release. Money-path
   hardening: resume-path money contract, `code=17` binding truth, refresh-race
   fix, record-keyed vault storage, sibling-safe funding scans, key-state fixes.
   Ships alongside the RIPCORD wallet phases 1-10 (send, vaults, exit console,

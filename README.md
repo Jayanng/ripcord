@@ -1,7 +1,7 @@
 # RIPCORD
 
 [![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
+[![Release](https://img.shields.io/badge/release-v0.2.1-blue)](https://github.com/Jayanng/ripcord/tree/v0.2.1)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
 [![Status](https://img.shields.io/badge/status-live%20on%20regtest-green)](https://github.com/Jayanng/ripcord)
@@ -16,8 +16,8 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 
 RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest**. It is not production custody software and must not be used with funds that matter.
 
-- `@ripcord/core@0.2.0` is published on npm.
-- GitHub release `v0.2.0` is available.
+- `@ripcord/core@0.2.1` is published on npm.
+- Git tag `v0.2.1` is available.
 - Core wallet mechanics and the responsive wallet application have been exercised against the live Tachi regtest environment.
 - Browser-wipe recovery has been manually exercised from a mnemonic against live regtest data.
 - The project has no signet or mainnet support.
@@ -99,8 +99,8 @@ npm install @ripcord/core
 Package links:
 
 - [npm package](https://www.npmjs.com/package/@ripcord/core)
-- [npm v0.2.0](https://www.npmjs.com/package/@ripcord/core/v/0.2.0)
-- [GitHub release v0.2.0](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
+- [npm v0.2.1](https://www.npmjs.com/package/@ripcord/core/v/0.2.1)
+- [Git tag v0.2.1](https://github.com/Jayanng/ripcord/tree/v0.2.1)
 
 The package exposes the root API and focused subpaths for:
 
@@ -433,7 +433,7 @@ Start with:
 
 - [npm package documentation](packages/core/README.md)
 - [Published package](https://www.npmjs.com/package/@ripcord/core)
-- [GitHub release v0.2.0](https://github.com/Jayanng/ripcord/releases/tag/v0.2.0)
+- [Git tag v0.2.1](https://github.com/Jayanng/ripcord/tree/v0.2.1)
 
 ## Project tags
 
