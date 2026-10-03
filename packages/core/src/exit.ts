@@ -743,7 +743,7 @@ export function buildSweepEvidence(args: {
   expectedLeafScriptHex?: string;
 }): ExitSweepEvidence {
   const { funding, spender, destination } = args;
-  const explorerTxBase = args.explorerTxBase ?? 'https://explorer-regtest.tachibtc.com/tx/';
+  const explorerTxBase = args.explorerTxBase ?? 'https://regtest.tachibtcscan.com/tx/';
   const spentOutpoint = `${funding.txid}:${funding.vout}`;
   const inputOk =
     spender.inputs.length === 1 &&

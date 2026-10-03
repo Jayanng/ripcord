@@ -200,7 +200,7 @@ Network:      tachi-regtest-1
 Daemon:       https://rpc-regtest.tachibtc.com
 WebSocket:    wss://rpc-regtest.tachibtc.com/tachi_ws
 Faucet:       https://faucet.tachibtc.com
-Explorer:     https://explorer-regtest.tachibtc.com
+Explorer:     https://regtest.tachibtcscan.com
 Quorum:       5 of 7 validators
 ```
 

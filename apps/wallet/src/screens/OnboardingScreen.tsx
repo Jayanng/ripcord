@@ -216,7 +216,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     };
   }, [wallet.identity, wallet.vaults, busy, flow]);
 
-  const explorerUrl = (txid: string) => `https://explorer-regtest.tachibtc.com/tx/${txid}`;
+  const explorerUrl = (txid: string) => `https://regtest.tachibtcscan.com/tx/${txid}`;
   const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
   const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
 

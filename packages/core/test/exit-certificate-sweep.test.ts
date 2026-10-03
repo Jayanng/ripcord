@@ -201,7 +201,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     expect(cert.sweep?.feeSats).toBe(200n);
     expect(cert.sweep?.blockHash).toBeTruthy();
     expect(cert.sweep?.confirmations).toBe(110);
-    expect(cert.sweep?.explorerUrl).toBe(`https://explorer-regtest.tachibtc.com/tx/${sweep.exitTxid}`);
+    expect(cert.sweep?.explorerUrl).toBe(`https://regtest.tachibtcscan.com/tx/${sweep.exitTxid}`);
     expect(cert.exitCompleted).toBe(true);
     expect(cert.maturity.confirmations).toBe(110);
   });

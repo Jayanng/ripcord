@@ -198,7 +198,7 @@ export function ActivityFeed() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <a
             className="explorer-link"
-            href="https://explorer-regtest.tachibtc.com"
+            href="https://regtest.tachibtcscan.com"
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: '11px' }}

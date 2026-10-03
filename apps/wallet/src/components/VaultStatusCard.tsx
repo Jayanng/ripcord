@@ -204,7 +204,7 @@ export function VaultStatusCard() {
 
   if (!wallet.identity) return null;
 
-  const explorerUrl = (txid: string) => `https://explorer-regtest.tachibtc.com/tx/${txid}`;
+  const explorerUrl = (txid: string) => `https://regtest.tachibtcscan.com/tx/${txid}`;
   const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
   const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
 

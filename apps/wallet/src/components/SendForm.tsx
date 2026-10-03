@@ -648,7 +648,7 @@ export function SendForm() {
               pushToast({
                 title: 'Send committed',
                 body: `${formatSats(BigInt(sats))} to ${truncate(recipient, 8, 6)} committed at epoch ${committed.epoch}.`,
-                href: `https://explorer-regtest.tachibtc.com/tx/${committed.txHash}`,
+                href: `https://regtest.tachibtcscan.com/tx/${committed.txHash}`,
                 hrefLabel: 'View transaction ↗',
                 tone: 'success',
               }),
