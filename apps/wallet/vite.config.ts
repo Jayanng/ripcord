@@ -177,6 +177,27 @@ function ripcordRoutingPlugin(): Plugin {
   };
 }
 
+/**
+ * Rewrites the retired explorer domain out of vendor code (explorer rewire
+ * 2026-10-03). The vendor's bundled network config carries the dead
+ * explorer-regtest.tachibtc.com as a fallback literal, and Vite replaces the
+ * vendor's process.env reads at build time so a runtime env override cannot
+ * reach it. This build-time rewrite makes the new explorer absolute in every
+ * shipped bundle.
+ */
+function retireDeadExplorerPlugin(): Plugin {
+  return {
+    name: 'ripcord-retire-dead-explorer',
+    enforce: 'post',
+    transform(code) {
+      if (code.includes('explorer-regtest.tachibtc.com')) {
+        return code.split('explorer-regtest.tachibtc.com').join('regtest.tachibtcscan.com');
+      }
+      return undefined;
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
@@ -197,6 +218,7 @@ export default defineConfig({
     // no offline requirement; network-first with immutable hashed assets
     // is simpler and cannot wedge. Old clients heal via kill-switch sw.js.
     ripcordRoutingPlugin(),
+    retireDeadExplorerPlugin(),
   ],
   build: {
     chunkSizeWarningLimit: 1200,
