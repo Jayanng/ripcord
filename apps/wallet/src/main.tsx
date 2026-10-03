@@ -1,3 +1,6 @@
+// Must be first: sets TAURUS_REGTEST_EXPLORER before vendor chunks compute
+// their network config at module load (see lib/env-shim.ts).
+import './lib/env-shim';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
