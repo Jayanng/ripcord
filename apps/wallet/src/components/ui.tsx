@@ -4,7 +4,7 @@ export { formatSats } from '../lib/format';
 export const truncate = (value: string, start = 8, end = 6) => value.length > start + end ? `${value.slice(0, start)}…${value.slice(-end)}` : value;
 export const EXPLORER_BASE = 'https://regtest.tachibtcscan.com';
 export const explorerTxUrl = (txid: string) => `${EXPLORER_BASE}/tx/${txid}`;
-export const explorerBlockUrl = (heightOrHash: string | number) => `${EXPLORER_BASE}/block/${heightOrHash}`;
+export const explorerBlockUrl = (heightOrHash: string | number) => `${EXPLORER_BASE}/epoch/${heightOrHash}`;
 
 export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activity' | 'ripcord' | 'shield' | 'close' | 'wallet' | 'exit' | 'proofs' | 'docs' | 'copy' | 'check' }) {
   const paths: Record<typeof name, ReactNode> = {
