@@ -5,9 +5,7 @@ import {
   truncate,
   explorerTxUrl,
   explorerBlockUrl,
-  explorerVaultUrl,
   explorerVtxoUrl,
-  EXPLORER_BASE,
   L1Txid,
 } from './ui';
 import { ConfirmationsBadge } from './ConfirmationsBadge';
@@ -282,7 +280,6 @@ export function ActivityRow({
   }
 
   if (item.kind === 'vault:breach') {
-    const breachHref = item.vaultId ? explorerVaultUrl(item.vaultId) : EXPLORER_BASE;
     return (
       <article className="activity-row committed" style={{ borderLeft: '3px solid #DC2626' }}>
         <div>
@@ -290,16 +287,14 @@ export function ActivityRow({
             <strong>Watchtower breach</strong>
             <span className="activity-tag l1">{item.classification}</span>
           </div>
-          <L1Txid txid={item.spendTxid} href={breachHref} />
+          <L1Txid txid={item.spendTxid} />
         </div>
         <div>
           <span>
             Vault funding spent at L1 block {item.detectedHeight} · states {item.broadcastState}/{item.latestState}
           </span>
           <div className="activity-actions">
-            <a className="explorer-btn" href={breachHref} target="_blank" rel="noreferrer">
-              Explorer ↗
-            </a>
+            <L1Txid txid={item.spendTxid} className="explorer-btn">Copy breach txid</L1Txid>
           </div>
         </div>
       </article>

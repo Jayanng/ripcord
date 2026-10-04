@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { buildExitCertificate, certificateSummaryText, certificateToJson, type ExitCertificate } from '@ripcord/core/exit-certificate';
 import { proveExitTree, findFundingSpender, buildSweepEvidence, type ExitSweepEvidence } from '@ripcord/core/exit';
+import { L1Txid } from './ui';
 
 /**
  * Exit Readiness Certificate (Bounty #1, Phase 2).
@@ -150,13 +151,12 @@ export function ExitCertificateCard() {
       {cert.sweep && (
         <dl className="exit-cert-meta exit-cert-sweep" aria-label="Exit transaction" style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
           <div><dt>Sweep</dt><dd>{cert.sweep.sovereign ? 'Sovereign exit verified' : 'Spend found (not a verified sovereign exit)'}</dd></div>
-          <div><dt>Exit txid</dt><dd><code>{cert.sweep.exitTxid}</code></dd></div>
+          <div><dt>Exit txid</dt><dd><L1Txid txid={cert.sweep.exitTxid} /></dd></div>
           <div><dt>Destination</dt><dd><code>{cert.sweep.destination}</code></dd></div>
           <div><dt>Amount</dt><dd>{cert.sweep.amountSats === null ? 'unknown' : `${cert.sweep.amountSats} sats`}</dd></div>
           <div><dt>Fee</dt><dd>{cert.sweep.feeSats === null ? 'unknown' : `${cert.sweep.feeSats} sats`}</dd></div>
           <div><dt>Block</dt><dd><code>{cert.sweep.blockHash ?? 'unconfirmed'}</code></dd></div>
           <div><dt>Confirmations</dt><dd>{cert.sweep.confirmations}</dd></div>
-          <div><dt>Explorer</dt><dd><a href={cert.sweep.explorerUrl} target="_blank" rel="noreferrer">{cert.sweep.explorerUrl}</a></dd></div>
         </dl>
       )}
       {treePending && (

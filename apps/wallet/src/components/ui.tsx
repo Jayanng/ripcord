@@ -5,18 +5,15 @@ export const truncate = (value: string, start = 8, end = 6) => value.length > st
 export const EXPLORER_BASE = 'https://regtest.tachibtcscan.com';
 export const explorerTxUrl = (txid: string) => `${EXPLORER_BASE}/tx/${txid.toLowerCase()}`;
 export const explorerBlockUrl = (heightOrHash: string | number) => `${EXPLORER_BASE}/epoch/${typeof heightOrHash === 'string' ? heightOrHash.toLowerCase() : heightOrHash}`;
-export const explorerAddressUrl = (address: string) => `${EXPLORER_BASE}/address?address=${address}`;
 export const explorerVaultUrl = (vaultId: string) => `${EXPLORER_BASE}/vaults/${vaultId}`;
 export const explorerVtxoUrl = (vtxoId: string) => `${EXPLORER_BASE}/vtxo/${vtxoId}`;
 
 export function L1Txid({
   txid,
-  href: _href,
   className = 'tx-link',
   children,
 }: {
   txid: string;
-  href?: string;
   className?: string;
   children?: ReactNode;
 }) {

@@ -653,11 +653,12 @@ export function SendForm() {
                 };
                 await wallet.saveReceipt(stubReceipt);
 
-                // Background retry after 12s detached from the queue (silent: no UI updates, no toast, no blocking)
+                // Background retry after 12s detached from the queue
                 setTimeout(async () => {
                   try {
                     const retriedReceipt = await buildPaymentReceipt(receiptParams);
                     await wallet.saveReceipt(retriedReceipt);
+                    setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
                   } catch {
                     // Background retry failed silently — keep stub receipt
                   }

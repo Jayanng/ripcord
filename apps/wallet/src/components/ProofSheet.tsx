@@ -90,7 +90,7 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
     <div className="proof-deposit-note" role="note" style={{ marginTop: '12px', background: '#F8FAFC', border: '1px solid var(--line, #E2E4E9)', borderRadius: '10px', padding: '12px 14px' }}>
       <strong style={{ display: 'block', marginBottom: '4px' }}>Deposit/mint receipt — L1 proof applies</strong>
       <span style={{ fontSize: '13px', color: 'var(--text-lo, #64748B)' }}>
-        This is a vault deposit (VTXO mint). Mints have no inputs, so ledger proofs (HAT, RIP) do not exist for them — their proof is the on-chain confirmation of the deposit transaction, viewable on the explorer above.
+        This is a vault deposit (VTXO mint). Mints have no inputs, so ledger proofs (HAT, RIP) do not exist for them — the proof is the on-chain confirmation of the deposit transaction.
         HAT and RIP proofs appear on off-chain transfers instead.
       </span>
     </div>

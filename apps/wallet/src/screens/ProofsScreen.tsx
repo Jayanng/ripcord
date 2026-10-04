@@ -58,7 +58,7 @@ export function ProofsScreen() {
           <div><dt>Vault Address</dt><dd>{activeVault.address}</dd></div>
           <div><dt>Script Binding</dt><dd><ProofOfReservesBadge vault={activeVault} /></dd></div>
           <div><dt>Quorum</dt><dd>{activeVault.quorumFingerprint}</dd></div>
-          <div><dt>Funding Outpoint</dt><dd>{activeVault.funding ? <L1Txid txid={activeVault.funding.txid} /> : 'Unfunded'}</dd></div>
+          <div><dt>Funding Outpoint</dt><dd>{activeVault.funding ? <><L1Txid txid={activeVault.funding.txid} />:{activeVault.funding.vout}</> : 'Unfunded'}</dd></div>
           <div><dt>Known Vaults</dt><dd>{vaults.length} recorded in local database</dd></div>
         </dl>
       ) : (

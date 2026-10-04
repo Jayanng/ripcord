@@ -7,7 +7,7 @@ import { writeExitRecord } from '../lib/exitRecord';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { ProofOfReservesBadge } from './ProofOfReservesBadge';
 import { TapscriptInspector } from './TapscriptInspector';
-import { truncate } from './ui';
+import { truncate, L1Txid } from './ui';
 import { proveExitTree } from '@ripcord/core/exit';
 
 export function RipcordPanel() {
@@ -83,7 +83,7 @@ export function RipcordPanel() {
     {readiness?.dryRun && <div className="dry-run"><strong>Exit path verified (dry run)</strong><dl><div><dt>txid</dt><dd>{truncate(readiness.dryRun.txid, 12, 10)}</dd></div><div><dt>Destination</dt><dd title={readiness.dryRun.destination}>{truncate(readiness.dryRun.destination, 14, 10)}</dd></div><div><dt>vsize</dt><dd>{readiness.dryRun.vsize} vB</dd></div><div><dt>nSequence</dt><dd>{readiness.dryRun.sequence}</dd></div></dl><p>Nothing was broadcast. No sats moved.</p></div>}
     {readiness?.dryRun && status !== 'spent' && <p className="flow-note" role="status">Exit transaction verified. Ready to broadcast when the timelock matures.</p>}
     {error && <p className="inline-error" role="alert">{error}</p>}
-    {broadcastTxid && <p className="flow-note" role="status">Exit broadcast: <code>{broadcastTxid}</code>. Confirm it on the regtest explorer before treating funds as settled.</p>}
+    {broadcastTxid && <p className="flow-note" role="status">The exit is broadcast to Bitcoin L1. Copy the txid below to track it.<br /><L1Txid txid={broadcastTxid} /></p>}
     {vault && <TapscriptInspector vault={vault} />}
     <div className="ripcord-actions"><button className="test-pull" disabled={!vault || !identity || busy} onClick={() => void run()}>{busy ? 'Verifying exit path…' : readiness?.dryRun ? 'Verify Exit Path (Dry Run) again' : 'Verify Exit Path (Dry Run)'}</button><HoldToConfirmButton disabled={status !== 'live' || !readiness?.dryRun || busy || !treeOk} onConfirm={async () => { if (!vault || !identity) return; setBusy(true); setError(''); setBroadcastTxid(''); try { const { makeSigner } = await import('@ripcord/core/keys'); const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex); const result = await execute(vault, signer); setBroadcastTxid(result.txid); writeExitRecord(vaultRecordKey(vault), { txid: result.txid, amountSats: String((vault.funding?.valueSats ?? 0n) - 200n), createdAt: Date.now() }); setExitDone({ txid: result.txid }); await refreshMaturity(vault); await refresh(); } catch (e) { setError(describeDaemonFailure(e)); } finally { setBusy(false); } }} /></div>
     {exitDone && <ExitSuccessModal txid={exitDone.txid} amountSats={vault?.funding?.valueSats ? Number(vault.funding.valueSats) : 0} destination={readiness?.dryRun?.destination} onClose={() => setExitDone(null)} />}

@@ -313,7 +313,7 @@ export function VaultStatusCard() {
           <dt>Funding</dt>
           <dd>
             {wallet.activeVault?.funding ? (
-              <L1Txid txid={wallet.activeVault.funding.txid} />
+              <><L1Txid txid={wallet.activeVault.funding.txid} />:{wallet.activeVault.funding.vout}</>
             ) : depositTxid || savedDepositTxid ? (
               <L1Txid txid={(depositTxid || savedDepositTxid)!} />
             ) : (
