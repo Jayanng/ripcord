@@ -99,7 +99,7 @@ describe('buildSweepEvidence (node-read, never hardcoded labels)', () => {
     expect(sweep.amountSats).toBe(39800n);
     expect(sweep.feeSats).toBe(200n);
     expect(sweep.confirmations).toBe(110);
-    expect(sweep.explorerUrl).toContain(sweep.exitTxid);
+    expect(sweep.explorerUrl).toBe('');
   });
 
   it('refuses the sovereign label when the payout is not the user L1 address', () => {
@@ -201,7 +201,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     expect(cert.sweep?.feeSats).toBe(200n);
     expect(cert.sweep?.blockHash).toBeTruthy();
     expect(cert.sweep?.confirmations).toBe(110);
-    expect(cert.sweep?.explorerUrl).toBe(`https://regtest.tachibtcscan.com/tx/${sweep.exitTxid}`);
+    expect(cert.sweep?.explorerUrl).toBe('');
     expect(cert.exitCompleted).toBe(true);
     expect(cert.maturity.confirmations).toBe(110);
   });
@@ -296,7 +296,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     expect(parsed.sweep?.amountSats).toBe(39800);
     expect(parsed.sweep?.feeSats).toBe(200);
     expect(parsed.sweep?.exitTxid).toBe(sweep.exitTxid);
-    expect(parsed.sweep?.explorerUrl).toContain(sweep.exitTxid);
+    expect(parsed.sweep?.explorerUrl).toBe('');
   });
 
   it('never tells a spent vault to run a dry run that can never succeed', () => {

@@ -281,7 +281,7 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
           {/* Explorer Link */}
           <div className="vtxo-detail-item" style={{ paddingTop: '8px' }}>
             <a
-              href={explorerVtxoUrl(String(current.id).split(':')[0])}
+              href={explorerVtxoUrl(String(current.id))}
               target="_blank"
               rel="noreferrer"
               className="action-btn"

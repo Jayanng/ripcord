@@ -697,7 +697,9 @@ export function SendForm() {
                 tone: 'success',
               }),
             );
-            setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · ${proofNote}`);
+            if (mountedRef.current && latestSendIdRef.current === sendId) {
+              setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · ${proofNote}`);
+            }
             try {
               navigator.vibrate?.(30);
             } catch {

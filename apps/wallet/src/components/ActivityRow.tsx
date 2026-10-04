@@ -312,11 +312,11 @@ export function ActivityRow({
   ) : (
     <button
       type="button"
-      disabled
-      className="reserve-backed-btn"
-      title="Secured on Bitcoin L1 by Proof of Reserves. Cryptographic HAT proofs are generated when spending VTXOs in transfer payments."
+      onClick={() => {
+        if (receipt) onProof(receipt);
+      }}
     >
-      L1 Reserve Backed
+      Fetch proof
     </button>
   );
 

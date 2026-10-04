@@ -75,7 +75,7 @@ for (const fixture of HISTORICAL) {
       expect(sweep.confirmations).toBeGreaterThanOrEqual(1);
       expect(sweep.blockHash).toBeTruthy();
       expect(sweep.exitRawHex.length).toBeGreaterThan(0);
-      expect(sweep.explorerUrl).toContain(sweep.exitTxid);
+      expect(sweep.explorerUrl).toBe('');
     });
 
     it('inspectExitMaturity reports spent with the spender bound to the destination', { timeout: 120_000 }, async () => {

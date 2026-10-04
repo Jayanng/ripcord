@@ -278,7 +278,7 @@ export function buildExitCertificate(
     blockHash: sweep?.blockHash ?? null,
     confirmations: sweep?.confirmations ?? null,
     csvBlocksNote,
-    sweep: sweep ? { ...sweep, explorerUrl: '' } : null,
+    sweep: sweep ?? null,
     evidence: {
       userKeyXOnly: expectedKey,
       exitLeafHex: rawScript && !isAsm ? rawScript : null,

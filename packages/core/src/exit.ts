@@ -733,7 +733,6 @@ export function buildSweepEvidence(args: {
   funding: { txid: string; vout: number; valueSats: bigint };
   spender: FundingSpender;
   destination: string;
-  explorerTxBase?: string;
   /**
    * When the vault's exit leaf script is supplied, the sovereign label also
    * requires those exact script bytes in the spending witness: a cooperative
