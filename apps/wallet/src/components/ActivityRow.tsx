@@ -37,6 +37,7 @@ export interface ExitActivity {
   txHash: string;
   amountSats: bigint;
   vaultAddress: string;
+  destination: string;
   committed: boolean;
   createdAt: number;
 }
@@ -169,17 +170,19 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Exit</span>
           </div>
-          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.vaultAddress)} />
+          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.destination)} />
         </div>
         <div>
           <span>Exited to Bitcoin L1 · funds at your settlement address</span>
           <ConfirmationsBadge txid={item.txHash} vout={0} />
           <div className="activity-actions">
+            {/* Link to exit destination instead of vault */}
             <a
               className="explorer-btn"
-              href={explorerAddressUrl(item.vaultAddress)}
+              href={explorerAddressUrl(item.destination)}
               target="_blank"
               rel="noreferrer"
+              title="View exit destination on explorer"
             >
               View on explorer
             </a>

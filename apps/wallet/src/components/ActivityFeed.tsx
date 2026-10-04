@@ -90,6 +90,7 @@ export function ActivityFeed() {
         txHash: exitRecord.txid,
         amountSats: BigInt(exitRecord.amountSats),
         vaultAddress: activeVault.address,
+        destination: identity?.l1Address ?? '',
         committed: true,
         createdAt: exitRecord.createdAt,
       });
