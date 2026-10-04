@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { Icon, formatSats, truncate, explorerAddressUrl } from './ui';
+import { Icon, formatSats, truncate, L1Txid } from './ui';
 import {
   announceOnce,
   alertsEnabled,
@@ -246,15 +246,7 @@ export function SentinelPanel() {
                   <li key={`${receipt.spendTxid}-${index}`} className={`breach-item ${tone}`}>
                     <div className="breach-item-head">
                       <strong className={`breach-chip ${tone}`}>{receipt.classification}</strong>
-                      <a
-                        className="tx-link"
-                        href={explorerAddressUrl(wallet.activeVault?.address ?? '')}
-                        target="_blank"
-                        rel="noreferrer"
-                        title={`View L1 spend transaction ${receipt.spendTxid} on regtest explorer`}
-                      >
-                        {truncate(receipt.spendTxid, 12, 8)} ↗
-                      </a>
+                      <L1Txid txid={receipt.spendTxid} className="tx-link" />
                     </div>
                     <span className="breach-item-detail">
                       Funding output v{receipt.spendVout} spent at L1 block {receipt.detectedHeight} · broadcast state{' '}

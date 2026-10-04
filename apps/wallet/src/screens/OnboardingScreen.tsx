@@ -3,7 +3,7 @@ import { generateMnemonic } from 'bip39';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
-import { truncate, explorerAddressUrl } from '../components/ui';
+import { truncate, L1Txid } from '../components/ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -312,14 +312,14 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           {error || statusText}
         </p>
         {pendingFaucetTxid && flow === 'ready' && (
-          <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
-            View faucet transaction on regtest explorer ↗
-          </a>
+          <L1Txid txid={pendingFaucetTxid} className="explorer-link">
+            Copy faucet txid
+          </L1Txid>
         )}
         {(depositTxid || savedDepositTxid) && (
-          <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
-            View deposit on the regtest explorer ↗
-          </a>
+          <L1Txid txid={(depositTxid || savedDepositTxid)!} className="explorer-link">
+            Copy deposit txid
+          </L1Txid>
         )}
       </div>
     ) : (

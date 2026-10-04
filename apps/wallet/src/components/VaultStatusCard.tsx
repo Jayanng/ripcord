@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
-import { truncate, explorerAddressUrl } from './ui';
+import { truncate, L1Txid } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -313,25 +313,9 @@ export function VaultStatusCard() {
           <dt>Funding</dt>
           <dd>
             {wallet.activeVault?.funding ? (
-              <a
-                className="explorer-link"
-                href={explorerAddressUrl(wallet.activeVault?.address ?? '')}
-                target="_blank"
-                rel="noreferrer"
-                title={`Funding tx: ${wallet.activeVault.funding.txid}`}
-              >
-                {truncate(wallet.activeVault.funding.txid, 10, 8)}:{wallet.activeVault.funding.vout} ↗
-              </a>
+              <L1Txid txid={wallet.activeVault.funding.txid} />
             ) : depositTxid || savedDepositTxid ? (
-              <a
-                className="explorer-link"
-                href={explorerAddressUrl(wallet.activeVault?.address ?? '')}
-                target="_blank"
-                rel="noreferrer"
-                title={`Deposit tx: ${depositTxid || savedDepositTxid}`}
-              >
-                {truncate(depositTxid || savedDepositTxid!, 10, 8)}:0 (pending) ↗
-              </a>
+              <L1Txid txid={(depositTxid || savedDepositTxid)!} />
             ) : (
               'Awaiting deposit'
             )}
@@ -374,9 +358,9 @@ export function VaultStatusCard() {
         </div>
       )}
       {pendingFaucetTxid && flow === 'ready' && (
-        <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
-          View faucet transaction on regtest explorer ↗
-        </a>
+        <L1Txid txid={pendingFaucetTxid} className="explorer-link">
+          Copy faucet txid
+        </L1Txid>
       )}
     </div>
     {faucet && wallet.identity && (

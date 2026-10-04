@@ -636,24 +636,10 @@ export function SendForm() {
                 baseUrl: wallet.daemonUrl,
                 window: 0,
               };
-              let saved = false;
               try {
                 const receipt = await buildPaymentReceipt(receiptParams);
                 await wallet.saveReceipt(receipt);
-                saved = true;
               } catch {
-                // Retry proof fetch once after a 12-second delay (epochs close within seconds on regtest)
-                setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Retrying proof fetch…`);
-                await new Promise(resolve => setTimeout(resolve, 12_000));
-                try {
-                  const receipt = await buildPaymentReceipt(receiptParams);
-                  await wallet.saveReceipt(receipt);
-                  saved = true;
-                } catch {
-                  // Retry failed
-                }
-              }
-              if (!saved) {
                 proofNote = 'settled and confirmed; proof not yet available (epoch still open)';
                 // Save a minimal stub receipt (txHash, epoch, amount, from/to, code) even without the HAT/RIP proof
                 const stubReceipt = {
@@ -666,6 +652,16 @@ export function SendForm() {
                   feeSats: sendFee,
                 };
                 await wallet.saveReceipt(stubReceipt);
+
+                // Background retry after 12s detached from the queue (silent: no UI updates, no toast, no blocking)
+                setTimeout(async () => {
+                  try {
+                    const retriedReceipt = await buildPaymentReceipt(receiptParams);
+                    await wallet.saveReceipt(retriedReceipt);
+                  } catch {
+                    // Background retry failed silently — keep stub receipt
+                  }
+                }, 12_000);
               }
             } catch {
               proofNote = 'settled and confirmed; proof not yet available (epoch still open)';

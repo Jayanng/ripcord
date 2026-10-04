@@ -1,5 +1,5 @@
 import { useWallet } from '../context/WalletContext';
-import { truncate, explorerAddressUrl } from './ui';
+import { truncate, L1Txid } from './ui';
 
 /**
  * Phase 7 (#28): the sentinel alert. Renders only when a breach is live
@@ -7,7 +7,7 @@ import { truncate, explorerAddressUrl } from './ui';
  * documented response: go sovereign (unilateral exit) or inspect evidence.
  */
 export function SentinelAlertBanner({ onExit }: { onExit: () => void }) {
-  const { sentinelAlert, vaultBreachReceipts, dismissSentinel, activeVault } = useWallet();
+  const { sentinelAlert, vaultBreachReceipts, dismissSentinel } = useWallet();
   const anomalous = vaultBreachReceipts.find(r => r.classification === 'anomalous' || r.classification === 'stale');
   const alert = sentinelAlert ?? (anomalous ? {
     classification: anomalous.classification,
@@ -41,14 +41,9 @@ export function SentinelAlertBanner({ onExit }: { onExit: () => void }) {
         <button type="button" className="test-pull" onClick={onExit}>
           Go to exit console
         </button>
-        <a
-          className="secondary-action"
-          href={explorerAddressUrl(activeVault?.address ?? '')}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Inspect spend on explorer ↗
-        </a>
+        <L1Txid txid={alert.spendTxid} className="secondary-action">
+          Copy spend txid
+        </L1Txid>
       </div>
     </section>
   );

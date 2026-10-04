@@ -5,7 +5,6 @@ import {
   truncate,
   explorerTxUrl,
   explorerBlockUrl,
-  explorerAddressUrl,
   explorerVaultUrl,
   explorerVtxoUrl,
   EXPLORER_BASE,
@@ -125,20 +124,15 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Vault Deposit</span>
           </div>
-          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.vaultAddress)} />
+          <L1Txid txid={item.txHash} />
         </div>
         <div>
           <span>{item.committed ? `Confirmed on L1 · outpoint vout ${item.vout}` : 'Broadcasting / Confirming on L1'}</span>
           <ConfirmationsBadge txid={item.txHash} vout={item.vout} />
           <div className="activity-actions">
-            <a
-              className="explorer-btn"
-              href={explorerAddressUrl(item.vaultAddress)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Explorer ↗
-            </a>
+            <L1Txid txid={item.txHash} className="explorer-btn">
+              Copy deposit txid
+            </L1Txid>
           </div>
         </div>
       </article>
@@ -170,22 +164,15 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Exit</span>
           </div>
-          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.destination)} />
+          <L1Txid txid={item.txHash} />
         </div>
         <div>
           <span>Exited to Bitcoin L1 · funds at your settlement address</span>
           <ConfirmationsBadge txid={item.txHash} vout={0} />
           <div className="activity-actions">
-            {/* Link to exit destination instead of vault */}
-            <a
-              className="explorer-btn"
-              href={explorerAddressUrl(item.destination)}
-              target="_blank"
-              rel="noreferrer"
-              title="View exit destination on explorer"
-            >
-              View on explorer
-            </a>
+            <L1Txid txid={item.txHash} className="explorer-btn">
+              Copy txid
+            </L1Txid>
           </div>
         </div>
       </article>
@@ -200,19 +187,14 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Faucet</span>
           </div>
-          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.address)} />
+          <L1Txid txid={item.txHash} />
         </div>
         <div>
           <span>Faucet settlement to L1 address</span>
           <div className="activity-actions">
-            <a
-              className="explorer-btn"
-              href={explorerAddressUrl(item.address)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Explorer ↗
-            </a>
+            <L1Txid txid={item.txHash} className="explorer-btn">
+              Copy faucet txid
+            </L1Txid>
           </div>
         </div>
       </article>

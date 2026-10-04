@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { explorerAddressUrl, EXPLORER_BASE, truncate } from './ui';
+import { truncate, L1Txid } from './ui';
 
 type Props = {
   txid: string;
@@ -71,15 +71,13 @@ export function ExitSuccessModal({ txid, amountSats, destination, onClose }: Pro
           <div>
             <dt>Transaction</dt>
             <dd>
-              <a href={destination ? explorerAddressUrl(destination) : EXPLORER_BASE} target="_blank" rel="noreferrer">
-                {truncate(txid, 12, 10)}
-              </a>
+              <L1Txid txid={txid} />
             </dd>
           </div>
         </dl>
         <p className="flow-note" role="status">
           The vault shows as spent from now on. The transaction is the proof of
-          this exit: open it on the explorer above to verify.
+          this exit: copy the transaction id above to verify.
         </p>
         <div className="ripcord-actions">
           <button type="button" className="test-pull" onClick={onClose}>
