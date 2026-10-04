@@ -624,8 +624,8 @@ export function SendForm() {
             let proofNote = 'proof saved';
             try {
               const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
-              const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex');
-              const receipt = await buildPaymentReceipt({
+              const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex') as import('@ripcord/core/types').XOnlyHex;
+              const receiptParams = {
                 txHash: committed.txHash,
                 epoch: committed.epoch,
                 code: committed.code,
@@ -635,10 +635,40 @@ export function SendForm() {
                 feeSats: sendFee,
                 baseUrl: wallet.daemonUrl,
                 window: 0,
-              });
-              await wallet.saveReceipt(receipt);
+              };
+              let saved = false;
+              try {
+                const receipt = await buildPaymentReceipt(receiptParams);
+                await wallet.saveReceipt(receipt);
+                saved = true;
+              } catch {
+                // Retry proof fetch once after a 12-second delay (epochs close within seconds on regtest)
+                setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Retrying proof fetch…`);
+                await new Promise(resolve => setTimeout(resolve, 12_000));
+                try {
+                  const receipt = await buildPaymentReceipt(receiptParams);
+                  await wallet.saveReceipt(receipt);
+                  saved = true;
+                } catch {
+                  // Retry failed
+                }
+              }
+              if (!saved) {
+                proofNote = 'settled and confirmed; proof not yet available (epoch still open)';
+                // Save a minimal stub receipt (txHash, epoch, amount, from/to, code) even without the HAT/RIP proof
+                const stubReceipt = {
+                  txHash: committed.txHash,
+                  epoch: committed.epoch,
+                  code: committed.code,
+                  fromXOnly: identity.xOnly,
+                  toXOnly: recipientXOnly,
+                  amountSats: BigInt(sats),
+                  feeSats: sendFee,
+                };
+                await wallet.saveReceipt(stubReceipt);
+              }
             } catch {
-              proofNote = `settled and confirmed; its proof will appear under Proofs once epoch ${committed.epoch} closes`;
+              proofNote = 'settled and confirmed; proof not yet available (epoch still open)';
             }
             recordSpend({
               at: Date.now(),

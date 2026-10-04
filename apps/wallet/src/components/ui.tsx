@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode, type CSSProperties, type MouseEvent, type KeyboardEvent } from 'react';
 
 export { formatSats } from '../lib/format';
 export const truncate = (value: string, start = 8, end = 6) => value.length > start + end ? `${value.slice(0, start)}…${value.slice(-end)}` : value;
@@ -11,29 +11,74 @@ export const explorerVtxoUrl = (vtxoId: string) => `${EXPLORER_BASE}/vtxo/${vtxo
 
 export function L1Txid({
   txid,
-  href,
+  href: _href,
   className = 'tx-link',
   children,
 }: {
   txid: string;
-  href: string;
+  href?: string;
   className?: string;
   children?: ReactNode;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleClick = (e: MouseEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(txid).catch(() => {});
+    }
+    setCopied(true);
+    setTimeout(() => {
+      setCopied(false);
+    }, 1500);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLSpanElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(txid).catch(() => {});
+      }
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    }
+  };
+
   return (
-    <a
+    <span
+      role="button"
+      tabIndex={0}
       className={className}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      title={`View on regtest explorer: ${txid}`}
+      style={{ cursor: 'pointer' }}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      title="Click to copy transaction id"
     >
-      {children ?? `${truncate(txid, 14, 10)} ↗`}
-    </a>
+      {copied ? (
+        'copied!'
+      ) : (
+        children ?? (
+          <>
+            {truncate(txid, 14, 10)} <Icon name="copy" style={{ width: 14, height: 14 }} />
+          </>
+        )
+      )}
+    </span>
   );
 }
 
-export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activity' | 'ripcord' | 'shield' | 'close' | 'wallet' | 'exit' | 'proofs' | 'docs' | 'copy' | 'check' }) {
+export function Icon({
+  name,
+  className = 'icon',
+  style,
+}: {
+  name: 'balance' | 'send' | 'receive' | 'activity' | 'ripcord' | 'shield' | 'close' | 'wallet' | 'exit' | 'proofs' | 'docs' | 'copy' | 'check';
+  className?: string;
+  style?: CSSProperties;
+}) {
   const paths: Record<typeof name, ReactNode> = {
     wallet: <><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></>,
     balance: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M16 10h5v4h-5a2 2 0 0 1 0-4Z"/></>,
@@ -49,5 +94,5 @@ export function Icon({ name }: { name: 'balance' | 'send' | 'receive' | 'activit
     copy: <><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></>,
     check: <><path d="M20 6 9 17l-5-5"/></>,
   };
-  return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+  return <svg className={className} style={style} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
