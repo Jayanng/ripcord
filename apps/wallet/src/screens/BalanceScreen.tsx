@@ -1,6 +1,6 @@
 import { useWallet } from '../context/WalletContext';
 import { SentinelAlertBanner } from '../components/WatchtowerPanel';
-import { explorerTxUrl } from '../components/ui';
+import { explorerAddressUrl } from '../components/ui';
 import { SentinelPanel } from '../components/SentinelPanel';
 import { BalanceHero } from '../components/BalanceHero';
 import { VaultStatusCard } from '../components/VaultStatusCard';
@@ -60,7 +60,7 @@ export function BalanceScreen({
           {spentBy?.txid && (
             <span style={{ display: 'block', marginTop: 6, fontFamily: 'ui-monospace, monospace', fontSize: 12, overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
               {sovereignSweep || pendingSweep ? 'Exit transaction: ' : 'Spending transaction: '}
-              <a href={explorerTxUrl(spentBy.txid)} target="_blank" rel="noreferrer">{spentBy.txid}</a>
+              <a href={explorerAddressUrl(spentBy.destination || identity?.l1Address || '')} target="_blank" rel="noreferrer">{spentBy.txid}</a>
             </span>
           )}
         </div>

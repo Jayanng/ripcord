@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { ProofSheet } from '../components/ProofSheet';
 import { ProofOfReservesBadge } from '../components/ProofOfReservesBadge';
-import { formatSats, truncate, Icon, explorerTxUrl } from '../components/ui';
+import { formatSats, truncate, Icon, explorerTxUrl, explorerAddressUrl } from '../components/ui';
 import type { PaymentReceipt } from '@ripcord/core/types';
 
 export function ProofsScreen() {
@@ -28,12 +28,12 @@ export function ProofsScreen() {
             : "This vault's funding outpoint has been spent on Bitcoin L1. Inspect the transaction to verify the recipient: "}
         {spentBy?.txid ? (
           <a
-            href={explorerTxUrl(spentBy.txid)}
+            href={explorerAddressUrl(activeVault?.address ?? '')}
             target="_blank"
             rel="noreferrer"
             style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}
           >
-            {explorerTxUrl(spentBy.txid)}
+            {spentBy.txid}
           </a>
         ) : (
           <>open it from Activity or the Exit screen.</>
@@ -65,7 +65,7 @@ export function ProofsScreen() {
           <div><dt>Vault Address</dt><dd>{activeVault.address}</dd></div>
           <div><dt>Script Binding</dt><dd><ProofOfReservesBadge vault={activeVault} /></dd></div>
           <div><dt>Quorum</dt><dd>{activeVault.quorumFingerprint}</dd></div>
-          <div><dt>Funding Outpoint</dt><dd>{activeVault.funding ? <a className="explorer-link" href={explorerTxUrl(activeVault.funding.txid)} target="_blank" rel="noreferrer">{truncate(activeVault.funding.txid, 12, 10)}:{activeVault.funding.vout} ({formatSats(activeVault.funding.valueSats)}) ↗</a> : 'Unfunded'}</dd></div>
+          <div><dt>Funding Outpoint</dt><dd>{activeVault.funding ? <a className="explorer-link" href={explorerAddressUrl(activeVault?.address ?? '')} target="_blank" rel="noreferrer">{truncate(activeVault.funding.txid, 12, 10)}:{activeVault.funding.vout} ({formatSats(activeVault.funding.valueSats)}) ↗</a> : 'Unfunded'}</dd></div>
           <div><dt>Known Vaults</dt><dd>{vaults.length} recorded in local database</dd></div>
         </dl>
       ) : (

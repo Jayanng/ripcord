@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { explorerTxUrl, truncate } from './ui';
+import { explorerAddressUrl, EXPLORER_BASE, truncate } from './ui';
 
 type Props = {
   txid: string;
@@ -71,7 +71,7 @@ export function ExitSuccessModal({ txid, amountSats, destination, onClose }: Pro
           <div>
             <dt>Transaction</dt>
             <dd>
-              <a href={explorerTxUrl(txid)} target="_blank" rel="noreferrer">
+              <a href={destination ? explorerAddressUrl(destination) : EXPLORER_BASE} target="_blank" rel="noreferrer">
                 {truncate(txid, 12, 10)}
               </a>
             </dd>

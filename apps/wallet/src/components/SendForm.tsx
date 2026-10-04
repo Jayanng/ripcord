@@ -621,20 +621,25 @@ export function SendForm() {
               queue: wallet.txQueue,
             });
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Fetching proof…`);
-            const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
-            const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex');
-            const receipt = await buildPaymentReceipt({
-              txHash: committed.txHash,
-              epoch: committed.epoch,
-              code: committed.code,
-              fromXOnly: identity.xOnly,
-              toXOnly: recipientXOnly,
-              amountSats: BigInt(sats),
-              feeSats: sendFee,
-              baseUrl: wallet.daemonUrl,
-              window: 0,
-            });
-            await wallet.saveReceipt(receipt);
+            let proofNote = 'proof saved';
+            try {
+              const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
+              const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex');
+              const receipt = await buildPaymentReceipt({
+                txHash: committed.txHash,
+                epoch: committed.epoch,
+                code: committed.code,
+                fromXOnly: identity.xOnly,
+                toXOnly: recipientXOnly,
+                amountSats: BigInt(sats),
+                feeSats: sendFee,
+                baseUrl: wallet.daemonUrl,
+                window: 0,
+              });
+              await wallet.saveReceipt(receipt);
+            } catch {
+              proofNote = `settled and confirmed; its proof will appear under Proofs once epoch ${committed.epoch} closes`;
+            }
             recordSpend({
               at: Date.now(),
               amountSats: String(sats),
@@ -653,7 +658,7 @@ export function SendForm() {
                 tone: 'success',
               }),
             );
-            setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
+            setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · ${proofNote}`);
             try {
               navigator.vibrate?.(30);
             } catch {

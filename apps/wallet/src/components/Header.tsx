@@ -1,19 +1,5 @@
-import { useEffect, useState } from 'react';
 import type { AppTab } from './TabBar';
 import { useWallet } from '../context/WalletContext';
-import { loadAutoLockSettings, saveAutoLockSettings, cycleAutoLock, type AutoLockSettings } from '../lib/autolock';
-
-type Theme = 'light' | 'dark';
-
-/** Phase 10 (#31): theme choice persists locally; applied to <html>. */
-function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
-  try {
-    localStorage.setItem('ripcord:theme', theme);
-  } catch {
-    // storage unavailable; theme stays for this session only
-  }
-}
 
 export function Header({
   active,
@@ -26,23 +12,7 @@ export function Header({
 }) {
   const tabs: AppTab[] = ['wallet', 'exit', 'proofs', 'activity'];
   const wallet = useWallet();
-  const [autoLock, setAutoLock] = useState<AutoLockSettings>(() => loadAutoLockSettings());
-  // Phase 10 (#31): dark mode on the existing token set.
-  const [theme, setTheme] = useState<Theme>(() => {
-    try {
-      return localStorage.getItem('ripcord:theme') === 'dark' ? 'dark' : 'light';
-    } catch {
-      return 'light';
-    }
-  });
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-  useEffect(() => {
-    const sync = () => setAutoLock(loadAutoLockSettings());
-    window.addEventListener('ripcord:autolock-changed', sync);
-    return () => window.removeEventListener('ripcord:autolock-changed', sync);
-  }, []);
+
   return <header className="topbar">
     <button className="brand brand-button" aria-label="Ripcord home" onClick={() => onChange('wallet')}>
       <span className="brand-mark" aria-hidden="true">
@@ -75,15 +45,7 @@ export function Header({
       </nav>
     )}
     <div className="topbar-actions">
-      {/* Phase 10 (#29): security chip - the custody posture at a glance */}
-      <span
-        className="security-chip"
-        title="Nothing key-shaped is written to storage or sent anywhere. Your keys exist only while the wallet is open."
-      >
-        <span className="security-chip-dot" aria-hidden="true" />
-        Keys never stored
-      </span>
-      {/* Phase 4: display unit + auto-lock pills */}
+      {/* Phase 4: display unit toggle */}
       <button
         type="button"
         className="theme-toggle"
@@ -92,29 +54,6 @@ export function Header({
         onClick={() => wallet.setDisplayUnit(wallet.displayUnit === 'sats' ? 'btc' : 'sats')}
       >
         {wallet.displayUnit === 'sats' ? 'sats' : 'BTC'}
-      </button>
-      <button
-        type="button"
-        className="theme-toggle"
-        aria-label={`Auto-lock: ${autoLock.enabled ? `locks after ${autoLock.minutes} minutes idle` : 'off'}. Click to change.`}
-        title="Locks the wallet after idle time by clearing the keys from memory. Keys are never stored."
-        onClick={() => {
-          const next = cycleAutoLock(autoLock);
-          setAutoLock(next);
-          saveAutoLockSettings(next);
-          window.dispatchEvent(new CustomEvent('ripcord:autolock-changed'));
-        }}
-      >
-        {autoLock.enabled ? `Lock ${autoLock.minutes}m` : 'Lock off'}
-      </button>
-      {/* Phase 10 (#31): theme toggle */}
-      <button
-        type="button"
-        className="theme-toggle"
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-        onClick={() => setTheme(current => (current === 'dark' ? 'light' : 'dark'))}
-      >
-        {theme === 'dark' ? 'Light' : 'Dark'}
       </button>
     </div>
   </header>;

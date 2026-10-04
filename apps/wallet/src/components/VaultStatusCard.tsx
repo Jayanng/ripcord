@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
-import { truncate } from './ui';
+import { truncate, explorerAddressUrl } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -204,7 +204,6 @@ export function VaultStatusCard() {
 
   if (!wallet.identity) return null;
 
-  const explorerUrl = (txid: string) => `https://regtest.tachibtcscan.com/tx/${txid}`;
   const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
   const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
 
@@ -316,7 +315,7 @@ export function VaultStatusCard() {
             {wallet.activeVault?.funding ? (
               <a
                 className="explorer-link"
-                href={explorerUrl(wallet.activeVault.funding.txid)}
+                href={explorerAddressUrl(wallet.activeVault?.address ?? '')}
                 target="_blank"
                 rel="noreferrer"
                 title={`Funding tx: ${wallet.activeVault.funding.txid}`}
@@ -326,7 +325,7 @@ export function VaultStatusCard() {
             ) : depositTxid || savedDepositTxid ? (
               <a
                 className="explorer-link"
-                href={explorerUrl(depositTxid || savedDepositTxid!)}
+                href={explorerAddressUrl(wallet.activeVault?.address ?? '')}
                 target="_blank"
                 rel="noreferrer"
                 title={`Deposit tx: ${depositTxid || savedDepositTxid}`}
@@ -375,7 +374,7 @@ export function VaultStatusCard() {
         </div>
       )}
       {pendingFaucetTxid && flow === 'ready' && (
-        <a className="explorer-link" href={explorerUrl(pendingFaucetTxid)} target="_blank" rel="noreferrer">
+        <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
           View faucet transaction on regtest explorer ↗
         </a>
       )}

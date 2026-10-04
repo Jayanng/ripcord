@@ -1,6 +1,16 @@
 import type { IndexerEvent } from '@ripcord/core/indexer';
 import type { PaymentReceipt } from '@ripcord/core/types';
-import { formatSats, truncate, explorerTxUrl, explorerBlockUrl } from './ui';
+import {
+  formatSats,
+  truncate,
+  explorerTxUrl,
+  explorerBlockUrl,
+  explorerAddressUrl,
+  explorerVaultUrl,
+  explorerVtxoUrl,
+  EXPLORER_BASE,
+  L1Txid,
+} from './ui';
 import { ConfirmationsBadge } from './ConfirmationsBadge';
 
 export interface VaultDepositActivity {
@@ -114,15 +124,7 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Vault Deposit</span>
           </div>
-          <a
-            className="tx-link"
-            href={explorerTxUrl(item.txHash)}
-            target="_blank"
-            rel="noreferrer"
-            title={`View deposit transaction ${item.txHash} on regtest explorer`}
-          >
-            {truncate(item.txHash, 14, 10)} ↗
-          </a>
+          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.vaultAddress)} />
         </div>
         <div>
           <span>{item.committed ? `Confirmed on L1 · outpoint vout ${item.vout}` : 'Broadcasting / Confirming on L1'}</span>
@@ -130,7 +132,7 @@ export function ActivityRow({
           <div className="activity-actions">
             <a
               className="explorer-btn"
-              href={explorerTxUrl(item.txHash)}
+              href={explorerAddressUrl(item.vaultAddress)}
               target="_blank"
               rel="noreferrer"
             >
@@ -167,15 +169,7 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Exit</span>
           </div>
-          <a
-            className="tx-link"
-            href={explorerTxUrl(item.txHash)}
-            target="_blank"
-            rel="noreferrer"
-            title={`View exit transaction ${item.txHash} on regtest explorer`}
-          >
-            {truncate(item.txHash, 14, 10)} ↗
-          </a>
+          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.vaultAddress)} />
         </div>
         <div>
           <span>Exited to Bitcoin L1 · funds at your settlement address</span>
@@ -183,7 +177,7 @@ export function ActivityRow({
           <div className="activity-actions">
             <a
               className="explorer-btn"
-              href={explorerTxUrl(item.txHash)}
+              href={explorerAddressUrl(item.vaultAddress)}
               target="_blank"
               rel="noreferrer"
             >
@@ -203,22 +197,14 @@ export function ActivityRow({
             <strong>{formatSats(item.amountSats)}</strong>
             <span className="activity-tag l1">L1 Faucet</span>
           </div>
-          <a
-            className="tx-link"
-            href={explorerTxUrl(item.txHash)}
-            target="_blank"
-            rel="noreferrer"
-            title={`View faucet transaction ${item.txHash} on regtest explorer`}
-          >
-            {truncate(item.txHash, 14, 10)} ↗
-          </a>
+          <L1Txid txid={item.txHash} href={explorerAddressUrl(item.address)} />
         </div>
         <div>
           <span>Faucet settlement to L1 address</span>
           <div className="activity-actions">
             <a
               className="explorer-btn"
-              href={explorerTxUrl(item.txHash)}
+              href={explorerAddressUrl(item.address)}
               target="_blank"
               rel="noreferrer"
             >
@@ -280,7 +266,7 @@ export function ActivityRow({
           {txHash ? (
             <a
               className="tx-link"
-              href={explorerTxUrl(txHash)}
+              href={explorerVtxoUrl(item.id)}
               target="_blank"
               rel="noreferrer"
               title={`View spent VTXO ${item.id} on regtest explorer`}
@@ -297,7 +283,7 @@ export function ActivityRow({
             {txHash && (
               <a
                 className="explorer-btn"
-                href={explorerTxUrl(txHash)}
+                href={explorerVtxoUrl(item.id)}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -311,6 +297,7 @@ export function ActivityRow({
   }
 
   if (item.kind === 'vault:breach') {
+    const breachHref = item.vaultId ? explorerVaultUrl(item.vaultId) : EXPLORER_BASE;
     return (
       <article className="activity-row committed" style={{ borderLeft: '3px solid #DC2626' }}>
         <div>
@@ -318,22 +305,14 @@ export function ActivityRow({
             <strong>Watchtower breach</strong>
             <span className="activity-tag l1">{item.classification}</span>
           </div>
-          <a
-            className="tx-link"
-            href={explorerTxUrl(item.spendTxid)}
-            target="_blank"
-            rel="noreferrer"
-            title={`View L1 spend transaction ${item.spendTxid} on regtest explorer`}
-          >
-            {truncate(item.spendTxid, 14, 10)} ↗
-          </a>
+          <L1Txid txid={item.spendTxid} href={breachHref} />
         </div>
         <div>
           <span>
             Vault funding spent at L1 block {item.detectedHeight} · states {item.broadcastState}/{item.latestState}
           </span>
           <div className="activity-actions">
-            <a className="explorer-btn" href={explorerTxUrl(item.spendTxid)} target="_blank" rel="noreferrer">
+            <a className="explorer-btn" href={breachHref} target="_blank" rel="noreferrer">
               Explorer ↗
             </a>
           </div>

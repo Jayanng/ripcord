@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { Icon, truncate, explorerTxUrl, explorerBlockUrl, formatSats } from './ui';
+import { Icon, truncate, explorerVtxoUrl, explorerBlockUrl, formatSats } from './ui';
 import { deriveVtxoProvenance, type VtxoRecordItem, type VtxoProvenance } from '../lib/provenance';
 import { joinDaemonUrl } from '@ripcord/core/net';
 
@@ -281,7 +281,7 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
           {/* Explorer Link */}
           <div className="vtxo-detail-item" style={{ paddingTop: '8px' }}>
             <a
-              href={explorerTxUrl(current.id)}
+              href={explorerVtxoUrl(String(current.id).split(':')[0])}
               target="_blank"
               rel="noreferrer"
               className="action-btn"

@@ -3,7 +3,7 @@ import { generateMnemonic } from 'bip39';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
-import { truncate } from '../components/ui';
+import { truncate, explorerAddressUrl } from '../components/ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -216,7 +216,6 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     };
   }, [wallet.identity, wallet.vaults, busy, flow]);
 
-  const explorerUrl = (txid: string) => `https://regtest.tachibtcscan.com/tx/${txid}`;
   const isDepositBroadcast = Boolean(depositTxid || savedDepositTxid || wallet.activeVault?.funding);
   const isDepositConfirmed = ['minting', 'registering', 'complete'].includes(flow) || vaultReady;
 
@@ -313,12 +312,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           {error || statusText}
         </p>
         {pendingFaucetTxid && flow === 'ready' && (
-          <a className="explorer-link" href={explorerUrl(pendingFaucetTxid)} target="_blank" rel="noreferrer">
+          <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
             View faucet transaction on regtest explorer ↗
           </a>
         )}
         {(depositTxid || savedDepositTxid) && (
-          <a className="explorer-link" href={explorerUrl(depositTxid || savedDepositTxid!)} target="_blank" rel="noreferrer">
+          <a className="explorer-link" href={explorerAddressUrl(wallet.identity?.l1Address ?? '')} target="_blank" rel="noreferrer">
             View deposit on the regtest explorer ↗
           </a>
         )}
