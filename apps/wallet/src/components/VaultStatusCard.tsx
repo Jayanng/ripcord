@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
-import { truncate, L1Txid } from './ui';
+import { truncate, L1Txid, explorerVaultUrl } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -283,7 +283,14 @@ export function VaultStatusCard() {
           <dt>Vault ID</dt>
           <dd title={wallet.activeVault?.vaultIdHex || undefined}>
             {wallet.activeVault?.vaultIdHex ? (
-              truncate(wallet.activeVault.vaultIdHex, 14, 10)
+              <a
+                className="explorer-link"
+                href={explorerVaultUrl(wallet.activeVault.vaultIdHex)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {truncate(wallet.activeVault.vaultIdHex, 14, 10)}
+              </a>
             ) : (
               <span className="pending-funding-area">
                 <span>Pending funding</span>

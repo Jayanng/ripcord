@@ -81,7 +81,7 @@ export function ProofsScreen() {
               <div className="proof-item-info">
                 <strong>{formatSats(receipt.amountSats)}</strong>
                 <span>Tx: <a className="explorer-link" href={explorerTxUrl(receipt.txHash)} target="_blank" rel="noreferrer">{truncate(receipt.txHash, 14, 10)} ↗</a> · Epoch {receipt.epoch}</span>
-                <span>{receipt.hat ? '✓ HAT proof committed' : 'Awaiting HAT'} · {receipt.rip ? `${receipt.rip.chainLength} epoch RIP chain` : 'Self-proof'}</span>
+                <span>{receipt.hat ? '✓ HAT proof committed' : 'Awaiting HAT'} · {receipt.rip ? `${receipt.rip.chainLength} epoch RIP chain` : 'Not fetched yet'}</span>
               </div>
               <button
                 type="button"

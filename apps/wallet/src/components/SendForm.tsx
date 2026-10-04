@@ -396,6 +396,14 @@ export function SendForm() {
   const [queuedCount, setQueuedCount] = useState(0);
   const [result, setResult] = useState('');
   const [error, setError] = useState<{ field: Field; message: string } | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const latestSendIdRef = useRef(0);
 
   // FIX #11: Review state
   const [showReview, setShowReview] = useState(false);
@@ -569,6 +577,8 @@ export function SendForm() {
 
   // Execution via TxQueue (queue.ts preserved)
   const executeSend = async () => {
+    const sendId = Date.now();
+    latestSendIdRef.current = sendId;
     setError(null);
     setResult('');
     const sendFee = reviewedFeeRef.current ?? feeSats;
@@ -658,7 +668,9 @@ export function SendForm() {
                   try {
                     const retriedReceipt = await buildPaymentReceipt(receiptParams);
                     await wallet.saveReceipt(retriedReceipt);
-                    setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
+                    if (mountedRef.current && latestSendIdRef.current === sendId) {
+                      setResult(`Committed ${committed.txHash} at epoch ${committed.epoch} · proof saved`);
+                    }
                   } catch {
                     // Background retry failed silently — keep stub receipt
                   }

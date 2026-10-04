@@ -103,10 +103,9 @@ export function ActivityRow({
             </a>
             <button
               type="button"
-              disabled={!item.hat}
               onClick={() => onProof(item)}
             >
-              {item.hat ? 'View proof' : 'Proof unavailable'}
+              {item.hat ? 'View proof' : 'Fetch proof'}
             </button>
           </div>
         </div>

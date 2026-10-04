@@ -4,7 +4,7 @@ import { useRefund, type RefundReadiness, type ClaimReadiness } from '../hooks/u
 import { composeFlowErrorMessage } from '@ripcord/core/lifecycle';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
-import { truncate, formatSats } from './ui';
+import { truncate, formatSats, L1Txid } from './ui';
 
 type Phase = 'idle' | 'assessing' | 'assessed' | 'broadcasting' | 'broadcast' | 'claiming' | 'claimed';
 
@@ -163,12 +163,12 @@ export function RefundPanel() {
       {phase === 'claiming' && <p className="flow-note" role="status">Sweeping the payout to your L1 address…</p>}
       {refundTxid && phase !== 'claimed' && (
         <p className="flow-note" role="status">
-          Refund broadcast: {truncate(refundTxid, 10, 8)}
+          Refund broadcast: <L1Txid txid={refundTxid} />
           {claimStatus === 'live' ? ' · payout mature, hold the claim button to sweep it.' : ' · tracking payout maturity.'}
         </p>
       )}
       {phase === 'claimed' && claimTxid && (
-        <p className="flow-note" role="status">Payout claimed: {truncate(claimTxid, 10, 8)} · funds sent to your L1 settlement address.</p>
+        <p className="flow-note" role="status">Payout claimed: <L1Txid txid={claimTxid} /> · funds sent to your L1 settlement address.</p>
       )}
       {error && <p className="inline-error" role="alert">{error}</p>}
     </section>
