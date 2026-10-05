@@ -10,14 +10,14 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 
 | Import | What lives there |
 | --- | --- |
-| `@ripcord/core` | Everything below, re-exported |
+| `@ripcord/core` | Core API (keys, quorum, vault, deposit, register, lifecycle, payment, coinselect, queue, indexer, proofs, health, exit, refund, recovery, net, errors, store, types, bytes, search). Modules marked "subpath only" require direct subpath imports. |
 | `./keys` `./quorum` `./vault` `./deposit` `./register` `./lifecycle` | Identity, quorum discovery, vault lifecycle (incl. idempotent re-registration adoption), flow orchestration |
 | `./payment` `./coinselect` `./queue` | VTXO sends with per-input scripts, coin selection, serializing TxQueue |
 | `./indexer` `./proofs` `./health` | Live indexing + receipts, HAT/RIP proofs, daemon health/watchtower reads |
 | `./exit` `./refund` `./recovery` | Unilateral exit assessment/execution, cooperative refunds, recovery |
 | `./net` `./errors` `./store` `./types` `./bytes` `./search` | Daemon URL joining & fetch failure diagnosis, friendly error mapping, pluggable stores, txid byte order + JSON serialization, types, live chain search |
-| `./sentinel` `./exit-certificate` `./spend-conscience` | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine |
-| `./idle-timer` `./address-safety` `./units` | Injectable idle timer (auto-lock), address highlight and mangled-paste checks, sats/BTC formatting |
+| `./sentinel` `./exit-certificate` `./spend-conscience` **(subpath only)** | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine. Import via `@ripcord/core/sentinel`, `@ripcord/core/exit-certificate`, `@ripcord/core/spend-conscience` — not re-exported from the root. |
+| `./idle-timer` `./address-safety` `./units` | Injectable idle timer, address highlight and mangled-paste checks, sats/BTC formatting |
 
 The current release is **fully functional on Tachi regtest**. It is not production custody software and must not be used with funds that matter.
 
