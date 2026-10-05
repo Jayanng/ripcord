@@ -49,11 +49,17 @@ The package exports the root API and focused subpaths for `types`, `bytes`, `net
 
 ## Releases
 
-- **0.2.1** (2026-10-03) — current release, published to npm. Exit
+- **0.2.1** (2026-10-05) — current release, published to npm. Exit
   certificate reports the real sweep (top-level mandated export fields,
   tree-proof gate before broadcast), spend reconciliation against L1
   reserves, recoverVaults binding fix, activity feed dedupe helpers, and the
-  explorer base rewired to `regtest.tachibtcscan.com`. Source: tag `v0.2.1`.
+  explorer base rewired to `regtest.tachibtcscan.com`. Post-tag fixes included:
+  L1/Tachi link separation (Tachi-native ids link to the explorer, L1 ids are
+  click-to-copy), auto-lock removed (keys never stored, dropped at session end),
+  honest proof handling (background retry when epoch closes, no false "Self-proof"
+  labels), send race guards (request-ID checks on all completion paths),
+  vault links route to `/vtxo/` with correct ID format, and certificate export
+  with no broken URLs. Source: tag `v0.2.1`, npm `0.2.1`.
 - **0.2.0** (2026-09-28) — previous release. Money-path
   hardening: resume-path money contract, `code=17` binding truth, refresh-race
   fix, record-keyed vault storage, sibling-safe funding scans, key-state fixes.
