@@ -55,19 +55,7 @@ Five features exist here that a judge can verify in minutes:
 2. **Proof receipts.** Transfers carry HAT and RIP chain evidence that auto-populates in the receipt sheet. Where the daemon cannot attest something, the UI says so instead of decorating the gap.
 3. **Sentinel Health Score.** A single watch-only score over vault state, exit maturity, balance cross-checks against the live chain, quorum health, and watchtower receipts. It reads the network and signs nothing.
 4. **Self-healing app.** Local database jams, stale service workers, and unreadable storage are detected and recovered from, with honest screens that say what happened and how to restore (Recover wallet with the phrase). Exits are visible everywhere: a completion dialog, an Activity trail, and balances that report zero on purpose after the sweep.
-5. **Keys never stored.** No plaintext, no encrypted vault, no localStorage. The mnemonic is typed in when needed and dropped from memory when the session ends. Browser-wipe recovery rebuilds everything from live chain data. Most wallets store keys in `localStorage` or an encrypted blob; RIPCORD stores none.
-
-### How RIPCORD compares to typical hackathon wallets
-
-| | RIPCORD | Typical competitor |
-|---|---|---|
-| **Key storage** | Never stored (memory only) | Plaintext `localStorage` or encrypted blob |
-| **Automated tests** | 492 live tests, zero mocks allowed | 0 tests |
-| **Transfer flow** | Real consensus broadcast, live commit | Simulated / mock data |
-| **Proof verification** | HAT/RIP chain evidence, exportable | None |
-| **Exit evidence** | 4 cryptographic checks with raw evidence | Basic "exit broadcast" message |
-| **Architectural gates** | `npm run check:rules` mechanical enforcement | None |
-| **Disaster recovery** | Cold-start browser-wipe recovery, proven live | Lost if browser storage clears |
+5. **Keys never stored.** No plaintext, no encrypted vault, no localStorage. The mnemonic is typed in when needed and dropped from memory when the session ends. Browser-wipe recovery rebuilds everything from live chain data.
 
 ## Why RIPCORD exists
 
