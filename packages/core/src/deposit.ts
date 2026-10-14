@@ -325,10 +325,19 @@ export function useProxyAwareTaurusRpc(baseUrl: string, network: TachiNetwork = 
     signet: agg.SIGNET,
   };
   const target = aggNetworks[network] as {
-    rpc: { jsonRpc: string; rest: string };
+    rpc: { jsonRpc: string; rest: string; esplora?: string };
   };
   target.rpc.jsonRpc = baseUrl;
   target.rpc.rest = baseUrl;
+  // Clear the esplora preference (root-caused live 2026-10-15 on signet): the
+  // aggregator's broadcastTx/getUtxos read network.rpc.esplora FIRST and POST
+  // the raw tx to the ABSOLUTE esplora URL (btc-signet.xverse.app/tx) — a
+  // cross-origin POST browsers CORS-block with "Failed to fetch" (it is not an
+  // EsploraTransportError, so the jsonRpc fallback never runs). REGTEST has no
+  // esplora field at all (dist REGTEST rpc = {jsonRpc, rest, explorer}), so
+  // regtest always used the jsonRpc path — clearing it makes signet behave
+  // exactly as regtest always did, through the same-origin proxy.
+  target.rpc.esplora = '';
 }
 
 export async function depositFromMnemonic(params: DepositFromMnemonicParams): Promise<DepositResult> {

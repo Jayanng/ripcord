@@ -94,6 +94,23 @@ export function VaultStatusCard() {
     }
   };
 
+  // Auto-continue the funding pipeline the moment confirmed L1 funds sit at the
+  // settlement address (user request 2026-10-15: "since we manually funded on
+  // l1, step 1 to 3 should be automatically filled immediately funds land and
+  // continue the process automatically"). One-shot ref guard; the pipeline's
+  // persisted deposit-txid + claimed-outpoints adoption keep re-entry
+  // idempotent, so no duplicate mints from auto-resume.
+  const autoFundingStarted = useRef(false);
+  useEffect(() => {
+    if (autoFundingStarted.current) return;
+    if (busy || vaultReady || flow === 'complete' || flow === 'depositing') return;
+    if (!wallet.identity || !wallet.activeVault) return;
+    if ((wallet.l1BalanceSats ?? 0n) <= 0n) return;
+    autoFundingStarted.current = true;
+    void completeFunding();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, flow, vaultReady, wallet.l1BalanceSats, wallet.identity, wallet.activeVault]);
+
   // Start another deposit round: derive a fresh vault record for the identity
   // and select it so the existing funding flow funds THIS record. TAURUS vaults
   // are per-deposit (vault_id = H(funding_txid || vout)), so each funded round
