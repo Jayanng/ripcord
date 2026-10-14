@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_NETWORK } from './live-fixtures.js';
 import { deriveIdentity, makeSigner, userAddressForXOnly, xOnlyFromAddress } from '../src/keys.js';
 import { asXOnlyHex } from '../src/types.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
@@ -6,37 +7,49 @@ import { RipcordError, RipcordCode } from '../src/errors.js';
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const ANOTHER_MNEMONIC = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
 
+// Frozen derivation constants, per network. Both were verified against the
+// Tachi SDK's own derivation (cross-checked 2026-10-15: identical addresses);
+// keys are network-invariant, addresses differ by HRP/checksum only.
+const EXPECTED_L1 =
+  TEST_NETWORK === 'signet'
+    ? 'tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl'
+    : 'bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk';
+const EXPECTED_USER =
+  TEST_NETWORK === 'signet'
+    ? 'tb1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsdva42j'
+    : 'bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg';
+
 describe('keys.ts', () => {
   describe('deriveIdentity', () => {
     it('produces correct values for the verified fixture mnemonic', () => {
-      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
 
       expect(identity.mnemonic).toBe(TEST_MNEMONIC);
-      expect(identity.network).toBe('regtest');
+      expect(identity.network).toBe(TEST_NETWORK);
 
       expect(identity.userKeyDescriptor.version).toBe(1);
       expect(identity.userKeyDescriptor.scheme).toBe('bip84-p2wpkh');
       expect(identity.userKeyDescriptor.purpose).toBe(84);
       expect(identity.userKeyDescriptor.coinType).toBe(1);
-      expect(identity.userKeyDescriptor.network).toBe('regtest');
+      expect(identity.userKeyDescriptor.network).toBe(TEST_NETWORK);
       expect(identity.userKeyDescriptor.account).toBe(0);
       expect(identity.userKeyDescriptor.change).toBe(false);
       expect(identity.userKeyDescriptor.index).toBe(0);
       expect(identity.userKeyDescriptor.path).toBe("m/84'/1'/0'/0/0");
 
       expect(identity.userKeyDescriptor.publicKey).toBe('02e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
-      expect(identity.userKeyDescriptor.address).toBe('bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk');
+      expect(identity.userKeyDescriptor.address).toBe(EXPECTED_L1);
       expect(identity.userKeyDescriptor.addressType).toBe('p2wpkh');
 
       expect(identity.xOnly).toBe('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
       // userAddress is the P2TR payment address (R1); l1Address is the p2wpkh settlement address.
-      expect(identity.userAddress).toBe('bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg');
-      expect(identity.l1Address).toBe('bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk');
+      expect(identity.userAddress).toBe(EXPECTED_USER);
+      expect(identity.l1Address).toBe(EXPECTED_L1);
     });
 
     it('produces different keys for different mnemonics', () => {
-      const identity1 = deriveIdentity(TEST_MNEMONIC, 'regtest');
-      const identity2 = deriveIdentity(ANOTHER_MNEMONIC, 'regtest');
+      const identity1 = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
+      const identity2 = deriveIdentity(ANOTHER_MNEMONIC, TEST_NETWORK);
 
       expect(identity1.xOnly).not.toBe(identity2.xOnly);
       expect(identity1.userAddress).not.toBe(identity2.userAddress);
@@ -59,18 +72,18 @@ describe('keys.ts', () => {
     const INDEX_0_PUBKEY = '02e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
 
     it('defaults to index 0, unchanged from before the fix', () => {
-      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+      const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
       expect(identity.userKeyDescriptor.index).toBe(0);
       expect(identity.userKeyDescriptor.path).toBe("m/84'/1'/0'/0/0");
       expect(identity.userKeyDescriptor.publicKey).toBe(INDEX_0_PUBKEY);
       expect(identity.xOnly).toBe('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
-      expect(identity.userAddress).toBe('bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg');
+      expect(identity.userAddress).toBe(EXPECTED_USER);
     });
 
     it('derives a distinct identity at each index, with the right BIP-84 path', () => {
       const seen = new Set<string>();
       for (const index of [0, 1, 2, 7]) {
-        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest', index);
+        const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK, index);
         expect(identity.userKeyDescriptor.index).toBe(index);
         expect(identity.userKeyDescriptor.path).toBe(`m/84'/1'/0'/0/${index}`);
         expect(identity.xOnly).toHaveLength(64);
@@ -84,8 +97,8 @@ describe('keys.ts', () => {
       // This is the invariant that matters: a vault built from the descriptor at
       // index N must be spendable by the signer at index N.
       for (const index of [0, 1, 2, 7]) {
-        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest', index);
-        const signer = makeSigner(TEST_MNEMONIC, 'regtest', index);
+        const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK, index);
+        const signer = makeSigner(TEST_MNEMONIC, TEST_NETWORK, index);
         expect(Buffer.from(signer.publicKey).toString('hex')).toBe(identity.userKeyDescriptor.publicKey);
         expect(Buffer.from(signer.publicKey).toString('hex').slice(2)).toBe(identity.xOnly);
       }
@@ -93,10 +106,10 @@ describe('keys.ts', () => {
 
     it('rejects a non-integer or negative index', () => {
       for (const bad of [-1, 1.5, Number.NaN]) {
-        expect(() => deriveIdentity(TEST_MNEMONIC, 'regtest', bad)).toThrowError(
+        expect(() => deriveIdentity(TEST_MNEMONIC, TEST_NETWORK, bad)).toThrowError(
           expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
         );
-        expect(() => makeSigner(TEST_MNEMONIC, 'regtest', bad)).toThrowError(
+        expect(() => makeSigner(TEST_MNEMONIC, TEST_NETWORK, bad)).toThrowError(
           expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
         );
       }
@@ -117,19 +130,19 @@ describe('keys.ts', () => {
     ];
 
     it.each(BAD_MNEMONICS)('deriveIdentity rejects %s as a RipcordError', (_label, mnemonic) => {
-      expect(() => deriveIdentity(mnemonic, 'regtest')).toThrow(RipcordError);
-      expect(() => deriveIdentity(mnemonic, 'regtest')).toThrowError(
+      expect(() => deriveIdentity(mnemonic, TEST_NETWORK)).toThrow(RipcordError);
+      expect(() => deriveIdentity(mnemonic, TEST_NETWORK)).toThrowError(
         expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
       );
     });
 
     it.each(BAD_MNEMONICS)('makeSigner rejects %s as a RipcordError', (_label, mnemonic) => {
-      expect(() => makeSigner(mnemonic, 'regtest', 0)).toThrow(RipcordError);
+      expect(() => makeSigner(mnemonic, TEST_NETWORK, 0)).toThrow(RipcordError);
     });
 
     it('preserves the original SDK error as the cause', () => {
       try {
-        deriveIdentity('', 'regtest');
+        deriveIdentity('', TEST_NETWORK);
         expect.unreachable('should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(RipcordError);
@@ -140,7 +153,7 @@ describe('keys.ts', () => {
 
   describe('makeSigner', () => {
     it('produces a signer that can create valid Schnorr signatures', () => {
-      const signer = makeSigner(TEST_MNEMONIC, 'regtest', 0);
+      const signer = makeSigner(TEST_MNEMONIC, TEST_NETWORK, 0);
 
       expect(signer).toBeDefined();
       expect(signer.publicKey).toBeInstanceOf(Buffer);
@@ -158,8 +171,8 @@ describe('keys.ts', () => {
     });
 
     it('produces different signers for different indices', () => {
-      const signer0 = makeSigner(TEST_MNEMONIC, 'regtest', 0);
-      const signer1 = makeSigner(TEST_MNEMONIC, 'regtest', 1);
+      const signer0 = makeSigner(TEST_MNEMONIC, TEST_NETWORK, 0);
+      const signer1 = makeSigner(TEST_MNEMONIC, TEST_NETWORK, 1);
 
       expect(signer0.publicKey).not.toEqual(signer1.publicKey);
 
@@ -174,31 +187,31 @@ describe('keys.ts', () => {
   describe('userAddressForXOnly', () => {
     it('returns correct bech32m P2TR address for the fixture xOnly', () => {
       const xOnly = asXOnlyHex('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319');
-      const address = userAddressForXOnly(xOnly, 'regtest');
+      const address = userAddressForXOnly(xOnly, TEST_NETWORK);
 
       // P2TR (0x51 0x20 <xOnly>) yields a bech32m bcrt1p... address, NOT the
       // p2wpkh bcrt1q... address from the descriptor. Verified live on this run.
-      expect(address).toBe('bcrt1pu74j2da46j0fwqcf4tsxa8jf7dkwrj07h02yaj8q68x2pd8ecvvsq4hnlg');
+      expect(address).toBe(EXPECTED_USER);
     });
 
     it('throws RipcordError for invalid xOnly (wrong length)', () => {
-      expect(() => userAddressForXOnly('abc', 'regtest')).toThrow(RipcordError);
-      expect(() => userAddressForXOnly('abc', 'regtest')).toThrowError(
+      expect(() => userAddressForXOnly('abc', TEST_NETWORK)).toThrow(RipcordError);
+      expect(() => userAddressForXOnly('abc', TEST_NETWORK)).toThrowError(
         expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
       );
     });
 
     it('throws RipcordError for invalid xOnly (non-hex)', () => {
       const invalid = 'g'.repeat(64);
-      expect(() => userAddressForXOnly(invalid, 'regtest')).toThrow(RipcordError);
-      expect(() => userAddressForXOnly(invalid, 'regtest')).toThrowError(
+      expect(() => userAddressForXOnly(invalid, TEST_NETWORK)).toThrow(RipcordError);
+      expect(() => userAddressForXOnly(invalid, TEST_NETWORK)).toThrowError(
         expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
       );
     });
 
     it('throws RipcordError for empty string', () => {
-      expect(() => userAddressForXOnly('', 'regtest')).toThrow(RipcordError);
-      expect(() => userAddressForXOnly('', 'regtest')).toThrowError(
+      expect(() => userAddressForXOnly('', TEST_NETWORK)).toThrow(RipcordError);
+      expect(() => userAddressForXOnly('', TEST_NETWORK)).toThrowError(
         expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
       );
     });
@@ -220,8 +233,8 @@ describe('keys.ts', () => {
       ];
 
       it.each(OFF_CURVE)('rejects %s as a RipcordError, not a raw bitcoinjs Error', (_label, key) => {
-        expect(() => userAddressForXOnly(key, 'regtest')).toThrow(RipcordError);
-        expect(() => userAddressForXOnly(key, 'regtest')).toThrowError(
+        expect(() => userAddressForXOnly(key, TEST_NETWORK)).toThrow(RipcordError);
+        expect(() => userAddressForXOnly(key, TEST_NETWORK)).toThrowError(
           expect.objectContaining({ code: RipcordCode.INVALID_FORMAT })
         );
       });
@@ -237,36 +250,37 @@ describe('keys.ts', () => {
       });
 
       it('still accepts a real derived x-only key', () => {
-        const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
-        expect(userAddressForXOnly(identity.xOnly, 'regtest')).toBe(identity.userAddress);
+        const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
+        expect(userAddressForXOnly(identity.xOnly, TEST_NETWORK)).toBe(identity.userAddress);
       });
     });
   });
 
   describe('xOnlyFromAddress', () => {
     it('extracts validated 32-byte x-only public key from a P2TR address', () => {
-      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
-      const buf = xOnlyFromAddress(identity.userAddress, 'regtest');
+      const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
+      const buf = xOnlyFromAddress(identity.userAddress, TEST_NETWORK);
       expect(buf).toBeInstanceOf(Buffer);
       expect(buf.length).toBe(32);
       expect(buf.toString('hex')).toBe(identity.xOnly);
     });
 
-    it('defaults network to regtest when omitted', () => {
-      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
+    // Asserts the regtest default semantics with a regtest fixture.
+    it.skipIf(TEST_NETWORK !== 'regtest')('defaults network to regtest when omitted', () => {
+      const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
       const buf = xOnlyFromAddress(identity.userAddress);
       expect(buf.toString('hex')).toBe(identity.xOnly);
     });
 
     it('rejects a P2WPKH address with a clear P2TR requirement error', () => {
-      const identity = deriveIdentity(TEST_MNEMONIC, 'regtest');
-      expect(() => xOnlyFromAddress(identity.l1Address, 'regtest')).toThrow(
+      const identity = deriveIdentity(TEST_MNEMONIC, TEST_NETWORK);
+      expect(() => xOnlyFromAddress(identity.l1Address, TEST_NETWORK)).toThrow(
         /not a P2TR address/
       );
     });
 
     it('rejects an invalid address format', () => {
-      expect(() => xOnlyFromAddress('not-an-address', 'regtest')).toThrow(
+      expect(() => xOnlyFromAddress('not-an-address', TEST_NETWORK)).toThrow(
         /does not decode on this network/
       );
     });

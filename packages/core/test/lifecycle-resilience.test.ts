@@ -9,7 +9,7 @@ import {
   adoptVaultOnCode17,
   type VaultRecord,
 } from '../src/index.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 import { deriveVaultIdFromOutpoint } from '../src/register.js';
 
 const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
@@ -37,12 +37,12 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   let aliceVault: VaultRecord;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 0);
-    virginIdentity = deriveIdentity(VIRGIN_MNEMONIC, 'regtest', 0);
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 0);
+    virginIdentity = deriveIdentity(VIRGIN_MNEMONIC, TEST_NETWORK, 0);
     quorum = await withTransportRetry(() => getQuorum(DAEMON_URL));
 
     aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -394,12 +394,15 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Register-only mode (0 sats) never broadcasts', () => {
-    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
+    // Regtest-verified fixture/chain state (frozen crypto constants or live
+    // regtest chain artifacts). The signet money path is evidenced live in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
       // Virgin identity vault: never funded on-chain. Register-only mode must
       // refuse to broadcast and say why (this is the direct-to-vault deposit
       // registration path used by the Receive screen).
       const virginVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: virginIdentity.userKeyDescriptor,

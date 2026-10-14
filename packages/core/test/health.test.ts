@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_DAEMON } from './live-fixtures.js';
 import {
   preflight,
   fetchWatchtowerStatus,
@@ -8,7 +9,7 @@ import {
 import { getAddressVtxosHistory, getLockedVaultVtxos } from '../src/lifecycle.js';
 import { RipcordCode } from '../src/errors.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 // A host that cannot resolve. Exercises the real outage path (DNS failure)
 // without a mock: every probe genuinely fails against a real fetch.
 const UNREACHABLE = 'https://rpc-regtest-does-not-exist.tachibtc.invalid';

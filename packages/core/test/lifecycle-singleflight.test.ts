@@ -7,7 +7,7 @@ import {
   activeFundingRunCount,
   type VaultRecord,
 } from '../src/index.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 
 const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
 const ALICE_MNEMONIC =
@@ -33,10 +33,10 @@ describe('funding single-flight (regression: concurrent re-entry over-minted)', 
   let aliceVault: VaultRecord;
 
   beforeAll(async () => {
-    const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 0);
+    const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 0);
     const quorum = await withTransportRetry(() => getQuorum(DAEMON_URL));
     const derived = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,

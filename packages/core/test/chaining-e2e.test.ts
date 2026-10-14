@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON } from './live-fixtures.js';
 import { generateMnemonic } from 'bip39';
 import {
   deriveIdentity,
@@ -11,7 +12,7 @@ import {
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const FAUCET_URL = 'https://faucet.tachibtc.com';
 
 function isPreConnectionFailure(error: unknown): boolean {
@@ -70,7 +71,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
       // 1. Fresh identity with distinct userKeyIndex
       const mnemonic = generateMnemonic(128);
       const userKeyIndex = 10000 + Math.floor(Math.random() * 80000);
-      const identity = deriveIdentity(mnemonic, 'regtest', userKeyIndex);
+      const identity = deriveIdentity(mnemonic, TEST_NETWORK, userKeyIndex);
 
       console.log('\n=============================================================');
       console.log('FAUCET-CHAINING LIVE END-TO-END VERIFICATION');
@@ -86,7 +87,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
 
       // 3. Immediately resolve payout UTXO from mempool (0-conf)
       const rpcClient = new agg.BitcoinCoreRpcClient({ url: DAEMON_URL });
-      const expectedScriptHex = addressToScriptPubKeyHex(identity.l1Address, 'regtest').toLowerCase();
+      const expectedScriptHex = addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK).toLowerCase();
 
       let explicitInput: ExplicitSpendableInput | null = null;
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -122,7 +123,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
       // 4. Derive vault
       const quorum = await getQuorum(DAEMON_URL);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 1008,
         userKeyDescriptor: identity.userKeyDescriptor,

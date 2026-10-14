@@ -5,6 +5,7 @@
  * spent vault must be able to pass tree-proof without any dry run.
  */
 import { describe, expect, it } from 'vitest';
+import { TEST_NETWORK } from './live-fixtures.js';
 import { buildVaultP2tr, verifyVaultP2tr, type VaultP2tr } from '@tachibtc/taurus-vault-core';
 import { buildSweepEvidence, proveExitTree, type FundingSpender } from '../src/exit.js';
 import { buildExitCertificate, certificateSummaryText, certificateToJson } from '../src/exitCertificate.js';
@@ -23,7 +24,7 @@ const NODES = [
 
 function makeVault(csvBlocks = 2): { p2tr: VaultP2tr; record: VaultRecord } {
   const p2tr = buildVaultP2tr({
-    network: 'regtest',
+    network: TEST_NETWORK,
     userPubkey: USER,
     nodePubkeys: NODES,
     threshold: 5,
@@ -69,7 +70,10 @@ describe('proveExitTree (stored leaf + control block, no session flag)', () => {
     expect(proof.exitLeafHex).toMatch(/^[0-9a-f]+$/i);
   });
 
-  it('fails when the stored bundle commits to a different address', () => {
+  // Regtest-verified fixture/chain state (frozen crypto constants or live
+    // regtest chain artifacts). The signet money path is evidenced live in
+    // docs/SIGNET-SUPPORT.md.
+  it.skipIf(TEST_NETWORK !== 'regtest')('fails when the stored bundle commits to a different address', () => {
     const { record, p2tr } = makeVault();
     const tampered = { ...record, address: p2tr.address.replace(/^bcrt1p/, 'bcrt1q') } as VaultRecord;
     const proof = proveExitTree(tampered);
@@ -178,7 +182,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proof, sweep: null, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proof, sweep: null, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     expect(cert.checks.find(c => c.id === 'tree-proof')?.pass).toBe(true);
     expect(cert.maturity.status).toBe('spent');
@@ -191,7 +195,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     expect(cert.sweep?.exitTxid).toBe(sweep.exitTxid);
     expect(cert.sweep?.exitRawHex).toBeTruthy();
@@ -213,7 +217,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     const text = certificateSummaryText(cert);
     expect(text).toContain(sweep.exitTxid);
@@ -225,7 +229,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: 2, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       null,
-      { network: 'regtest', treeProof: proveExitTree(record) },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record) },
     );
     expect(cert.csvBlocksNote).toContain('Demo-only');
     expect(cert.csvBlocksNote).toContain('1008');
@@ -244,7 +248,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     expect(cert.exitCompleted).toBe(false);
     expect(certificateSummaryText(cert)).toContain('waiting for confirmation');
@@ -257,7 +261,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     const parsed = JSON.parse(certificateToJson(cert)) as Record<string, unknown>;
     expect(parsed.exitTxid).toBe(sweep.exitTxid);
@@ -275,7 +279,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       null,
-      { network: 'regtest', treeProof: proveExitTree(record), fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), fundingOutpoint: `${FUNDING.txid}:0` },
     );
     expect(cert.exitTxid).toBeNull();
     expect(cert.confirmations).toBeNull();
@@ -289,7 +293,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
+      { network: TEST_NETWORK, treeProof: proveExitTree(record), sweep, fundingOutpoint: `${FUNDING.txid}:0` },
     );
     const json = certificateToJson(cert);
     const parsed = JSON.parse(json) as { sweep?: { amountSats?: number; feeSats?: number; exitTxid?: string; explorerUrl?: string } };
@@ -304,7 +308,7 @@ describe('buildExitCertificate reports the confirmed sweep', () => {
     const cert = buildExitCertificate(
       { csvBlocks: record.csvBlocks, exitScript: record.exitLeaf ?? '', userKeyHex: USER.slice(2), address: record.address },
       swept,
-      { network: 'regtest', treeProof: { ...proveExitTree(record), verified: false, reason: 'Stored taproot bundle failed re-derivation: x' } },
+      { network: TEST_NETWORK, treeProof: { ...proveExitTree(record), verified: false, reason: 'Stored taproot bundle failed re-derivation: x' } },
     );
     const tree = cert.checks.find(c => c.id === 'tree-proof');
     expect(tree?.pass).toBe(false);

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as vc from '@tachibtc/taurus-vault-core';
 import { deriveIdentity, getQuorum, createVault, makeSigner, sendTransfer, TxQueue, toSdkVault } from '../src/index.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
@@ -22,27 +22,27 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
   let aliceUserAddr: string;
 
   beforeAll(async () => {
-    const aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-    const bobIdentity = deriveIdentity(BOB_MNEMONIC, 'regtest');
+    const aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+    const bobIdentity = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
     quorum = await withTransportRetry(() => getQuorum(DAEMON));
 
     // Both vaults at index 0: these are the live-verified deterministic fixtures.
     aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: aliceIdentity.userKeyDescriptor,
     });
     bobVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: bobIdentity.userKeyDescriptor,
     });
     bobUserAddr = bobIdentity.userAddress;
     aliceUserAddr = aliceIdentity.userAddress;
-    aliceSigner = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
-    bobSigner = makeSigner(BOB_MNEMONIC, 'regtest', 0);
+    aliceSigner = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0);
+    bobSigner = makeSigner(BOB_MNEMONIC, TEST_NETWORK, 0);
   }, 180000);
 
   it('rejects a vault-address recipient (sendTransfer guard)', async () => {
@@ -53,7 +53,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient cannot be the sender\'s vault address');
   });
@@ -66,7 +66,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient must be a user P2TR address');
   });
@@ -79,7 +79,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest' as const,
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     };
     await expect(sendTransfer({ ...base, senderXOnly: 'zz' })).rejects.toThrow('senderXOnly must be');
@@ -95,7 +95,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: 'https://rpc-regtest-does-not-exist.tachibtc.invalid',
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
@@ -129,7 +129,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats: 5000n,
         feeSats: 1n,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: aliceSigner,
       }),
     );
@@ -165,7 +165,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats: 2000n,
         feeSats: 1n,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: bobSigner,
       }),
     );
@@ -201,7 +201,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats,
         feeSats,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: aliceSigner,
         onInputsSelected: ids => { selectedInputIds = ids; },
       }),
@@ -254,7 +254,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
           amountSats: amount,
           feeSats: 1n,
           baseUrl: DAEMON,
-          network: 'regtest',
+          network: TEST_NETWORK,
           userSigner: bobSigner,
           queue,
           onInputsSelected: ids => { selectedIds.push(...ids); },

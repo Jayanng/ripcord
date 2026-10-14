@@ -14,7 +14,13 @@ import {
   sendTransfer,
 } from '../src/index.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
-import { withTransportRetry } from './live-fixtures.js';
+// Frozen csv=2 vault address (live-verified: regtest fixture from the original
+// verification pass; signet from the live signet daemon registration 2026-10-15).
+const EXPECTED_VAULT =
+  TEST_NETWORK === 'signet'
+    ? 'tb1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsl3rm4j'
+    : 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
+import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -27,15 +33,15 @@ describe('register.ts', { timeout: 60000 }, () => {
   let userSigner: ReturnType<typeof makeSigner>;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     quorum = await withTransportRetry(() => getQuorum(DAEMON_URL));
     vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: aliceIdentity.userKeyDescriptor,
     });
-    userSigner = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
+    userSigner = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0);
   });
 
   it('derives Alice identity and creates csv=2 vault matching verified fixture', () => {
@@ -43,7 +49,7 @@ describe('register.ts', { timeout: 60000 }, () => {
       'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319'
     );
     expect(vault.address).toBe(
-      'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg'
+      EXPECTED_VAULT
     );
     expect(vault.csvBlocks).toBe(2);
   });
@@ -159,20 +165,20 @@ describe('register.ts', { timeout: 60000 }, () => {
               amountSats: 1000n,
               feeSats: 1n,
               baseUrl: DAEMON_URL,
-              network: 'regtest',
+              network: TEST_NETWORK,
               userSigner,
             }),
           );
         } else {
           const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
-          const bobIdentity = deriveIdentity(BOB_MNEMONIC, 'regtest');
+          const bobIdentity = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
           const bobVault = await createVault({
-            network: 'regtest',
+            network: TEST_NETWORK,
             nodePubkeys: quorum.nodePubkeys,
             csvBlocks: 2,
             userKeyDescriptor: bobIdentity.userKeyDescriptor,
           });
-          const bobSigner = makeSigner(BOB_MNEMONIC, 'regtest', 0);
+          const bobSigner = makeSigner(BOB_MNEMONIC, TEST_NETWORK, 0);
           await withTransportRetry(() =>
             sendTransfer({
               vault: toSdkVault(bobVault),
@@ -181,7 +187,7 @@ describe('register.ts', { timeout: 60000 }, () => {
               amountSats: 2000n,
               feeSats: 1n,
               baseUrl: DAEMON_URL,
-              network: 'regtest',
+              network: TEST_NETWORK,
               userSigner: bobSigner,
             }),
           );
@@ -272,7 +278,7 @@ describe('register.ts', { timeout: 60000 }, () => {
       latest_state_num: 0,
       funding_txid: '8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a',
       funding_vout: 0,
-      address: 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg',
+      address: EXPECTED_VAULT,
     };
     const REAL_CAPTURED_OWNER = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
     const EXPECTED_VAULT_ID = '0d4e138c9432409e97d3c7f6309bf80cdbeb739e6ee1ba93c47d6044bf477722';

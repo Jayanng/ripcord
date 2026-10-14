@@ -8,6 +8,7 @@
  * (AGENTS.md Rule 2).
  */
 import { describe, expect, it } from 'vitest';
+import { TEST_NETWORK } from './live-fixtures.js';
 import { alignSpentVtxoTimes, dedupeActivityByHash, findAdoptableMintNote, reconcileSpendableSats, shouldShowResumeDepositRow } from '../src/lifecycle.js';
 
 const BASE = process.env.RIPCORD_TEST_DAEMON ?? 'https://rpc-regtest.tachibtc.com/';
@@ -148,7 +149,7 @@ describe('reconciliation against real daemon state (live, read-only)', () => {
 
     // 2. Daemon truth: the notes it still credits for the demo identity.
     const { deriveIdentity } = await import('../src/keys.js');
-    const identity = deriveIdentity(DEMO_MNEMONIC, 'regtest', 0);
+    const identity = deriveIdentity(DEMO_MNEMONIC, TEST_NETWORK, 0);
     const owner = identity.xOnly;
     const vtxosRes = await fetch(`${BASE}tachi_addressVtxos?address=${owner}&include_spent=true`, {
       headers: { Accept: 'application/json' },

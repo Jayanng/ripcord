@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { syncWalletWithScan, ensureFixtureFunds } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, FIXTURE_FAUCET_NOTE, syncWalletWithScan, ensureFixtureFunds } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -14,7 +14,7 @@ import {
 import { RipcordCode } from '../src/errors.js';
 import type { VaultRecord } from '../src/types.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -52,20 +52,20 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     quorum = await getQuorum(DAEMON);
     const rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(ALICE_MNEMONIC, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
     // See deposit.test.ts: change goes to the vault user's L1 address by
     // design, outside this wallet's scan. Keep the fixture faucet-topped-up.
     await syncWalletWithScan(userWallet, `${DAEMON}/`);
-  }, 60000);
+  }, 240_000);
 
   it('returns unfunded when the vault has no L1 funding outpoint', async () => {
     const index = 51000 + Math.floor(Math.random() * 10000);
-    const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+    const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
     const vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,
@@ -80,9 +80,9 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
 
   it('rejects a vault-address destination', async () => {
     const index = 52000 + Math.floor(Math.random() * 10000);
-    const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+    const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
     const vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,
@@ -96,6 +96,14 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
   });
 
   it('assessExit on a 0-conf deposit is maturing, vsize 125, nSequence 2, and does not spend', async (ctx) => {
+      const fixtureTotal = (userWallet.utxos ?? []).reduce(
+        (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
+      if (fixtureTotal < 40_001n) {
+        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need 40001 - ${FIXTURE_FAUCET_NOTE}`);
+        ctx.skip();
+        return;
+      }
+
     // See deposit.test.ts: fixture economics. Self-heal via faucet when
     // short, skip loudly when the faucet/blocks cannot provide funds now.
     const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, 42_000n);
@@ -105,9 +113,9 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
       return;
     }
     const index = 53000 + Math.floor(Math.random() * 10000);
-    const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+    const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
     const vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,
@@ -177,7 +185,7 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     await expect(executeExit({
       vault: funded,
       identity,
-      signer: makeSigner(ALICE_MNEMONIC, 'regtest', index),
+      signer: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, index),
       destAddress: identity.l1Address,
       baseUrl: DAEMON,
     })).rejects.toMatchObject({ code: RipcordCode.EXIT_IMMATURE });

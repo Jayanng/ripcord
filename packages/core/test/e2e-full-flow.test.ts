@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON } from './live-fixtures.js';
 import { generateMnemonic } from 'bip39';
 import {
   deriveIdentity,
@@ -12,7 +13,7 @@ import {
 import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const FAUCET_URL = 'https://faucet.tachibtc.com';
 
 function isPreConnectionFailure(error: unknown): boolean {
@@ -103,22 +104,22 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
   beforeAll(async () => {
     // Fresh mnemonic per run so the faucet's per-address cap never blocks us.
     mnemonic = generateMnemonic(128);
-    identity = deriveIdentity(mnemonic, 'regtest');
+    identity = deriveIdentity(mnemonic, TEST_NETWORK);
     quorum = await getQuorum(DAEMON_URL);
     rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON_URL}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(mnemonic, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
     await userWallet.sync();
-    userSigner = makeSigner(mnemonic, 'regtest', 0);
+    userSigner = makeSigner(mnemonic, TEST_NETWORK, 0);
   });
 
   it('full lifecycle: create vault, fund L1, deposit, onboard, register, recover', async () => {
     // 1. Create a vault for this identity.
     const vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,

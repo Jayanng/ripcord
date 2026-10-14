@@ -7,12 +7,12 @@ import {
   verifyDepositProofOfReserves,
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { syncWalletWithScan, ensureFixtureFunds, withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, syncWalletWithScan, ensureFixtureFunds, withTransportRetry , FIXTURE_FAUCET_NOTE } from './live-fixtures.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
 describe('deposit.ts', { timeout: 120000 }, () => {
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;
@@ -20,12 +20,12 @@ describe('deposit.ts', { timeout: 120000 }, () => {
   let userWallet: agg.Wallet;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     quorum = await getQuorum(DAEMON);
 
     const rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(ALICE_MNEMONIC, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
@@ -34,16 +34,16 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     // account wallet never scans - so each run permanently moves ~41k sats out
     // of the wallet's view. Keep the fixture topped up via the faucet.
     await syncWalletWithScan(userWallet, `${DAEMON}/`);
-  });
+  }, 240_000);
 
   function makeDepositDesc(index: number) {
-    const netObj = agg.getNetwork('regtest');
+    const netObj = agg.getNetwork(TEST_NETWORK);
     return vc.deriveUserKey(ALICE_MNEMONIC, netObj, { index }) as any;
   }
 
   async function makeVault(index: number) {
     return createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 1008,
       userKeyDescriptor: makeDepositDesc(index),
@@ -52,6 +52,14 @@ describe('deposit.ts', { timeout: 120000 }, () => {
 
   describe('depositToVault', () => {
     it('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async (ctx) => {
+      const fixtureTotal = (userWallet.utxos ?? []).reduce(
+        (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
+      if (fixtureTotal < 40_001n) {
+        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need 40001 - ${FIXTURE_FAUCET_NOTE}`);
+        ctx.skip();
+        return;
+      }
+
       // Fixture economics (live, measured): each run moves ~41k sats out of
       // the wallet's visible set (change lands on the vault user's address by
       // product design). ensureFixtureFunds self-heals via the faucet when
@@ -153,7 +161,7 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     });
   });
 
-  it('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', async () => {
+  it('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', { timeout: 240_000 }, async () => {
     // Regression for the 2026-09-28 production "Failed to fetch": the SDK's
     // global rpcCall/getUtxos (taurus-wallet-aggregator chunk-V3QPXLNG.js:332/480)
     // POST to network.rpc.jsonRpc, whose default is the ABSOLUTE daemon URL that

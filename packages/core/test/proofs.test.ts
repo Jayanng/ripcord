@@ -12,7 +12,7 @@ import {
 
 const DAEMON = 'https://rpc-regtest.tachibtc.com';
 
-import { getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
+import { TEST_NETWORK, getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -186,11 +186,11 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
 
   describe('fresh live transfer', () => {
     it('fetchHat on a just-committed send returns a 64-char proof for the spent input', { timeout: 240_000 }, async () => {
-      const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-      const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
+      const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+      const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
       const quorum = await withTransportRetry(() => getQuorum(DAEMON));
       const aliceVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: alice.userKeyDescriptor,
@@ -205,8 +205,8 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
           amountSats: 1000n,
           feeSats: 1n,
           baseUrl: DAEMON,
-          network: 'regtest',
-          userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
+          network: TEST_NETWORK,
+          userSigner: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0),
           onInputsSelected: ids => {
             spentIds = [...ids];
           },

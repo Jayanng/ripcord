@@ -31,10 +31,10 @@ import {
 import { MemoryStore } from '../src/store.js';
 import type { PaymentReceipt, TxLookupResult, CreditClassification } from '../src/types.js';
 import { RipcordCode } from '../src/errors.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, TEST_WSS, withTransportRetry } from './live-fixtures.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
-const WSS = 'wss://rpc-regtest.tachibtc.com/tachi_ws';
+const DAEMON = TEST_DAEMON;
+const WSS = TEST_WSS;
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
 
@@ -718,16 +718,16 @@ describe('VaultIndexer (live daemon)', () => {
   });
 
   it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async () => {
-    const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-    const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
+    const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+    const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
     const quorum = await withTransportRetry(() => getQuorum(DAEMON));
     const aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: alice.userKeyDescriptor,
     });
-    const aliceSigner = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
+    const aliceSigner = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0);
     const vault = toSdkVault(aliceVault);
     const bobAddr = bob.userAddress;
 

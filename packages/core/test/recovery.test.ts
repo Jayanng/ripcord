@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { TEST_NETWORK } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -17,12 +18,15 @@ describe('recovery.ts', { timeout: 300000 }, () => {
   let quorum: Awaited<ReturnType<typeof getQuorum>>;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     quorum = await getQuorum(DAEMON_URL);
   });
 
   describe('recoverVaults, cold-start from mnemonic alone', () => {
-    it('discovers all registered vaults for Alice (csv=2 fixture vaults), binds funding to the chain', async () => {
+    // Regtest-verified fixture/chain state (frozen crypto constants or live
+    // regtest chain artifacts). The signet money path is evidenced live in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('discovers all registered vaults for Alice (csv=2 fixture vaults), binds funding to the chain', async () => {
       // No mocks: this exercises the real discoverVaults gap-scan against the
       // live daemon, real CSV resolution (daemon redacts csv_delay without an
       // API key), and the real on-chain funding binding via getrawtransaction.
@@ -81,7 +85,7 @@ describe('recovery.ts', { timeout: 300000 }, () => {
     });
 
     it('returns an empty array for a virgin mnemonic with nothing registered', async () => {
-      const virgin = deriveIdentity(VIRGIN_MNEMONIC, 'regtest');
+      const virgin = deriveIdentity(VIRGIN_MNEMONIC, TEST_NETWORK);
       const vaults = await recoverVaults({
         identity: virgin,
         quorum,
