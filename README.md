@@ -3,8 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
 [![Release](https://img.shields.io/badge/release-v0.2.1-blue)](https://github.com/Jayanng/ripcord/tree/v0.2.1)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
-[![Status](https://img.shields.io/badge/status-live%20on%20regtest-green)](https://github.com/Jayanng/ripcord)
+[![Network](https://img.shields.io/badge/network-Tachi%20regtest%20%2B%20signet-orange)](https://tachibtc.com/)
+[![Status](https://img.shields.io/badge/status-live%20on%20regtest%20%2B%20signet-green)](https://github.com/Jayanng/ripcord)
 
 > **Proof before promise.**
 
@@ -14,16 +14,17 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 
 ## Current status
 
-RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest**. It is not production custody software and must not be used with funds that matter.
+RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest** and **Tachi signet**. It is not production custody software and must not be used with funds that matter.
 
 - `@ripcord/core@0.2.1` is published on npm.
 - Git tag `v0.2.1` is available.
 - Core wallet mechanics and the responsive wallet application have been exercised against the live Tachi regtest environment.
 - Browser-wipe recovery has been manually exercised from a mnemonic against live regtest data.
-- The project has no signet or mainnet support.
+- **Signet support is live** (added 2026-10-15): network choice at wallet creation, with the full money path (faucet, deposit, mint, registration, off-chain transfers with HAT proofs, sovereign exit) verified hop by hop on Tachi signet. See [docs/SIGNET-SUPPORT.md](docs/SIGNET-SUPPORT.md) for the evidence. Mainnet is not supported.
 
 ## Highlights
 
+- Network choice before any key material: Tachi regtest or Tachi Signet, stamped on every wallet
 - Self-custodial BIP-39 mnemonic-based key derivation
 - Per-vault BIP-84 receive-key indexes for atomic vaults
 - Deterministic 5-of-7 Tachi vault construction
