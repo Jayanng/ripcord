@@ -55,6 +55,8 @@ import {
   type Identity,
   type VaultRecord,
 } from './types.js';
+import { networkOf } from './networks.js';
+
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
 import { joinDaemonUrl } from './net.js';
@@ -1050,7 +1052,7 @@ export async function assessToLocalClaim(params: AssessToLocalClaimParams): Prom
 
   const dryRun = {
     txid: asDisplayTxid(decoded.txid),
-    destination: asUserAddress(destAddress),
+    destination: asUserAddress(destAddress, networkOf(params.identity)),
     vsize: decoded.vsize,
     sequence: decoded.vin?.[0]?.sequence ?? built.sequence,
     rawHex,

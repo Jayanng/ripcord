@@ -7,6 +7,8 @@ import {
   asCompressedHex,
   asVaultAddress,
 } from './types.js';
+import { networkOf } from './networks.js';
+
 import { QuorumInfo, computeFingerprint } from './quorum.js';
 import { toUserKeyDescriptor } from './keys.js';
 import { toDisplayTxid } from './bytes.js';
@@ -240,10 +242,10 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   // mnemonic, so a wiped client rebuilds the exact keys the vaults were
   // registered under. No wallet sync, discovery only derives keys and reads
   // daemon state; it never touches wallet UTXOs.
-  useProxyAwareTaurusRpc(bitcoinRpcBaseUrl);
+  useProxyAwareTaurusRpc(bitcoinRpcBaseUrl, networkOf(identity));
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: bitcoinRpcBaseUrl });
   const aggregator = await agg.WalletAggregator.fromMnemonic(identity.mnemonic, {
-    network: 'regtest',
+    network: networkOf(identity),
     rpc: rpcClient,
   });
   const wallet = aggregator.addAccount({ addressType: 'p2wpkh' });

@@ -14,6 +14,7 @@ import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 import * as btc from 'bitcoinjs-lib';
 import { RipcordError, RipcordCode } from './errors.js';
+import { DEFAULT_NETWORK, networkConfig, type TachiNetwork } from './networks.js';
 
 type SdkUserKeyDescriptor = {
   version: number;
@@ -31,7 +32,7 @@ type SdkUserKeyDescriptor = {
   addressType: string;
 };
 
-export function toUserKeyDescriptor(desc: SdkUserKeyDescriptor): UserKeyDescriptor {
+export function toUserKeyDescriptor(desc: SdkUserKeyDescriptor, network: TachiNetwork = DEFAULT_NETWORK): UserKeyDescriptor {
   return {
     version: desc.version,
     scheme: desc.scheme,
@@ -44,7 +45,7 @@ export function toUserKeyDescriptor(desc: SdkUserKeyDescriptor): UserKeyDescript
     path: desc.path,
     publicKey: asCompressedHex(desc.publicKey),
     masterFingerprint: desc.masterFingerprint,
-    address: asUserAddress(desc.address),
+    address: asUserAddress(desc.address, network),
     addressType: desc.addressType,
   };
 }
@@ -65,7 +66,7 @@ export function toUserKeyDescriptor(desc: SdkUserKeyDescriptor): UserKeyDescript
  */
 export function deriveIdentity(
   mnemonic: string,
-  network: 'regtest',
+  network: TachiNetwork,
   index = 0
 ): Identity {
   assertKeyIndex(index);
@@ -92,10 +93,10 @@ export function deriveIdentity(
   return {
     mnemonic,
     network,
-    userKeyDescriptor: toUserKeyDescriptor(desc),
+    userKeyDescriptor: toUserKeyDescriptor(desc, network),
     xOnly,
     userAddress,
-    l1Address: asUserAddress(desc.address),
+    l1Address: asUserAddress(desc.address, network),
   };
 }
 
@@ -111,7 +112,7 @@ function assertKeyIndex(index: number): void {
 
 export function makeSigner(
   mnemonic: string,
-  network: 'regtest',
+  network: TachiNetwork,
   index: number
 ): {
   publicKey: Buffer;
@@ -140,7 +141,7 @@ export function makeSigner(
   });
 }
 
-export function userAddressForXOnly(xOnly: string, network: 'regtest'): UserAddress {
+export function userAddressForXOnly(xOnly: string, network: TachiNetwork): UserAddress {
   if (!isXOnlyHex(xOnly)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
@@ -161,7 +162,7 @@ export function userAddressForXOnly(xOnly: string, network: 'regtest'): UserAddr
   // caller branching on the error model got nothing to branch on.
   let address: string;
   try {
-    address = btc.address.fromOutputScript(script, btc.networks.regtest);
+    address = btc.address.fromOutputScript(script, networkConfig(network).bitcoinjsNetwork);
   } catch (err) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
@@ -169,7 +170,7 @@ export function userAddressForXOnly(xOnly: string, network: 'regtest'): UserAddr
       { cause: err, hint: 'The 32-byte value must be a valid secp256k1 x-coordinate' }
     );
   }
-  return asUserAddress(address);
+  return asUserAddress(address, network);
 }
 
 /**

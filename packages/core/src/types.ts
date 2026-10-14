@@ -1,4 +1,7 @@
-import { address as btcAddress, networks } from 'bitcoinjs-lib';
+import { address as btcAddress } from 'bitcoinjs-lib';
+import { DEFAULT_NETWORK, networkConfig, type TachiNetwork } from './networks.js';
+
+export type { TachiNetwork } from './networks.js';
 import type { Vault as SdkVault, VaultP2tr, ValidatorNodeKey } from '@tachibtc/taurus-vault-core';
 import { RipcordError, RipcordCode } from './errors.js';
 
@@ -34,17 +37,20 @@ function isValidCompressedHex(value: string): boolean {
 }
 
 /**
- * Decode a bech32/bech32m address for the regtest HRP, enforcing the checksum
- * variant against the witness version (bech32 for v0, bech32m for v1), and
- * reject invalid program lengths (v0: 20 or 32 bytes, v1: exactly 32).
+ * Decode a bech32/bech32m address for the given network's HRP, enforcing the
+ * checksum variant against the witness version (bech32 for v0, bech32m for v1),
+ * and reject invalid program lengths (v0: 20 or 32 bytes, v1: exactly 32).
  *
  * bitcoinjs-lib's fromBech32 validates charset, checksum, variant, and HRP,
  * but does NOT enforce program-length limits, so those are checked here.
+ *
+ * REGTEST INVARIANCE: the default network is regtest, so every existing call
+ * site validates exactly what it validated before (bcrt HRP only).
  */
-function decodeBech32Address(value: string): { version: number; dataLength: number } | null {
+function decodeBech32Address(value: string, network: TachiNetwork = DEFAULT_NETWORK): { version: number; dataLength: number } | null {
   try {
     const decoded = btcAddress.fromBech32(value);
-    if (decoded.prefix !== networks.regtest.bech32) {
+    if (decoded.prefix !== networkConfig(network).bech32) {
       return null;
     }
     if (decoded.version === 0 && !WITNESS_V0_ALLOWED_LENGTHS.includes(decoded.data.length)) {
@@ -62,28 +68,28 @@ function decodeBech32Address(value: string): { version: number; dataLength: numb
   }
 }
 
-export function isUserAddress(value: unknown): value is UserAddress {
-  return typeof value === 'string' && decodeBech32Address(value) !== null;
+export function isUserAddress(value: unknown, network: TachiNetwork = DEFAULT_NETWORK): value is UserAddress {
+  return typeof value === 'string' && decodeBech32Address(value, network) !== null;
 }
 
-export function asUserAddress(value: unknown): UserAddress {
-  if (!isUserAddress(value)) {
-    throw new Error('Expected UserAddress: valid bech32/bech32m address (regtest HRP)');
+export function asUserAddress(value: unknown, network: TachiNetwork = DEFAULT_NETWORK): UserAddress {
+  if (!isUserAddress(value, network)) {
+    throw new Error(`Expected UserAddress: valid bech32/bech32m address (${network} HRP)`);
   }
   return value;
 }
 
-export function isVaultAddress(value: unknown): value is VaultAddress {
+export function isVaultAddress(value: unknown, network: TachiNetwork = DEFAULT_NETWORK): value is VaultAddress {
   if (typeof value !== 'string') {
     return false;
   }
-  const decoded = decodeBech32Address(value);
+  const decoded = decodeBech32Address(value, network);
   return decoded !== null && decoded.version === BECH32M_V1;
 }
 
-export function asVaultAddress(value: unknown): VaultAddress {
-  if (!isVaultAddress(value)) {
-    throw new Error('Expected VaultAddress: valid bech32m P2TR address (regtest HRP)');
+export function asVaultAddress(value: unknown, network: TachiNetwork = DEFAULT_NETWORK): VaultAddress {
+  if (!isVaultAddress(value, network)) {
+    throw new Error(`Expected VaultAddress: valid bech32m P2TR address (${network} HRP)`);
   }
   return value;
 }
@@ -151,6 +157,12 @@ export interface UserKeyDescriptor {
 
 export interface VaultRecord {
   vaultIdHex: string;
+  /**
+   * Tachi network this vault lives on (stamped at creation from the user's
+   * network selection). LEGACY RECORDS OMIT THIS — they are all regtest
+   * (migration rule: `networkOf` defaults them to regtest).
+   */
+  network?: TachiNetwork;
   address: VaultAddress;
   csvBlocks: number;
   userKeyIndex: number;
@@ -271,7 +283,7 @@ export interface PaymentReceipt {
 
 export interface Identity {
   mnemonic: string;
-  network: string;
+  network: TachiNetwork;
   userKeyDescriptor: UserKeyDescriptor;
   xOnly: XOnlyHex;
   /** P2TR payment address (bech32m of the x-only key), what others pay VTXOs to. R1. */

@@ -6,6 +6,8 @@ import {
   asVaultAddress,
   ExplicitSpendableInput,
 } from './types.js';
+import { DEFAULT_NETWORK, networkOf, type TachiNetwork } from './networks.js';
+
 import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
@@ -311,21 +313,27 @@ export interface DepositFromMnemonicParams {
  * time, so redirecting it routes every SDK network call through the caller's
  * proxy-aware base URL (see docs/DEPLOYMENT.md same-origin proxy contract).
  */
-export function useProxyAwareTaurusRpc(baseUrl: string): void {
-  const rpc = (agg.REGTEST as unknown as { rpc: { jsonRpc: string; rest: string } }).rpc;
-  rpc.jsonRpc = baseUrl;
-  rpc.rest = baseUrl;
+export function useProxyAwareTaurusRpc(baseUrl: string, network: TachiNetwork = DEFAULT_NETWORK): void {
+  // Mutate the ACTIVE network's exported, unfrozen config (fields are read at
+  // call time). REGTEST INVARIANCE: default network keeps the regtest object
+  // mutation exactly as before.
+  const target = (network === 'signet' ? agg.SIGNET : agg.REGTEST) as unknown as {
+    rpc: { jsonRpc: string; rest: string };
+  };
+  target.rpc.jsonRpc = baseUrl;
+  target.rpc.rest = baseUrl;
 }
 
 export async function depositFromMnemonic(params: DepositFromMnemonicParams): Promise<DepositResult> {
   // The aggregator stores the supplied fetch function and invokes it later as
   // a plain callback. Chromium requires Window.fetch to retain its receiver,
   // otherwise it throws "Illegal invocation" before any RPC request is sent.
-  useProxyAwareTaurusRpc(params.rpc.baseUrl);
+  const network = networkOf(params.vault);
+  useProxyAwareTaurusRpc(params.rpc.baseUrl, network);
   const boundFetch = globalThis.fetch.bind(globalThis);
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: params.rpc.baseUrl, fetchImpl: boundFetch });
   const aggregator = await agg.WalletAggregator.fromMnemonic(params.mnemonic, {
-    network: 'regtest',
+    network,
     rpc: rpcClient,
   });
   const userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });

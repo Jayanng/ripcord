@@ -35,6 +35,8 @@ import {
   type Identity,
   type VaultRecord,
 } from './types.js';
+import { networkOf } from './networks.js';
+
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
 import { bytesEqual } from '@tachibtc/taurus-vault-core';
@@ -392,7 +394,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   const live = confirmations >= required;
   const dryRun = {
     txid: asDisplayTxid(finalized.decoded.txid),
-    destination: asUserAddress(destAddress),
+    destination: asUserAddress(destAddress, networkOf(params.vault)),
     vsize: finalized.decoded.vsize,
     sequence: finalized.decoded.vin?.[0]?.sequence ?? finalized.sequence,
     rawHex: finalized.hex,

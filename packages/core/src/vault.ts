@@ -11,12 +11,13 @@ import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import { RipcordError, RipcordCode } from './errors.js';
 import { computeFingerprint, assertDistinctPubkeys } from './quorum.js';
+import type { TachiNetwork } from './networks.js';
 
 /** The daemon's cooperative threshold on regtest (SDK `DEFAULT_THRESHOLD`). */
 const REGTEST_THRESHOLD = 5;
 
 export interface CreateVaultParams {
-  network: 'regtest';
+  network: TachiNetwork;
   nodePubkeys: CompressedHex[];
   csvBlocks: number;
   userKeyDescriptor: UserKeyDescriptor;
@@ -109,7 +110,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
   const sdkUserKeyDescriptor = toSdkUserKeyDescriptor(userKeyDescriptor);
 
   const vault = await vc.createVault({
-    network: 'regtest',
+    network,
     nodePubkeys,
     csvBlocks,
     // Passed explicitly rather than relying on the SDK default, so the value the
@@ -150,7 +151,8 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
 
   const record: VaultRecord = {
     vaultIdHex: '',
-    address: asVaultAddress(expectedAddress),
+    network,
+    address: asVaultAddress(expectedAddress, network),
     csvBlocks,
     userKeyIndex: userKeyDescriptor.index,
     userKeyDescriptor,
