@@ -138,7 +138,7 @@ export function ReceiveScreen({ onBack }: { onBack?: () => void } = {}) {
     <div className="flow-heading">
       <p className="eyebrow">{modeCopy.eyebrow}</p>
       <h2>{modeCopy.title}</h2>
-      <p>Indexer: <strong>{indexerStatus.state}</strong>. A closed indexer means arrivals will not appear live yet.</p>
+      <p>Indexer: <strong>{indexerStatus.state}</strong>. Arrivals refresh automatically every few seconds either way.</p>
     </div>
     <div className="receive-mode-tabs" role="tablist" aria-label="Receive mode">
       {MODES.map(item => (

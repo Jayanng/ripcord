@@ -32,18 +32,18 @@ export function NetworkBadge() {
       className={`network-badge${paused ? ' paused' : ''}`}
       aria-label={
         paused
-          ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
+          ? 'Instant push unavailable on this hosting. Balances refresh automatically every few seconds. Tap to refresh now.'
           : `Network: ${netName}, live updates connected`
       }
       title={
         paused
-          ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
+          ? 'Instant push unavailable on this hosting. Balances refresh automatically every few seconds. Tap to refresh now.'
           : `Live updates connected on ${netName}`
       }
       onClick={() => void wallet.refresh()}
     >
       <span aria-hidden="true" />
-      {paused ? 'Live updates paused, retrying automatically' : netLabel}
+      {paused ? 'Refreshing every few seconds · tap to refresh now' : netLabel}
     </button>
   );
 }

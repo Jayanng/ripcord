@@ -709,7 +709,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setVtxoSnapshotLoaded(true);
     });
     const timer = setInterval(() => void load(), 5000);
-    return () => { cancelled = true; clearInterval(timer); };
+    // Mobile tab-switch freshness: a backgrounded tab throttles timers, so a
+    // tab returning to the foreground loads immediately instead of waiting.
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [identity, activeVault?.address, network]);
 
   const value = useMemo<WalletContextValue>(() => ({
