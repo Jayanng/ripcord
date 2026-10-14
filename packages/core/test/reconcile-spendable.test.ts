@@ -8,10 +8,10 @@
  * (AGENTS.md Rule 2).
  */
 import { describe, expect, it } from 'vitest';
-import { TEST_NETWORK } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { alignSpentVtxoTimes, dedupeActivityByHash, findAdoptableMintNote, reconcileSpendableSats, shouldShowResumeDepositRow } from '../src/lifecycle.js';
 
-const BASE = process.env.RIPCORD_TEST_DAEMON ?? 'https://rpc-regtest.tachibtc.com/';
+const BASE = process.env.RIPCORD_TEST_DAEMON ?? `${TEST_DAEMON}/`;
 const DEMO_MNEMONIC = 'flight group arrange hybrid wrong image advice crisp discover glue erupt cousin';
 const DEMO_FUNDING = 'b1b83036e08d76535ce1a85c5f87bb334bb8b72c1c85d82b83f70fcca8890403';
 

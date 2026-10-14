@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TEST_DAEMON } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import {
   preflight,
   fetchWatchtowerStatus,
@@ -17,10 +17,10 @@ const BOB_XONLY = '110d9ecab272c72b5c5b4e3ecb00bf8a081cfd076ff7a2d3ef0c74f762694
 
 describe('preflight', { timeout: 30000 }, () => {
   it('returns valid PreflightResult against live daemon', async () => {
-    const result = await preflight(DAEMON);
+    const result = await preflight(DAEMON, { network: TEST_NETWORK });
 
     expect(result.daemonOk).toBe(true);
-    expect(result.chainId).toBe('tachi-regtest-1');
+    expect(result.chainId).toBe(TEST_NETWORK === 'signet' ? 'tachi-signet-1' : 'tachi-regtest-1');
     expect(result.liveValidators).toBe(7);
     expect(result.quorumThreshold).toBe(5);
     expect(result.quorumSize).toBe(7);
@@ -28,13 +28,13 @@ describe('preflight', { timeout: 30000 }, () => {
     expect(typeof result.version).toBe('string');
     expect(result.version.length).toBeGreaterThan(0);
     expect(typeof result.synced).toBe('boolean');
-    // Bitcoin L1 height (verified range 8861-9060 and growing slowly), NOT the
-    // CometBFT chain height (~437k). If the RPC is unreachable, l1Height is
-    // null with source 'unavailable' instead of silently substituting the
-    // CometBFT height.
+    // Bitcoin L1 height of the chosen network (regtest is small and slow-growing,
+    // signet is 300k+), NOT the CometBFT chain height. If the RPC is unreachable,
+    // l1Height is null with source 'unavailable' instead of silently substituting
+    // the CometBFT height.
     expect(result.l1HeightSource).toBe('bitcoin-rpc');
-    expect(result.l1Height).toBeGreaterThan(0);
-    expect(result.l1Height).toBeLessThan(100000);
+    expect(result.l1Height).toBeGreaterThan(TEST_NETWORK === 'signet' ? 300000 : 0);
+    expect(result.l1Height).toBeLessThan(TEST_NETWORK === 'signet' ? 10_000_000 : 100000);
     // Spec Task 2.4: fee floor assert (minFeeSats >= 1).
     expect(result.feeMinSats).toBeGreaterThanOrEqual(1n);
     // Observability: watchtower status is included in preflight
@@ -49,6 +49,7 @@ describe('preflight', { timeout: 30000 }, () => {
 
   it('runs balance cross-check during preflight when requested', async () => {
     const result = await preflight(DAEMON, {
+      network: TEST_NETWORK,
       balanceCheck: {
         ownerXOnly: BOB_XONLY,
         snapshotSats: 0n,

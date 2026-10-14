@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { TEST_NETWORK } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -11,7 +11,7 @@ const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const VIRGIN_MNEMONIC =
   'endless kite describe situate merit tip wing bridge boss hybrid chalk blue';
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 
 describe('recovery.ts', { timeout: 300000 }, () => {
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;

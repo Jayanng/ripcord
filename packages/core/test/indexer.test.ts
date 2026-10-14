@@ -31,7 +31,7 @@ import {
 import { MemoryStore } from '../src/store.js';
 import type { PaymentReceipt, TxLookupResult, CreditClassification } from '../src/types.js';
 import { RipcordCode } from '../src/errors.js';
-import { TEST_NETWORK, TEST_DAEMON, TEST_WSS, withTransportRetry } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, TEST_WSS, FIXTURE_FAUCET_NOTE, withTransportRetry } from './live-fixtures.js';
 
 const DAEMON = TEST_DAEMON;
 const WSS = TEST_WSS;
@@ -513,7 +513,10 @@ describe('Incoming receipt synthesis and deduplication (pure)', () => {
   });
 
   describe('lookupTachiTx (live probe against daemon v0.39.0)', { timeout: 180000 }, () => {
-    it('retrieves and parses real committed transaction', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('retrieves and parses real committed transaction', async () => {
       const result = await withTransportRetry(() => lookupTachiTx(REAL_TX_HASH, DAEMON));
       expect(result).not.toBeNull();
       expect(result!.txHash).toBe(REAL_TX_HASH);
@@ -717,7 +720,15 @@ describe('VaultIndexer (live daemon)', () => {
     }
   });
 
-  it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async () => {
+  it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async ctx => {
+    // Fixture-economics gate: this live transfer spends a real Alice VTXO.
+    const gate = await withTransportRetry(() => vc.getAddressVtxos('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319', { baseUrl: DAEMON }));
+    const gateTotal = gate.vtxos.filter(v => !v.spent && !v.locked).reduce((a, v) => a + v.amountSats, 0n);
+    if (gateTotal < 2001n) {
+      console.warn(`[fixture] skipped: ${gateTotal} sats in Alice's VTXOs, need 2001 - ${FIXTURE_FAUCET_NOTE}`);
+      ctx.skip();
+      return;
+    }
     const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
     const quorum = await withTransportRetry(() => getQuorum(DAEMON));

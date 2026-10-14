@@ -14,17 +14,20 @@ import {
   sendTransfer,
 } from '../src/index.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
-// Frozen csv=2 vault address (live-verified: regtest fixture from the original
-// verification pass; signet from the live signet daemon registration 2026-10-15).
+// Frozen csv=2 vault addresses, one per network's LIVE quorum. Both recomputed
+// via createVault against the live daemon quorum and cross-checked twice
+// (audit recompute + wallet app create flow, 2026-10-15). A prior value here
+// was wrong: the test daemon was still regtest while identities derived signet,
+// composing a regtest-quorum vault with a tb HRP.
 const EXPECTED_VAULT =
   TEST_NETWORK === 'signet'
-    ? 'tb1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsl3rm4j'
+    ? 'tb1pwgarrepqhc3cjwccatgx9y0f0t0qh8jty5unewyfhwmwjh3dtnlqt0u7wz'
     : 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
-import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, FIXTURE_FAUCET_NOTE, withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 
 describe('register.ts', { timeout: 60000 }, () => {
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;
@@ -145,7 +148,19 @@ describe('register.ts', { timeout: 60000 }, () => {
     const FUNDING_VOUT = 0;
     const EXPECTED_VAULT_ID = '0d4e138c9432409e97d3c7f6309bf80cdbeb739e6ee1ba93c47d6044bf477722';
 
-    it('re-registers existing vault: proves code=17 from daemon, adopts vaultId, and verifies H(funding_txid || vout)', async () => {
+    it('re-registers existing vault: proves code=17 from daemon, adopts vaultId, and verifies H(funding_txid || vout)', async ctx => {
+      // Fixture economics gate: this live chain step funds a deposit first.
+      const gateVtxos = await withTransportRetry(() =>
+        vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }),
+      );
+      const gateTotal = gateVtxos.vtxos
+        .filter(v => !v.spent && !v.locked)
+        .reduce((acc, v) => acc + v.amountSats, 0n);
+      if (gateTotal < 2001n) {
+        console.warn(`[fixture] skipped: ${gateTotal} sats in fixture wallet, need 2001 - ${FIXTURE_FAUCET_NOTE}`);
+        ctx.skip();
+        return;
+      }
       // 1. Find an unspent VTXO owned by Alice to construct the live registration transaction
       let vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));
       let unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
@@ -271,14 +286,18 @@ describe('register.ts', { timeout: 60000 }, () => {
   });
 
   describe('Pure guard tests: adoption verification', () => {
-    // Provenance: captured live from https://rpc-regtest.tachibtc.com/tachi_listVaults?user=e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319 on 2026-09-27
+    // Provenance: captured live from https://rpc-regtest.tachibtc.com/tachi_listVaults?user=e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319 on 2026-09-27.
+    // Kept byte-exact as captured on every network: it is INPUT DATA for the
+    // pure adoption guards (which compare vault_id and owner only, never the
+    // address), so a per-network swap here would make the fixture lie about
+    // its own provenance.
     const REAL_CAPTURED_RECORD = {
       vault_id: '0d4e138c9432409e97d3c7f6309bf80cdbeb739e6ee1ba93c47d6044bf477722',
       state: 'open',
       latest_state_num: 0,
       funding_txid: '8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a',
       funding_vout: 0,
-      address: EXPECTED_VAULT,
+      address: 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg',
     };
     const REAL_CAPTURED_OWNER = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
     const EXPECTED_VAULT_ID = '0d4e138c9432409e97d3c7f6309bf80cdbeb739e6ee1ba93c47d6044bf477722';

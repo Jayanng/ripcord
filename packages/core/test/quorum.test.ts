@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { TEST_DAEMON } from './live-fixtures.js';
 import {
   getQuorum,
   getQuorumWithCache,
@@ -9,7 +10,7 @@ import {
 import { asCompressedHex } from '../src/types.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 
 describe('quorum.ts', { timeout: 30000 }, () => {
   beforeAll(() => {

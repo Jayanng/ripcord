@@ -7,9 +7,9 @@ import {
   activeFundingRunCount,
   type VaultRecord,
 } from '../src/index.js';
-import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 

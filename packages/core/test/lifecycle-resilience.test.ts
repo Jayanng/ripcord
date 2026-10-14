@@ -9,10 +9,10 @@ import {
   adoptVaultOnCode17,
   type VaultRecord,
 } from '../src/index.js';
-import { TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 import { deriveVaultIdFromOutpoint } from '../src/register.js';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const VIRGIN_MNEMONIC =
@@ -51,7 +51,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Live: real listVaults queries against the live daemon (Rule 1)', () => {
-    it('queries listVaults with compressed key and succeeds on live daemon', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('queries listVaults with compressed key and succeeds on live daemon', async () => {
       const result = await withTransportRetry(() =>
         queryListVaults(aliceIdentity.userKeyDescriptor.publicKey, {
           baseUrl: DAEMON_URL,
@@ -68,7 +71,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
       expect(found!.fundingTxid).toBe('8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a');
     });
 
-    it('queries listVaults with X-ONLY key (64 chars) and avoids parity/prefix issues', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('queries listVaults with X-ONLY key (64 chars) and avoids parity/prefix issues', async () => {
       const result = await withTransportRetry(() =>
         queryListVaults(aliceIdentity.xOnly, {
           baseUrl: DAEMON_URL,
@@ -261,7 +267,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Regression: happy path still adopts and reports exactly as today', () => {
-    it('recovers registered vault state from live daemon when daemon is healthy', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('recovers registered vault state from live daemon when daemon is healthy', async () => {
       const localVaultWithFunding: VaultRecord = {
         ...aliceVault,
         funding: {
@@ -324,7 +333,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Non-blocking progression & state re-synchronization', () => {
-    it('re-syncs registration state when a later lookup succeeds after an initial failure', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('re-syncs registration state when a later lookup succeeds after an initial failure', async () => {
       const localVaultWithFunding: VaultRecord = {
         ...aliceVault,
         funding: {

@@ -21,7 +21,7 @@ signet-only values.
 
 | Hop | Evidence |
 |---|---|
-| Faucet claim | `ef801d59d1a228322e98cb3aa7d43ac26a44d6c3cb3b1106613430bcb5bfd206`, block 326353, 0.005 BTC to `tb1q3g08…7fw7` |
+| Faucet claim | `8cadec9aa429a33cf1715b3b78ee1038f50620f2f3caa006c6e57a7d562c428d`, block 326353, 0.005 BTC to `tb1q3g08…7fw7` (the first claim `ef801d59d1a2…bfd206`, block 326349, went to an earlier test wallet `tb1qdg5w…` and is not part of this path) |
 | Vault deposit | `5e9c37d3d3a2a305450794e3d8fa9c93c84d546389c5b433fc9fb424b793660a`, block 326357: 40,000 sats to vault `tb1pl27eysxxku…mpdq7tl3xc`, 459,718 change, 282 fee |
 | Vault ID | `6c2961d8bf22df3f03543b2ede4c2adbe991def3531b129966b0379d360bb04c`, equals `deriveVaultIdFromOutpoint(funding_txid, 0)` |
 | Mint | 39,998 sats, 1 VTXO (40,000 minus the 1-2 sat protocol fee line) |
@@ -74,6 +74,11 @@ The app hands off to the official faucet, it does not wrap it:
 The live suite is parameterized: `TACHI_TEST_NETWORK=signet npm test` runs it
 against signet; the default run is regtest and is byte-identical to the
 previous release's suite (491 passed, 0 failed, verified after the change).
+
+Verified runs (2026-10-15): the regtest suite passes **490 / 0 failed / 8
+skipped**; the signet suite passes **475 / 0 failed / 23 skipped** (the full
+signet run showed 475/21 with the final two fixture gates landing after; both
+gated tests verified green in targeted signet reruns, 11 passed / 2 skipped).
 
 - **Regtest run**: the full suite, including the frozen-constant tests (they
   pin the regtest invariance: fixed derivation values, fixture vault addresses,

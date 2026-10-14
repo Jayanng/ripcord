@@ -11,9 +11,9 @@ import {
 import { MemoryStore } from '../src/store.js';
 import type { XOnlyHex } from '../src/types.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
-import { getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
+import { TEST_DAEMON, getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
 const BOB_XONLY = '028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80';

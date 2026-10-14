@@ -10,9 +10,9 @@ import {
   toSdkVault,
 } from '../src/index.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
-import { TEST_NETWORK, getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';

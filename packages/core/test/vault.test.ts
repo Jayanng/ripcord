@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-// Frozen csv=2 vault address (live-verified: regtest fixture from the original
-// verification pass; signet from the live signet daemon registration 2026-10-15).
+// Frozen csv=2 vault addresses, one per network's LIVE quorum. Both recomputed
+// via createVault against the live daemon quorum and cross-checked twice
+// (audit recompute + wallet app create flow, 2026-10-15). A prior value here
+// was wrong: the test daemon was still regtest while identities derived signet,
+// composing a regtest-quorum vault with a tb HRP.
 const EXPECTED_VAULT =
   TEST_NETWORK === 'signet'
-    ? 'tb1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsl3rm4j'
+    ? 'tb1pwgarrepqhc3cjwccatgx9y0f0t0qh8jty5unewyfhwmwjh3dtnlqt0u7wz'
     : 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
-import { TEST_NETWORK } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { createVault, describeTapscript, deriveIdentity, getQuorum } from '../src/index.js';
 import { computeFingerprint } from '../src/quorum.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 
 describe('vault.ts', () => {
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;
