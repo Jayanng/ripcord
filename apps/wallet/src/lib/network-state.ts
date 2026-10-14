@@ -21,6 +21,9 @@ export function setActiveNetwork(network: TachiNetwork): void {
   // description too (static HTML ships network-neutral).
   const meta = document.querySelector('meta[name="description"]');
   if (meta) meta.setAttribute('content', `A verification-first self-custodial wallet for ${networkLabel()}.`);
+  // Tab title too (the browser chrome showed "Ripcord · Regtest wallet" in
+  // signet sessions - caught by the user's page review 2026-10-15).
+  document.title = `Ripcord · ${networkLabel()} wallet`;
 }
 
 export function getActiveNetwork(): TachiNetwork {

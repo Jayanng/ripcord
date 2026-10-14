@@ -514,7 +514,7 @@ export function SendForm() {
   const validateRecipientOnBlur = () => {
     const trimmed = recipient.trim();
     if (!trimmed) return;
-    if (!isUserAddress(trimmed)) {
+    if (!isUserAddress(trimmed, getActiveNetwork())) {
       setError({ field: 'recipient', message: `Enter a valid SegWit or Taproot address (${addressPrefix()}...)` });
       return;
     }
@@ -551,7 +551,7 @@ export function SendForm() {
       return fail('form', unregisteredVaultMessage());
     }
     const trimmed = recipient.trim();
-    if (!isUserAddress(trimmed)) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
+    if (!isUserAddress(trimmed, getActiveNetwork())) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
     if (wallet.vaults.some(item => String(item.address) === trimmed)) {
       return fail(
         'recipient',
@@ -866,7 +866,7 @@ export function SendForm() {
           <button
             type="button"
             className="secondary-action-compact"
-            disabled={!isUserAddress(recipient.trim())}
+            disabled={!isUserAddress(recipient.trim(), getActiveNetwork())}
             onClick={() => {
               saveAddress(recipient.trim(), saveLabel);
               setSaved(loadSavedAddresses());
