@@ -38,6 +38,26 @@
  * Never use `new URL(path, base)` for daemon paths: an absolute path drops the
  * base's path prefix (see the module comment).
  */
+/**
+ * Serialize UTXO scans process-wide. bitcoind serves ONE scantxoutset at a
+ * time and answers -8 "Scan already in progress" to any overlap (live 2026-10-15
+ * on signet: an 80M-outpoint scan takes ~15s, so the L1 poller and the funding
+ * pipeline collided and the settlement balance never resolved). Every scan runs
+ * through this one queue; busy replies inside a task should be retried by the
+ * task (see isScanBusyError).
+ */
+let scanQueue: Promise<unknown> = Promise.resolve();
+export function enqueueScan<T>(task: () => Promise<T>): Promise<T> {
+  const next = scanQueue.then(task, task);
+  scanQueue = next.then(() => undefined, () => undefined);
+  return next;
+}
+
+/** True for bitcoind's overlap refusal on scantxoutset. */
+export function isScanBusyError(message: string): boolean {
+  return /already in progress/i.test(message);
+}
+
 export function joinDaemonUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
