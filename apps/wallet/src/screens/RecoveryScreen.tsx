@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { RecoveryProgress, type RecoveryStepState } from '../components/RecoveryProgress';
 import { truncate } from '../components/ui';
+import { NetworkSelect } from '../components/NetworkSelect';
+import type { TachiNetwork } from '@ripcord/core';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -16,6 +18,8 @@ const LABELS = [
 
 export function RecoveryScreen() {
   const wallet = useWallet();
+  // Same step 0 as creation: the network is chosen BEFORE keys are derived.
+  const [network, setNetwork] = useState<TachiNetwork | null>(null);
   const [mnemonic, setMnemonic] = useState('');
   const [index, setIndex] = useState(0);
   const [csv, setCsv] = useState(2);
@@ -37,7 +41,7 @@ export function RecoveryScreen() {
     try {
       currentStep = 0; update(0, 'active');
       const { deriveIdentity } = await import('@ripcord/core/keys');
-      const identity = deriveIdentity(mnemonic.trim(), 'regtest', index);
+      const identity = deriveIdentity(mnemonic.trim(), network ?? 'regtest', index);
       update(0, 'passed', `Identity ${truncate(identity.userAddress, 12, 8)}`);
       currentStep = 1; update(1, 'active');
       const { getQuorum } = await import('@ripcord/core/quorum');
@@ -72,6 +76,8 @@ export function RecoveryScreen() {
       update(currentStep, isDaemonSlowError(e) ? 'active' : 'failed', message);
     } finally { setBusy(false); }
   };
+
+  if (!network) return <NetworkSelect onChoose={(n) => { wallet.setNetwork(n); setNetwork(n); }} />;
 
   return <section className="recovery-screen flow-screen" aria-labelledby="recovery-title">
     <div className="flow-heading"><p className="eyebrow">Setup Gate · Cold-start recovery</p><h2 id="recovery-title">Recover from a clean browser</h2><p>Recovery reads the live chain and writes only public vault metadata. Your mnemonic is never stored and is cleared after success.</p></div>

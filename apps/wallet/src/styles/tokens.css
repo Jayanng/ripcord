@@ -3144,3 +3144,21 @@ html { overscroll-behavior-y: contain; }
   .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
   .security-chip { order: 3; }
 }
+
+
+/* Network selection (step 0) — netselect-* is new namespace, no drift with A6. */
+.netselect-screen { display: flex; flex-direction: column; gap: 22px; }
+.netselect-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.netselect-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 22px;
+  border-radius: 18px; align-items: flex-start;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+.netselect-card h2 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+.netselect-tag { margin: 0; opacity: 0.7; font-size: 13px; }
+.netselect-card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; opacity: 0.85; }
+.netselect-card code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; }
+.netselect-card .test-pull { margin-top: auto; }
+@media (max-width: 720px) { .netselect-grid { grid-template-columns: 1fr; } }

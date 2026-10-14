@@ -171,7 +171,10 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
   // Alice's fixture (live-proven 2026-08-22: Bob's index-0 csv=2 vault derives
   // to a different address). The SDK's verifyVaultP2tr above already validates
   // the cryptographic structure for every vault.
-  if (csvBlocks === 2 && userKeyDescriptor.publicKey === ALICE_FIXTURE_USER_PUBKEY) {
+  // The determinism fixtures are REGTEST-VERIFIED constants (bcrt1 addresses,
+  // live-probed 2026-08-22). On other networks the same keys legitimately
+  // encode to a different address (signet: tb1p...) — never compare across.
+  if (network === 'regtest' && csvBlocks === 2 && userKeyDescriptor.publicKey === ALICE_FIXTURE_USER_PUBKEY) {
     if (expectedAddress !== ALICE_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
@@ -180,7 +183,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
       );
     }
   }
-  if (csvBlocks === 2 && userKeyDescriptor.publicKey === '02028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80') {
+  if (network === 'regtest' && csvBlocks === 2 && userKeyDescriptor.publicKey === '02028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80') {
     if (expectedAddress !== BOB_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,

@@ -27,13 +27,17 @@ import {
   type IndexerStatus,
 } from '@ripcord/core/indexer';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
+import { networkConfig, networkOf, type TachiNetwork } from '@ripcord/core';
+import { setActiveNetwork, daemonBaseFor, bitcoinRpcBaseFor } from '../lib/network-state';
 
 // Browser calls use the same-origin dev proxy because the public daemon does
 // not opt into CORS. Production should provide an equivalent backend proxy.
+// NETWORK-AWARE (Phase 2 signet): the bases derive from the wallet's chosen
+// network. Regtest keeps the exact root-path shape of the deployed app (byte-
+// identical URLs); signet rides the /signet prefix mirrored by the dev proxy
+// and vercel rewrites (all SDK join paths are prefix-safe — live-probed
+// 2026-10-14). VITE_DAEMON_URL / VITE_BITCOIN_RPC_URL dev overrides still win.
 const LOCAL_DAEMON = window.location.origin;
-const DEFAULT_DAEMON = import.meta.env.VITE_DAEMON_URL ?? LOCAL_DAEMON;
-const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL
-  ?? joinDaemonUrl(window.location.origin, 'rpc');
 
 type BootState = 'checking' | 'ready' | 'degraded' | 'unreachable';
 
@@ -43,6 +47,9 @@ export type { VtxoRecordItem };
 interface WalletContextValue {
   baseUrl: string;
   daemonUrl: string;
+  /** Network chosen at creation (stamped on identity + records); regtest for legacy wallets. */
+  network: TachiNetwork;
+  setNetwork: (network: TachiNetwork) => void;
   bootState: BootState;
   health: PreflightResult | null;
   identity: Identity | null;
@@ -142,6 +149,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<PreflightResult | null>(null);
   const [bootState, setBootState] = useState<BootState>('checking');
   const [identity, setIdentity] = useState<Identity | null>(null);
+  // Network is chosen BEFORE creation (onboarding step 0) and stamped on the
+  // identity + every vault record; restored wallets re-sync it from records
+  // (legacy records without a network field are regtest — networkOf).
+  const [network, setNetworkState] = useState<TachiNetwork>('regtest');
+  const setNetwork = (next: TachiNetwork) => {
+    setActiveNetwork(next);
+    setNetworkState(next);
+  };
+  const DEFAULT_DAEMON = import.meta.env.VITE_DAEMON_URL ?? daemonBaseFor(network, LOCAL_DAEMON);
+  const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL ?? bitcoinRpcBaseFor(network, LOCAL_DAEMON);
   const [storedVaults, setStoredVaults] = useState<VaultRecord[]>([]);
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [liveVtxos, setLiveVtxos] = useState<VtxoRecordItem[]>([]);
@@ -194,6 +211,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [pendingCredits]);
 
   const vaults = useMemo(() => (identity ? vaultsForIdentity(storedVaults, identity) : storedVaults), [identity, storedVaults]);
+  // Sync the active network from restored records (must run AFTER `vaults`
+  // exists — the dependency array reads it during render).
+  useEffect(() => {
+    if (identity) setNetwork(identity.network);
+    else if (vaults.length > 0) setNetwork(networkOf(vaults[0]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, vaults]);
   const hasVault = vaults.length > 0;
   // Explicit vault selection (Phase 5 multi-vault): the user's pick wins, the
   // scored heuristic stays as the default when nothing is selected. Vault
@@ -292,6 +316,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       const [nextHealth, wtStatus, wtReceipts] = await Promise.all([
         import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
+          network,
           allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL,
           bitcoinRpcBaseUrl: BITCOIN_RPC_BASE,
         })),
@@ -530,7 +555,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     void import('@ripcord/core/indexer').then(({ VaultIndexer }) => {
       if (cancelled) return;
       const configured = import.meta.env.VITE_INDEXER_URL as string | undefined;
-      const url = configured ?? 'wss://rpc-regtest.tachibtc.com/tachi_ws';
+      const url = configured ?? networkConfig(network).daemonWs;
       indexer = new VaultIndexer({
         url,
         address: identity.xOnly,
@@ -688,11 +713,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [identity, activeVault?.address]);
 
   const value = useMemo<WalletContextValue>(() => ({
-    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
+    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, network, setNetwork, bootState, health, identity, vaults, activeVault, hasVault, receipts,
     liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, network,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

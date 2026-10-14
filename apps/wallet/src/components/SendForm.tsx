@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
-import { formatSats, truncate, Icon } from './ui';
+import { formatSats, truncate, Icon, explorerTxUrl } from './ui';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
 import { evaluateSpend, hasActiveRules, type ConscienceCheck, type ConscienceSettings as ConscienceSettingsType } from '@ripcord/core/spend-conscience';
 import { parseAddressHighlight, findSuspiciousVariant } from '@ripcord/core/address-safety';
@@ -692,7 +692,7 @@ export function SendForm() {
               pushToast({
                 title: 'Send committed',
                 body: `${formatSats(BigInt(sats))} to ${truncate(recipient, 8, 6)} committed at epoch ${committed.epoch}.`,
-                href: `https://regtest.tachibtcscan.com/tx/${committed.txHash}`,
+                href: explorerTxUrl(committed.txHash),
                 hrefLabel: 'View transaction ↗',
                 tone: 'success',
               }),

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { addressToScriptPubKeyHex, type ExplicitSpendableInput } from '@ripcord/core/deposit';
+import { getActiveNetwork } from '../lib/network-state';
+import { networkConfig } from '@ripcord/core';
 
 type State = 'idle' | 'requesting' | 'waiting' | 'confirmed' | 'error';
 type Props = {
@@ -13,7 +15,11 @@ type Props = {
 const keyFor = (address: string) => `ripcord:faucet:${address}`;
 // Same-origin by contract (dev Vite proxy / deployment rewrites carry it to
 // faucet.tachibtc.com); override with VITE_FAUCET_URL for other hosts.
-const FAUCET_URL = (import.meta.env.VITE_FAUCET_URL as string | undefined) || '/faucet/api/faucet';
+// Verified live 2026-10-14: the faucet claim endpoint is POST /api/{net}/faucet
+// with body {address, amountBtc}; the old /api/faucet path answers 'unknown or
+// unconfigured chain'. Regtest claims are anonymous; SIGNET claims require
+// sign-in on the faucet site (Clerk), so the signet flow is a hand-off below.
+const FAUCET_URL = (import.meta.env.VITE_FAUCET_URL as string | undefined) || '/faucet/api/regtest/faucet';
 
 export function FaucetModal({ address, onClose, onConfirmed }: Props) {
   const [state, setState] = useState<State>('idle');
@@ -54,7 +60,7 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
   const resolvePayoutOutput = async (txid: string, targetAddress: string): Promise<ExplicitSpendableInput | null> => {
     let expectedScript = '';
     try {
-      expectedScript = addressToScriptPubKeyHex(targetAddress, 'regtest').toLowerCase();
+      expectedScript = addressToScriptPubKeyHex(targetAddress, getActiveNetwork()).toLowerCase();
     } catch {
       // ignore
     }
@@ -214,7 +220,7 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
       <aside ref={panel} className="proof-sheet" role="dialog" aria-modal="true" aria-labelledby="faucet-title">
         <header>
           <div>
-            <p className="eyebrow">Regtest funding</p>
+            <p className="eyebrow">{getActiveNetwork() === 'signet' ? 'Signet funding' : 'Regtest funding'}</p>
             <h2 id="faucet-title">Request faucet funds</h2>
           </div>
           <button ref={close} aria-label="Close faucet" onClick={onClose}>
@@ -222,6 +228,39 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
           </button>
         </header>
         <div className="flow-body">
+          {getActiveNetwork() === 'signet' ? (
+            <>
+              <p>
+                The signet faucet lives on the faucet site: sign in with GitHub
+                or X (0.005 BTC per account per day), send to your address
+                below, and the funds arrive on Bitcoin signet.
+              </p>
+              <p className="flow-note">
+                When the payout confirms, come back and use &quot;Check and
+                register deposit&quot; to bind it to your vault. Blocks land
+                about every 10 minutes — you can close this panel and return later.
+              </p>
+              <code>{address}</code>
+              <div className="mnemonic-actions">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => void navigator.clipboard?.writeText(address)}
+                >
+                  Copy address
+                </button>
+                <a
+                  className="test-pull"
+                  href={networkConfig('signet').faucetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open the signet faucet ↗
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
           <p>
             The faucet sends 0.5 regtest BTC to your L1 settlement address. Ripcord immediately chains your 40,000 sat vault
             deposit without waiting for an intermediate confirmation, cutting funding to a single block wait (~10 min worst
@@ -248,6 +287,8 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
             <button className="secondary-action" onClick={onClose}>
               Explore wallet while waiting →
             </button>
+          )}
+            </>
           )}
         </div>
       </aside>

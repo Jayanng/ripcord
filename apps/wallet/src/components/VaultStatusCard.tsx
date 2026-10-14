@@ -3,6 +3,7 @@ import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
 import { truncate, L1Txid, explorerVaultUrl } from './ui';
+import { getActiveNetwork } from '../lib/network-state';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -109,7 +110,7 @@ export function VaultStatusCard() {
         allowInsecureHttp: wallet.daemonUrl.startsWith('http://127.0.0.1:') || wallet.daemonUrl.startsWith('http://localhost:'),
       });
       const derived = await createVault({
-        network: 'regtest',
+        network: getActiveNetwork(),
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: wallet.activeVault?.csvBlocks ?? 2,
         userKeyDescriptor: wallet.identity.userKeyDescriptor,

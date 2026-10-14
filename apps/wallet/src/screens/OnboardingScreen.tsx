@@ -4,6 +4,8 @@ import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { truncate, L1Txid } from '../components/ui';
+import { NetworkSelect } from '../components/NetworkSelect';
+import type { TachiNetwork } from '@ripcord/core';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -11,6 +13,9 @@ type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 're
 
 export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void }) {
   const wallet = useWallet();
+  // Step 0 (user-mandated): the network is chosen BEFORE any key material
+  // exists and is stamped on the identity + vault at creation.
+  const [network, setNetwork] = useState<TachiNetwork | null>(null);
   const [mnemonic, setMnemonic] = useState('');
   const [index, setIndex] = useState(0);
   const [csv, setCsv] = useState(2);
@@ -67,12 +72,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         import('@ripcord/core/vault'),
         import('@ripcord/core/lifecycle'),
       ]);
-      const identity = deriveIdentity(mnemonic.trim(), 'regtest', index);
+      const identity = deriveIdentity(mnemonic.trim(), network ?? 'regtest', index);
       const quorum = await getQuorum(wallet.daemonUrl, {
         allowInsecureHttp: wallet.daemonUrl.startsWith('http://127.0.0.1:') || wallet.daemonUrl.startsWith('http://localhost:'),
       });
       const derived = await createVault({
-        network: 'regtest',
+        network: network ?? 'regtest',
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: csv,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -247,6 +252,8 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   ];
 
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
+
+  if (!network) return <NetworkSelect onChoose={(n) => { wallet.setNetwork(n); setNetwork(n); }} />;
 
   return <section className="flow-screen create-wallet-screen">
     <div className="flow-heading">

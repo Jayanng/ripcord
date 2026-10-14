@@ -21,6 +21,8 @@ export function NetworkBadge() {
     };
   }, []);
 
+  const netLabel = wallet.network === 'signet' ? 'SIGNET' : 'REGTEST';
+  const netName = wallet.network === 'signet' ? 'Bitcoin signet' : 'Bitcoin regtest';
   const indexerConnected = wallet.indexerStatus.state === 'connected';
   const paused = !online || !indexerConnected;
 
@@ -31,17 +33,17 @@ export function NetworkBadge() {
       aria-label={
         paused
           ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
-          : 'Network: Bitcoin regtest, live updates connected'
+          : `Network: ${netName}, live updates connected`
       }
       title={
         paused
           ? 'Live updates paused. Retrying automatically. Tap to refresh now.'
-          : 'Live updates connected on Bitcoin regtest'
+          : `Live updates connected on ${netName}`
       }
       onClick={() => void wallet.refresh()}
     >
       <span aria-hidden="true" />
-      {paused ? 'Live updates paused, retrying automatically' : 'REGTEST'}
+      {paused ? 'Live updates paused, retrying automatically' : netLabel}
     </button>
   );
 }

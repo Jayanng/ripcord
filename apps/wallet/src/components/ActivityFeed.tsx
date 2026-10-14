@@ -10,6 +10,7 @@ import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
 import { Skeleton } from './Skeleton';
+import { explorerBase } from './ui';
 
 type ActivityFilter = 'all' | 'transfers' | 'deposits' | 'blocks';
 
@@ -199,7 +200,7 @@ export function ActivityFeed() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <a
             className="explorer-link"
-            href="https://regtest.tachibtcscan.com"
+            href={explorerBase()}
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: '11px' }}

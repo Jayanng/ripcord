@@ -2,11 +2,18 @@ import { useState, type ReactNode, type CSSProperties, type MouseEvent, type Key
 
 export { formatSats } from '../lib/format';
 export const truncate = (value: string, start = 8, end = 6) => value.length > start + end ? `${value.slice(0, start)}…${value.slice(-end)}` : value;
-export const EXPLORER_BASE = 'https://regtest.tachibtcscan.com';
-export const explorerTxUrl = (txid: string) => `${EXPLORER_BASE}/tx/${txid.toLowerCase()}`;
-export const explorerBlockUrl = (heightOrHash: string | number) => `${EXPLORER_BASE}/epoch/${typeof heightOrHash === 'string' ? heightOrHash.toLowerCase() : heightOrHash}`;
-export const explorerVaultUrl = (vaultId: string) => `${EXPLORER_BASE}/vaults/${vaultId}`;
-export const explorerVtxoUrl = (vtxoId: string) => `${EXPLORER_BASE}/vtxo/${vtxoId}`;
+import { networkConfig } from '@ripcord/core';
+import { getActiveNetwork } from '../lib/network-state';
+
+// Tachi-ledger explorer base for the ACTIVE wallet network (regtest and signet
+// explorers are the same SPA on different hosts). Was a regtest constant; now
+// derived so a signet wallet's links are signet links. Routing per id kind
+// (tx hash / vtxo id / vault id / epoch) is identical on both explorers.
+export const explorerBase = () => networkConfig(getActiveNetwork()).explorerBase;
+export const explorerTxUrl = (txid: string) => `${explorerBase()}/tx/${txid.toLowerCase()}`;
+export const explorerBlockUrl = (heightOrHash: string | number) => `${explorerBase()}/epoch/${typeof heightOrHash === 'string' ? heightOrHash.toLowerCase() : heightOrHash}`;
+export const explorerVaultUrl = (vaultId: string) => `${explorerBase()}/vaults/${vaultId}`;
+export const explorerVtxoUrl = (vtxoId: string) => `${explorerBase()}/vtxo/${vtxoId}`;
 
 export function L1Txid({
   txid,
