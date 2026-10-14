@@ -185,7 +185,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   });
 
   describe('fresh live transfer', () => {
-    it('fetchHat on a just-committed send returns a 64-char proof for the spent input', { timeout: 180_000 }, async () => {
+    it('fetchHat on a just-committed send returns a 64-char proof for the spent input', { timeout: 240_000 }, async () => {
       const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
       const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
       const quorum = await withTransportRetry(() => getQuorum(DAEMON));

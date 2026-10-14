@@ -48,6 +48,7 @@ import type * as bitcoin from 'bitcoinjs-lib';
 import {
   asDisplayTxid,
   asUserAddress,
+  assertSameNetwork,
   isDisplayTxid,
   isUserAddress,
   toSdkVault,
@@ -969,6 +970,7 @@ export async function inspectToLocalMaturity(params: {
  * builds, verifies, signs, and finalizes the self-exit PSBT. Never broadcasts.
  */
 export async function assessToLocalClaim(params: AssessToLocalClaimParams): Promise<ToLocalClaimReadiness> {
+  assertSameNetwork(params.identity, params.toLocal);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_CLAIM_FEE_SATS);
   const destAddress = requireDest(
     params.destAddress ?? params.identity.l1Address,
@@ -1087,7 +1089,7 @@ export async function claimToLocalPayout(
   params: ClaimToLocalPayoutParams,
 ): Promise<{ txid: DisplayTxid; rawHex: string }> {
   const feeSats = requireFee(params.feeSats ?? DEFAULT_CLAIM_FEE_SATS);
-  const destAddress = requireDest(params.destAddress, params.toLocal.address);
+  const destAddress = requireDest(params.destAddress, params.toLocal.address, networkOf(params.toLocal));
 
   const signerPublicKey = Buffer.from(params.signer.publicKey);
   const signerXOnly = signerPublicKey.length === 33 ? signerPublicKey.subarray(1) : signerPublicKey;

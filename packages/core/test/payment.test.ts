@@ -100,7 +100,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     })).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
 
-  it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async () => {
+  it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async ctx => {
     // Fixture economics gate (same pattern as deposit.test/exit.test): Alice's
     // VTXO balance is a historical, spendable fixture that ratchets down with
     // every run. A starved fixture is STATE, not regression — degrade to an
@@ -110,13 +110,14 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }),
     );
     const aliceTotal = aliceVtxos.vtxos
-      .filter(v => !v.spent)
+      .filter(v => !v.spent && !v.locked)
       .reduce((acc, v) => acc + v.amountSats, 0n);
     if (aliceTotal < 5001n) {
       console.warn(
         `[fixture] payment.test skipped: ${aliceTotal} sats in Alice's VTXOs, need 5001. ` +
         'Refill via the deposit->mint flow and re-run.',
       );
+      ctx.skip(); // rules-allow(skip): conditional on live fixture economics
       return;
     }
 

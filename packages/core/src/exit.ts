@@ -27,6 +27,7 @@ import {
 import {
   asDisplayTxid,
   asUserAddress,
+  assertSameNetwork,
   isDisplayTxid,
   isUserAddress,
   toSdkVault,
@@ -343,6 +344,7 @@ export async function inspectExitMaturity(
  * Status comes from live `gettxout` confirmations vs `vault.csvBlocks`.
  */
 export async function assessExit(params: AssessExitParams): Promise<ExitReadiness> {
+  assertSameNetwork(params.identity, params.vault);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
   const destAddress = requireDest(
     params.destAddress ?? params.identity.l1Address,
