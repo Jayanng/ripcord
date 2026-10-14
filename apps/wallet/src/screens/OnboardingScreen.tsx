@@ -5,7 +5,7 @@ import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { truncate, L1Txid } from '../components/ui';
 import { NetworkSelect } from '../components/NetworkSelect';
-import { getActiveNetwork, bitcoinRpcUrl } from '../lib/network-state';
+import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-state';
 import type { TachiNetwork } from '@ripcord/core';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
@@ -247,7 +247,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     : flow === 'depositing'
     ? 'Preparing and broadcasting your vault deposit…'
     : flow === 'confirming-deposit'
-    ? `Your vault deposit is broadcast with ${depositConfirmations} of 1 confirmations. Mining takes ~10 min on regtest (~5 min avg); funding and deposit confirm in the same block.`
+    ? `Your vault deposit is waiting for its block: ${depositConfirmations} of 1 confirmations so far. Mining takes ~5 to 10 min on ${networkLabel()}; the deposit and its faucet input confirm in the same block.`
     : flow === 'minting'
     ? 'Your deposit is confirmed. Creating your first spendable VTXO on Tachi.'
     : flow === 'registering'
@@ -263,7 +263,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const fundingSteps = [
     { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
     { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
-    { label: 'Faucet confirmed on L1', done: isDepositConfirmed },
+    { label: 'Faucet confirmed on L1 (same block as the deposit)', done: isDepositConfirmed },
     { label: 'Deposit confirmed on L1', done: isDepositConfirmed },
     { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
