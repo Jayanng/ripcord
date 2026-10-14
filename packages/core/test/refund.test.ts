@@ -83,7 +83,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
       const toLocal = buildToLocalCommitment(vault);
 
-      expect(toLocal.address).toMatch(/^bcrt1p[0-9a-z]{58,}$/);
+      expect(toLocal.address).toMatch(TEST_NETWORK === 'signet' ? /^tb1p[0-9a-z]{58,}$/ : /^bcrt1p[0-9a-z]{58,}$/);
       expect(toLocal.toSelfDelay).toBe(2);
       expect(toLocal.threshold).toBe(quorum.threshold);
       expect(toLocal.nodeKeysCompressed.length).toBe(quorum.nodePubkeys.length);
@@ -407,7 +407,10 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       expect(readiness.dryRun).toBeUndefined();
     });
 
-    it('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async (ctx) => {
+    // Live-money test: on signet the fixtures cannot self-heal (the faucet
+    // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
+    // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
+    it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async (ctx) => {
       const fixtureTotal = (userWallet.utxos ?? []).reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
       if (fixtureTotal < 40_001n) {

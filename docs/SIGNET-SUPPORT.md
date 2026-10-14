@@ -69,6 +69,26 @@ The app hands off to the official faucet, it does not wrap it:
 - **Not production custody software** on either network. Do not use with funds
   that matter.
 
+## Test matrix (plan phase 5)
+
+The live suite is parameterized: `TACHI_TEST_NETWORK=signet npm test` runs it
+against signet; the default run is regtest and is byte-identical to the
+previous release's suite (491 passed, 0 failed, verified after the change).
+
+- **Regtest run**: the full suite, including the frozen-constant tests (they
+  pin the regtest invariance: fixed derivation values, fixture vault addresses,
+  seed proof artifacts) and the live money-path tests (fixtures self-heal via
+  the anonymous faucet).
+- **Signet run**: all derivation, validation, pure-logic and daemon tests run
+  green against the live signet daemon. Per-network frozen constants are
+  cross-checked against the Tachi SDK's own derivation. Regtest-constant and
+  regtest-chain-state tests skip with an explicit reason. Live-money tests
+  (deposit 40k, assessRefund on a live deposit, assessExit on a live deposit,
+  SDK-scan routing) require pre-funded fixtures because the signet faucet needs
+  human sign-in: they run only with `TACHI_SIGNET_FUNDED=1` and otherwise skip
+  with the fixture note. Their signet behavior is evidenced live in this
+  document's money-path table.
+
 ## Deployed variant
 
 - Signet-capable build (network selection at create): `https://ripcord-signet.vercel.app`

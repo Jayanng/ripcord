@@ -51,7 +51,10 @@ describe('deposit.ts', { timeout: 120000 }, () => {
   }
 
   describe('depositToVault', () => {
-    it('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async (ctx) => {
+    // Live-money test: on signet the fixtures cannot self-heal (the faucet
+    // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
+    // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
+    it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async (ctx) => {
       const fixtureTotal = (userWallet.utxos ?? []).reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
       if (fixtureTotal < 40_001n) {
@@ -161,7 +164,10 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     });
   });
 
-  it('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', { timeout: 240_000 }, async () => {
+  // Live-money test: on signet the fixtures cannot self-heal (the faucet
+  // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
+  // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', { timeout: 240_000 }, async () => {
     // Regression for the 2026-09-28 production "Failed to fetch": the SDK's
     // global rpcCall/getUtxos (taurus-wallet-aggregator chunk-V3QPXLNG.js:332/480)
     // POST to network.rpc.jsonRpc, whose default is the ABSOLUTE daemon URL that

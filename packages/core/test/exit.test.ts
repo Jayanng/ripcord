@@ -95,7 +95,10 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
     })).rejects.toThrow(/cannot be the vault address/);
   });
 
-  it('assessExit on a 0-conf deposit is maturing, vsize 125, nSequence 2, and does not spend', async (ctx) => {
+  // Live-money test: on signet the fixtures cannot self-heal (the faucet
+    // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
+    // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
+    it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('assessExit on a 0-conf deposit is maturing, vsize 125, nSequence 2, and does not spend', async (ctx) => {
       const fixtureTotal = (userWallet.utxos ?? []).reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
       if (fixtureTotal < 40_001n) {
