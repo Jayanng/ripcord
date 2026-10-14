@@ -187,11 +187,12 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   const { identity, quorum, baseUrl, startIndex, gapLimit, maxIndex } = params;
   const bitcoinRpcBaseUrl = params.bitcoinRpcBaseUrl ?? baseUrl;
 
-  if (identity.network !== 'regtest') {
+  const network = networkOf(identity);
+  if (identity.network !== 'regtest' && identity.network !== 'signet') {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
-      `Unsupported network: ${identity.network}`,
-      { hint: 'Recovery currently supports regtest only' }
+      `Unsupported network: ${String(identity.network)}`,
+      { hint: 'Recovery supports Tachi regtest and signet' }
     );
   }
 
@@ -280,7 +281,7 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
   for (const csvBlocks of csvCandidates) {
     const discovered = await retryDaemonQuery(() =>
       vc.discoverVaults({
-        network: 'regtest',
+        network,
         userWallet: wallet,
         nodePubkeys: quorum.nodePubkeys,
         threshold: quorum.threshold,
@@ -339,10 +340,11 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
 
       const record: VaultRecord = {
         vaultIdHex: d.summary.vaultId,
-        address: asVaultAddress(d.vault.p2tr.address),
+        network,
+        address: asVaultAddress(d.vault.p2tr.address, network),
         csvBlocks: resolvedCsv,
         userKeyIndex: d.userKeyIndex,
-        userKeyDescriptor: toUserKeyDescriptor(descriptor),
+        userKeyDescriptor: toUserKeyDescriptor(descriptor, network),
         nodePubkeys: recordNodePubkeys,
         quorumThreshold: quorum.threshold,
         quorumFingerprint,

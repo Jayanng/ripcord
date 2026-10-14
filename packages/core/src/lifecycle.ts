@@ -5,6 +5,7 @@ import { registerVault, isCode17VaultExists, adoptVaultOnCode17 } from './regist
 import { mapDaemonError } from './errors.js';
 import { joinDaemonUrl, describeDaemonFailure } from './net.js';
 import type { VaultRecord } from './types.js';
+import { networkOf } from './networks.js';
 
 export const DAEMON_SLOW_NOTE = 'The daemon is slow to answer. Your setup continues safely; status will refresh shortly.';
 
@@ -815,7 +816,7 @@ async function fundVaultLifecycleRun(params: FundVaultLifecycleParams): Promise<
     }
 
     params.onProgress?.('minting');
-    const signer = makeSigner(params.mnemonic, 'regtest', params.vault.userKeyIndex);
+    const signer = makeSigner(params.mnemonic, networkOf(params.vault), params.vault.userKeyIndex);
     const mintAmount = deposit.amountSats - 1n;
     const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
     const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));

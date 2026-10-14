@@ -6,7 +6,7 @@ import {
   asVaultAddress,
   ExplicitSpendableInput,
 } from './types.js';
-import { DEFAULT_NETWORK, networkOf, type TachiNetwork } from './networks.js';
+import { DEFAULT_NETWORK, networkConfig, networkOf, type TachiNetwork } from './networks.js';
 
 import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
@@ -18,11 +18,13 @@ import { Transaction } from 'bitcoinjs-lib';
 export type { ExplicitSpendableInput };
 
 /**
- * Convert an address to its scriptPubKey hex string on regtest or mainnet.
+ * Convert an address to its scriptPubKey hex string for a Tachi network (or
+ * 'bitcoin' mainnet, kept for callers that match mainnet outputs).
  * Used for matching L1 settlement outputs in 0-conf chaining without leaking @tachibtc imports into apps/.
+ * REGTEST INVARIANCE: default network is regtest (same output as before).
  */
-export function addressToScriptPubKeyHex(address: string, network: 'regtest' | 'bitcoin' = 'regtest'): string {
-  const net = network === 'regtest' ? btc.networks.regtest : btc.networks.bitcoin;
+export function addressToScriptPubKeyHex(address: string, network: TachiNetwork | 'bitcoin' = DEFAULT_NETWORK): string {
+  const net = network === 'bitcoin' ? btc.networks.bitcoin : networkConfig(network).bitcoinjsNetwork;
   return Buffer.from(btc.address.toOutputScript(address, net)).toString('hex');
 }
 
@@ -68,7 +70,7 @@ export async function depositToVault(
   }
 
   const address = vault.address;
-  if (!isVaultAddress(address)) {
+  if (!isVaultAddress(address, networkOf(vault))) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Invalid vault address: ${address}`,
@@ -99,7 +101,7 @@ export async function depositToVault(
       );
     }
 
-    const expectedL1ScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    const expectedL1ScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, networkOf(vault)).toLowerCase();
     if (explicitInput.scriptPubKey.toLowerCase() !== expectedL1ScriptHex) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
@@ -211,7 +213,7 @@ export async function depositToVault(
 
   // 3. Change correctness: change output must return to user L1 settlement address
   if (dep.changeSats > 0n) {
-    const expectedChangeScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    const expectedChangeScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, networkOf(vault)).toLowerCase();
     const changeVout = decodedTx.outs.findIndex(
       (out, idx) => idx !== vout && Buffer.from(out.script).toString('hex').toLowerCase() === expectedChangeScriptHex
     );
@@ -231,7 +233,7 @@ export async function depositToVault(
     feeSats: dep.feeSats,
     amountSats: dep.amountSats,
     changeSats: dep.changeSats,
-    vaultAddress: asVaultAddress(dep.vaultAddress),
+    vaultAddress: asVaultAddress(dep.vaultAddress, networkOf(vault)),
     inputs: dep.inputs,
   };
 }
@@ -317,7 +319,12 @@ export function useProxyAwareTaurusRpc(baseUrl: string, network: TachiNetwork = 
   // Mutate the ACTIVE network's exported, unfrozen config (fields are read at
   // call time). REGTEST INVARIANCE: default network keeps the regtest object
   // mutation exactly as before.
-  const target = (network === 'signet' ? agg.SIGNET : agg.REGTEST) as unknown as {
+  // Exhaustive by type: a new TachiNetwork cannot silently fall back to REGTEST.
+  const aggNetworks: Record<TachiNetwork, unknown> = {
+    regtest: agg.REGTEST,
+    signet: agg.SIGNET,
+  };
+  const target = aggNetworks[network] as {
     rpc: { jsonRpc: string; rest: string };
   };
   target.rpc.jsonRpc = baseUrl;

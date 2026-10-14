@@ -13,8 +13,8 @@ import { RipcordError, RipcordCode } from './errors.js';
 import { computeFingerprint, assertDistinctPubkeys } from './quorum.js';
 import type { TachiNetwork } from './networks.js';
 
-/** The daemon's cooperative threshold on regtest (SDK `DEFAULT_THRESHOLD`). */
-const REGTEST_THRESHOLD = 5;
+/** Cooperative M-of-N threshold (SDK `DEFAULT_THRESHOLD`; 5-of-7 on BOTH regtest and signet — live-probed). */
+const DEFAULT_COOPERATIVE_THRESHOLD = 5;
 
 export interface CreateVaultParams {
   network: TachiNetwork;
@@ -102,7 +102,7 @@ function toSdkUserKeyDescriptor(desc: UserKeyDescriptor): agg.UserKeyDescriptor 
 
 export async function createVault(params: CreateVaultParams): Promise<VaultRecord> {
   const { network, nodePubkeys, csvBlocks, userKeyDescriptor } = params;
-  const threshold = params.threshold ?? REGTEST_THRESHOLD;
+  const threshold = params.threshold ?? DEFAULT_COOPERATIVE_THRESHOLD;
 
   validateNodePubkeys(nodePubkeys);
   validateThreshold(threshold, nodePubkeys.length);

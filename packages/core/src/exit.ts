@@ -35,7 +35,7 @@ import {
   type Identity,
   type VaultRecord,
 } from './types.js';
-import { networkOf } from './networks.js';
+import { DEFAULT_NETWORK, networkOf, type TachiNetwork } from './networks.js';
 
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
@@ -119,8 +119,8 @@ function requireFee(feeSats: bigint): bigint {
   return feeSats;
 }
 
-function requireDest(destAddress: string, vaultAddress: string): string {
-  if (!isUserAddress(destAddress)) {
+function requireDest(destAddress: string, vaultAddress: string, network: TachiNetwork = DEFAULT_NETWORK): string {
+  if (!isUserAddress(destAddress, network)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Exit destination must be a SegWit address, got: ${destAddress}`,
@@ -193,7 +193,7 @@ async function buildSignFinalize(params: {
     );
   }
 
-  const dest = requireDest(params.destAddress, params.vault.address);
+  const dest = requireDest(params.destAddress, params.vault.address, networkOf(params.vault));
   const sdkVault = toSdkVault(params.vault);
   const scriptPubKey = vaultScriptHex(params.vault);
   const expectedUserKey = Buffer.from(params.vault.userKeyDescriptor.publicKey.slice(2), 'hex');
@@ -347,6 +347,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   const destAddress = requireDest(
     params.destAddress ?? params.identity.l1Address,
     params.vault.address,
+    networkOf(params.identity),
   );
   const required = params.vault.csvBlocks;
   if (!Number.isInteger(required) || required < 1) {
@@ -379,7 +380,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
       { hint: 'Derive the identity at the same index the vault was created with' },
     );
   }
-  const signer = makeSigner(params.identity.mnemonic, 'regtest', params.vault.userKeyIndex);
+  const signer = makeSigner(params.identity.mnemonic, networkOf(params.identity), params.vault.userKeyIndex);
 
   const finalized = await buildSignFinalize({
     vault: params.vault,
@@ -394,7 +395,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   const live = confirmations >= required;
   const dryRun = {
     txid: asDisplayTxid(finalized.decoded.txid),
-    destination: asUserAddress(destAddress, networkOf(params.vault)),
+    destination: asUserAddress(destAddress, networkOf(params.identity)),
     vsize: finalized.decoded.vsize,
     sequence: finalized.decoded.vin?.[0]?.sequence ?? finalized.sequence,
     rawHex: finalized.hex,
@@ -483,7 +484,7 @@ async function spentReadiness(
  */
 export async function executeExit(params: ExecuteExitParams): Promise<{ txid: DisplayTxid }> {
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
-  const destAddress = requireDest(params.destAddress, params.vault.address);
+  const destAddress = requireDest(params.destAddress, params.vault.address, networkOf(params.vault));
 
   // Mandate: tree-proof must pass BEFORE broadcast. The stored exit leaf and
   // control block must re-derive to this vault's address first (review pass 4).

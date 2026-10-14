@@ -71,5 +71,8 @@ export function networkConfig(network: TachiNetwork = DEFAULT_NETWORK): TachiNet
 
 /** Network of a stored record/identity, defaulting legacy records to regtest. */
 export function networkOf(record: { network?: string } | undefined): TachiNetwork {
+  // Fail-safe by design: records predating network selection (and any record
+  // with an unrecognized value) map to regtest — the only network that existed
+  // when those records were created. Never throws on stored data.
   return record?.network === 'signet' ? 'signet' : DEFAULT_NETWORK;
 }
