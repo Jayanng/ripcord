@@ -232,7 +232,11 @@ export async function ensureFixtureFunds(
   }, 0n);
   if (visibleSats >= neededSats) return { visibleSats, topUpAttempted: false };
 
-  const faucetUrl = options.faucetUrl ?? 'https://faucet.tachibtc.com/api/faucet';
+  // Verified live 2026-10-14 (faucet.tachibtc.com JS bundle + API probes): the
+  // faucet's claim endpoint is POST /api/{regtest|signet}/faucet with body
+  // {address, amountBtc}. The old /api/faucet path now answers
+  // "unknown or unconfigured chain" and silently starved the fixture.
+  const faucetUrl = options.faucetUrl ?? 'https://faucet.tachibtc.com/api/regtest/faucet';
   const target = userWallet.receiveAddress ?? userWallet.changeAddress;
   if (!target) return { visibleSats, topUpAttempted: false, faucetMessage: 'no faucet target address' };
 
