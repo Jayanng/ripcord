@@ -53,7 +53,7 @@ async function fundingExists(txid: string): Promise<boolean> {
 
 for (const fixture of HISTORICAL) {
   describe(`findFundingSpender live: ${fixture.name}`, () => {
-    it('discovers the real spender and produces verified sovereign evidence', { timeout: 120_000 }, async () => {
+    it('discovers the real spender and produces verified sovereign evidence', { timeout: 240_000 }, async () => {
       if (!(await fundingExists(fixture.funding.txid))) {
         // Chain no longer carries this fixture: structural check only.
         expect(await findFundingSpender(BASE, fixture.funding)).toBeNull();
@@ -78,7 +78,7 @@ for (const fixture of HISTORICAL) {
       expect(sweep.explorerUrl).toBe('');
     });
 
-    it('inspectExitMaturity reports spent with the spender bound to the destination', { timeout: 120_000 }, async () => {
+    it('inspectExitMaturity reports spent with the spender bound to the destination', { timeout: 240_000 }, async () => {
       if (!(await fundingExists(fixture.funding.txid))) return;
       // Warm the cache first: inspectExitMaturity deliberately races the lookup
       // against a 1.5s budget so the maturity poller never stalls, so spentBy is

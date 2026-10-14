@@ -185,7 +185,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   });
 
   describe('fresh live transfer', () => {
-    it('fetchHat on a just-committed send returns a 64-char proof for the spent input', async () => {
+    it('fetchHat on a just-committed send returns a 64-char proof for the spent input', { timeout: 180_000 }, async () => {
       const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
       const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
       const quorum = await withTransportRetry(() => getQuorum(DAEMON));
@@ -217,11 +217,31 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
       expect(result.epoch).toBeGreaterThan(0);
       expect(spentIds.length).toBeGreaterThan(0);
 
-      const hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl: DAEMON }));
+      // The daemon publishes proof trees only after the ORIGIN epoch closes
+      // (~5s cadence): "epoch N not closed (no tree available)" on a fresh
+      // commit is honest not-yet, not a failure. Poll to the closure within a
+      // bounded budget instead of racing it (fix 2026-10-14 — this race was
+      // the suite's persistent 1x failure).
+      const deadline = Date.now() + 120_000;
+      let hat = null;
+      let rip = null;
+      let lastError: unknown = null;
+      while (Date.now() < deadline) {
+        try {
+          hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl: DAEMON }));
+          rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 }));
+          break;
+        } catch (err) {
+          lastError = err;
+          await new Promise(resolve => setTimeout(resolve, 4_000));
+        }
+      }
+      if (!hat || !rip) {
+        throw lastError instanceof Error ? lastError : new Error('proofs did not appear within the epoch-close budget');
+      }
       expect(hat.proof).toMatch(/^[0-9a-f]{64}$/);
       expect(spentIds.map(id => id.toLowerCase())).toContain(hat.vtxoId);
 
-      const rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 }));
       expect(rip.originEpoch).toBe(result.epoch);
       expect(rip.chainLength).toBe(0);
       expect(rip.finalRoot).toBe(rip.originRoot);

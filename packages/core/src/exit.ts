@@ -673,13 +673,27 @@ async function scanForSpender(
     };
   };
 
-  // Unconfirmed spender first (cheapest).
+  // Unconfirmed spender first (cheapest). Fetched in parallel waves: the
+  // public node serves ~270ms per sequential RPC (measured 2026-10-14), so a
+  // per-tx sequential walk over a busy mempool is the same trap as the block
+  // scan below. Wave order resolves mempool order; the first match wins.
   try {
     const mempool = await bitcoinRpc(baseUrl, 'getrawmempool', []);
-    for (const txid of (mempool.result as string[] | null) ?? []) {
-      const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
-      if (matches((t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> })) {
-        const spender = await readSpender(txid, null);
+    const mempoolIds = (mempool.result as string[] | null) ?? [];
+    const MEMPOOL_WAVE = 32;
+    for (let i = 0; i < mempoolIds.length; i += MEMPOOL_WAVE) {
+      const wave = mempoolIds.slice(i, i + MEMPOOL_WAVE);
+      const decoded = await Promise.all(wave.map(async (txid) => {
+        try {
+          const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
+          return { txid, tx: (t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> } };
+        } catch {
+          return null;
+        }
+      }));
+      for (const entry of decoded) {
+        if (!entry || !matches(entry.tx)) continue;
+        const spender = await readSpender(entry.txid, null);
         if (spender) {
           spenderCache.set(key, spender);
           negativeCache.delete(key);
@@ -699,28 +713,48 @@ async function scanForSpender(
   // Scan backward from the tip: recent spenders are near the top, and the
   // bound plus per-block guards keep one transient node error from failing the
   // whole check (review fix 2026-10-02).
+  //
+  // PARALLEL WAVES (fix 2026-10-14): the walk used to be 2 sequential RPCs per
+  // block, ~400ms per block on the public node — a historical outpoint 1,800
+  // blocks below the tip needed ~12 minutes and blew every caller's budget
+  // (4 live tests timing out at 120s). Heights are now processed in waves of
+  // WAVE concurrent slots; within a wave the HIGHEST height wins, so the
+  // backward preference is unchanged. A wave costs ~2 round-trip latencies
+  // regardless of its size (measured: 16 parallel RPCs = 314ms total vs
+  // 270ms for ONE sequential RPC).
   const maxScan = 2_000;
-  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) {
-    try {
-      const hashRes = await bitcoinRpc(baseUrl, 'getblockhash', [h]);
-      const blockHash = hashRes.result as string | null;
-      if (!blockHash) continue;
-      const blockRes = await bitcoinRpc(baseUrl, 'getblock', [blockHash, 2]);
-      const block = blockRes.result as {
-        tx?: ReadonlyArray<{ txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }>;
-      } | null;
-      for (const tx of block?.tx ?? []) {
-        if (matches(tx)) {
-          const spender = await readSpender(String(tx.txid), blockHash);
-          if (spender) {
-            spenderCache.set(key, spender);
-            negativeCache.delete(key);
-          }
-          return spender;
+  const WAVE = 32;
+  const heights: number[] = [];
+  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) heights.push(h);
+  for (let i = 0; i < heights.length; i += WAVE) {
+    const wave = heights.slice(i, i + WAVE);
+    const found = await Promise.all(wave.map(async (h) => {
+      try {
+        const hashRes = await bitcoinRpc(baseUrl, 'getblockhash', [h]);
+        const blockHash = hashRes.result as string | null;
+        if (!blockHash) return null;
+        const blockRes = await bitcoinRpc(baseUrl, 'getblock', [blockHash, 2]);
+        const block = blockRes.result as {
+          tx?: ReadonlyArray<{ txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }>;
+        } | null;
+        for (const tx of block?.tx ?? []) {
+          if (matches(tx)) return { txid: String(tx.txid), blockHash };
         }
+        return null;
+      } catch {
+        // Skip a block the node failed to serve; keep scanning.
+        return null;
       }
-    } catch {
-      // Skip a block the node failed to serve; keep scanning.
+    }));
+    // wave is ordered tip-down, so the first hit is the highest (newest) spender.
+    const hit = found.find((entry) => entry !== null);
+    if (hit) {
+      const spender = await readSpender(hit.txid, hit.blockHash);
+      if (spender) {
+        spenderCache.set(key, spender);
+        negativeCache.delete(key);
+      }
+      return spender;
     }
   }
   negativeCache.set(key, Date.now());
