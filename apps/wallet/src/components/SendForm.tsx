@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getActiveNetwork } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
 import { formatSats, truncate, Icon, explorerTxUrl } from './ui';
@@ -623,18 +624,18 @@ export function SendForm() {
               vault: toSdkVault(vault),
               senderXOnly: identity.xOnly,
               recipientAddress: recipient,
-              network: 'regtest',
+              network: getActiveNetwork(),
               amountSats: BigInt(sats),
               feeSats: sendFee,
               baseUrl: wallet.daemonUrl,
-              userSigner: makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex),
+              userSigner: makeSigner(identity.mnemonic, getActiveNetwork(), vault.userKeyIndex),
               queue: wallet.txQueue,
             });
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Fetching proof…`);
             let proofNote = 'proof saved';
             try {
               const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
-              const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex') as import('@ripcord/core/types').XOnlyHex;
+              const recipientXOnly = xOnlyFromAddress(recipient, getActiveNetwork()).toString('hex') as import('@ripcord/core/types').XOnlyHex;
               const receiptParams = {
                 txHash: committed.txHash,
                 epoch: committed.epoch,

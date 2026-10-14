@@ -1,4 +1,5 @@
 import type { VaultRecord, Identity } from '@ripcord/core/types';
+import { getActiveNetwork } from '../lib/network-state';
 
 // ToLocalP2trOutput's home is the TaurUS SDK (banned in the wallet layer by the
 // architecture gate); derive the type from core's own exported constructor.
@@ -40,7 +41,7 @@ export function useRefund() {
   ) => {
     const { executeRefund } = await import('@ripcord/core/refund');
     const { makeSigner } = await import('@ripcord/core/keys');
-    const signer = makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex);
+    const signer = makeSigner(identity.mnemonic, getActiveNetwork(), vault.userKeyIndex);
     return executeRefund({ vault, identity, signer, baseUrl, feeSats, userValueSats });
   };
 
@@ -64,7 +65,7 @@ export function useRefund() {
   ) => {
     const { claimToLocalPayout } = await import('@ripcord/core/refund');
     const { makeSigner } = await import('@ripcord/core/keys');
-    const signer = makeSigner(identity.mnemonic, 'regtest', identity.userKeyDescriptor.index);
+    const signer = makeSigner(identity.mnemonic, getActiveNetwork(), identity.userKeyDescriptor.index);
     return claimToLocalPayout({
       toLocal,
       funding: { txid: funding.txid, vout: 0, valueSats: funding.valueSats },

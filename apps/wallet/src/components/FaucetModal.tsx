@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { addressToScriptPubKeyHex, type ExplicitSpendableInput } from '@ripcord/core/deposit';
-import { getActiveNetwork } from '../lib/network-state';
+import { getActiveNetwork, bitcoinRpcUrl } from '../lib/network-state';
 import { networkConfig } from '@ripcord/core';
 
 type State = 'idle' | 'requesting' | 'waiting' | 'confirmed' | 'error';
@@ -66,7 +66,7 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
     }
     for (let attempt = 0; attempt < 8; attempt++) {
       try {
-        const response = await fetch('/rpc', {
+        const response = await fetch(bitcoinRpcUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -112,7 +112,7 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
       const elapsed = Math.floor((Date.now() - started) / 1000);
       setMessage(`Funding broadcast: ${txid} · checking live confirmation (${elapsed}s elapsed)`);
       try {
-        const response = await fetch('/rpc', {
+        const response = await fetch(bitcoinRpcUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]),

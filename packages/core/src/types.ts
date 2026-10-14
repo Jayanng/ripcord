@@ -1,5 +1,5 @@
 import { address as btcAddress } from 'bitcoinjs-lib';
-import { DEFAULT_NETWORK, networkConfig, networkOf, type TachiNetwork } from './networks.js';
+import { DEFAULT_NETWORK, NETWORKS, networkConfig, networkOf, type TachiNetwork } from './networks.js';
 
 export type { TachiNetwork } from './networks.js';
 import type { Vault as SdkVault, VaultP2tr, ValidatorNodeKey } from '@tachibtc/taurus-vault-core';
@@ -72,12 +72,22 @@ function decodeBech32Address(value: string, network: TachiNetwork = DEFAULT_NETW
  * A wallet's identity and its vault records must live on the SAME network
  * (audit nit 2026-10-14: assess/execute paths source their network from
  * different artifacts; keys are network-invariant, so nothing else catches a
- * mismatched pair). Enforce at every entry point that sees both.
+ * mismatched pair). Enforced at the exit/refund entry points that carry both
+ * artifacts (sendTransfer carries only the SDK vault — no identity to pair).
  */
 export function assertSameNetwork(
-  identity: { network: string } | undefined,
+  identity: { network?: string } | undefined,
   vault: { network?: string } | undefined,
 ): void {
+  for (const raw of [identity?.network, vault?.network]) {
+    if (raw !== undefined && !(raw in NETWORKS)) {
+      throw new RipcordError(
+        RipcordCode.INVALID_FORMAT,
+        `Unknown network value on wallet record: ${JSON.stringify(raw)}`,
+        { hint: `Expected one of: ${Object.keys(NETWORKS).join(', ')}` },
+      );
+    }
+  }
   const a = networkOf(identity);
   const b = networkOf(vault);
   if (a !== b) {

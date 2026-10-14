@@ -706,6 +706,7 @@ export interface RefundReadiness {
  * builds, verifies, and user-signs the refund PSBT. Never broadcasts.
  */
 export async function assessRefund(params: AssessRefundParams): Promise<RefundReadiness> {
+  assertSameNetwork(params.identity, params.vault);
   const fundingState = await inspectFunding(params.vault, params.baseUrl);
   if (fundingState.status === 'unfunded') {
     return {
@@ -804,6 +805,7 @@ export interface ExecuteRefundResult {
  * finalizeRefund + broadcast to Bitcoin L1 via Bitcoin RPC proxy sendrawtransaction.
  */
 export async function executeRefund(params: ExecuteRefundParams): Promise<ExecuteRefundResult> {
+  assertSameNetwork(params.identity, params.vault);
   const fundingState = await inspectFunding(params.vault, params.baseUrl);
   if (fundingState.status === 'unfunded') {
     throw new RipcordError(RipcordCode.FUNDING_MISSING, 'Vault has no funding outpoint on L1');

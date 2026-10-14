@@ -485,6 +485,7 @@ async function spentReadiness(
  * Immature exits surface as `EXIT_IMMATURE` (non-BIP68-final).
  */
 export async function executeExit(params: ExecuteExitParams): Promise<{ txid: DisplayTxid }> {
+  assertSameNetwork(params.identity, params.vault);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
   const destAddress = requireDest(params.destAddress, params.vault.address, networkOf(params.vault));
 

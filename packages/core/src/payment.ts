@@ -26,7 +26,7 @@ import {
 import { selectCoins, type SpendableVtxo } from './coinselect.js';
 import { RipcordError, RipcordCode, mapDaemonError } from './errors.js';
 import { userAddressForXOnly } from './keys.js';
-import { isUserAddress, toSdkVault, type VaultRecord } from './types.js';
+import { isUserAddress, toSdkVault, type TachiNetwork, type VaultRecord } from './types.js';
 import type { TxQueue } from './queue.js';
 
 export interface TransferParams {
@@ -36,8 +36,9 @@ export interface TransferParams {
   readonly senderXOnly: string;
   /** Recipient's user P2TR address (bech32m). */
   readonly recipientAddress: string;
-  /** Chain the transfer is signed for. Currently regtest only. */
-  readonly network: 'regtest';
+  /** Chain the transfer is signed for. Runtime guard: regtest only until the
+   *  signet money path is live-verified (Phase 3 gate). */
+  readonly network: TachiNetwork;
   readonly amountSats: bigint;
   readonly feeSats: bigint;
   readonly baseUrl: string;
@@ -77,7 +78,7 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
       { hint: 'Use the sender vault user key x-only public key' },
     );
   }
-  if (!isUserAddress(params.recipientAddress)) {
+  if (!isUserAddress(params.recipientAddress, params.network)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Recipient must be a user P2TR address, got: ${params.recipientAddress}`,

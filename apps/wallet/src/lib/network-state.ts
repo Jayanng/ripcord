@@ -36,6 +36,16 @@ export function daemonBaseFor(network: TachiNetwork, origin: string): string {
   return network === 'signet' ? `${origin.replace(/\/+$/, '')}/signet` : origin;
 }
 
+/**
+ * Bitcoin JSON-RPC proxy URL for the ACTIVE network, for direct fetch() calls
+ * (audit C1 2026-10-14: five call sites hardcoded '/rpc', which is the REGTEST
+ * proxy — on signet a gettxout against the wrong chain returns null and the app
+ * cached "spent" forever, voiding real backing).
+ */
+export function bitcoinRpcUrl(): string {
+  return bitcoinRpcBaseFor(active, window.location.origin);
+}
+
 /** Bitcoin JSON-RPC proxy base (bitcoind POST / behind /rpc, per network). */
 export function bitcoinRpcBaseFor(network: TachiNetwork, origin: string): string {
   return network === 'signet'

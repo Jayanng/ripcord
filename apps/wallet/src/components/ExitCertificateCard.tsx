@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getActiveNetwork } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { buildExitCertificate, certificateSummaryText, certificateToJson, type ExitCertificate } from '@ripcord/core/exit-certificate';
 import { proveExitTree, findFundingSpender, buildSweepEvidence, type ExitSweepEvidence } from '@ripcord/core/exit';
@@ -35,7 +36,7 @@ export function ExitCertificateCard() {
     void (async () => {
       try {
         const { deriveIdentity } = await import('@ripcord/core/keys');
-        const derived = deriveIdentity(identity.mnemonic, 'regtest', vault.userKeyIndex);
+        const derived = deriveIdentity(identity.mnemonic, getActiveNetwork(), vault.userKeyIndex);
         if (!cancelled) setUserKeyHex(String(derived.xOnly));
       } catch {
         if (!cancelled) setUserKeyHex('');
@@ -90,7 +91,7 @@ export function ExitCertificateCard() {
         },
         readiness ?? null,
         {
-          network: 'regtest',
+          network: getActiveNetwork(),
           treeProof: proveExitTree(vault),
           sweep,
           fundingOutpoint: funding,

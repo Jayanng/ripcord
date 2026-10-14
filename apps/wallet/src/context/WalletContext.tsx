@@ -130,7 +130,7 @@ export function vaultRecordKey(vault: VaultRecord): string {
 export function identityForVault(identity: Identity | null, vault: VaultRecord | null): Identity | null {
   if (!identity || !vault) return identity;
   if (identity.userKeyDescriptor.index === vault.userKeyIndex) return identity;
-  return deriveIdentity(identity.mnemonic, 'regtest', vault.userKeyIndex);
+  return deriveIdentity(identity.mnemonic, networkOf(identity), vault.userKeyIndex);
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -364,7 +364,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!quiet) setBootState('unreachable');
       setLastRefreshedAt(Date.now());
     }
-  }, [store, activeVault?.vaultIdHex, identity, liveVtxos]);
+  }, [store, activeVault?.vaultIdHex, identity, liveVtxos, network]);
 
   const refresh = useCallback(() => runPreflight(false), [runPreflight]);
 
@@ -400,7 +400,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
+  }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout, network]);
 
   // L1 settlement visibility (2026-10-02, user-reported): show the real
   // Bitcoin balance at the settlement address (deposit change + exit
@@ -446,7 +446,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [identity?.l1Address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
+  }, [identity?.l1Address, activeVault?.funding?.txid, activeVault?.funding?.vout, network]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void runPreflight(true), 30_000);
@@ -661,7 +661,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       indexer.start();
     }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: describeDaemonFailure(error) }); });
     return () => { cancelled = true; indexer?.close(); };
-  }, [identity, saveReceipt, activeVault?.address, activeVault?.vaultIdHex]);
+  }, [identity, saveReceipt, activeVault?.address, activeVault?.vaultIdHex, network]);
 
   // VTXO visibility loader: full history via include_spent=true and locked VTXOs (Deliverable 4)
   useEffect(() => {
@@ -710,7 +710,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     });
     const timer = setInterval(() => void load(), 5000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [identity, activeVault?.address]);
+  }, [identity, activeVault?.address, network]);
 
   const value = useMemo<WalletContextValue>(() => ({
     baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, network, setNetwork, bootState, health, identity, vaults, activeVault, hasVault, receipts,

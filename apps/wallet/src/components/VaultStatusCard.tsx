@@ -3,7 +3,7 @@ import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
 import { truncate, L1Txid, explorerVaultUrl } from './ui';
-import { getActiveNetwork } from '../lib/network-state';
+import { getActiveNetwork, bitcoinRpcUrl } from '../lib/network-state';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -155,7 +155,7 @@ export function VaultStatusCard() {
           return;
         }
         if (savedFaucet && /^[0-9a-f]{64}$/i.test(savedFaucet)) {
-          const response = await fetch('/rpc', {
+          const response = await fetch(bitcoinRpcUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [savedFaucet, true] }),
@@ -171,7 +171,7 @@ export function VaultStatusCard() {
             const targetAddr = wallet.identity?.l1Address;
             if (!targetAddr) return;
             const { addressToScriptPubKeyHex } = await import('@ripcord/core/deposit');
-            const expectedScript = addressToScriptPubKeyHex(targetAddr, 'regtest').toLowerCase();
+            const expectedScript = addressToScriptPubKeyHex(targetAddr, getActiveNetwork()).toLowerCase();
             const match = payload.result.vout?.find(
               v => v.scriptPubKey.hex.toLowerCase() === expectedScript || v.scriptPubKey.address === targetAddr
             );
