@@ -3,7 +3,7 @@ import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { FaucetModal } from './FaucetModal';
 import { truncate, L1Txid, explorerVaultUrl } from './ui';
-import { getActiveNetwork, bitcoinRpcUrl } from '../lib/network-state';
+import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-state';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -239,7 +239,7 @@ export function VaultStatusCard() {
     <div className="flow-heading">
       <p className="eyebrow">TAURUS Vault Registration & Reserves</p>
       <h2>Active TAURUS Vault Status</h2>
-      <p>Your deterministic 5-of-7 TAURUS vault is bound to live validator consensus on Tachi regtest.</p>
+      <p>Your deterministic 5-of-7 TAURUS vault is bound to live validator consensus on {networkLabel()}.</p>
     </div>
     {wallet.identity && (
       <div className="vault-switcher" role="tablist" aria-label="Select vault">

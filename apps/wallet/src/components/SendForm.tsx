@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getActiveNetwork } from '../lib/network-state';
+import { getActiveNetwork, addressPrefix, networkLabel } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
 import { formatSats, truncate, Icon, explorerTxUrl } from './ui';
@@ -335,7 +335,7 @@ function SendReviewModal({
             <span>Network fee</span>
             <strong>{feeLabel}</strong>
             <span style={{ gridColumn: '1 / -1', color: 'var(--text-lo)', fontSize: '11.5px', textAlign: 'right' }}>
-              Estimate: next block on regtest (blocks advance with network activity).
+              Estimate: next block on {networkLabel()} (blocks advance with network activity).
             </span>
             <span>Total</span>
             <strong>{formatSats(totalSats)}</strong>
@@ -515,7 +515,7 @@ export function SendForm() {
     const trimmed = recipient.trim();
     if (!trimmed) return;
     if (!isUserAddress(trimmed)) {
-      setError({ field: 'recipient', message: 'Enter a valid regtest SegWit or Taproot address (bcrt1...)' });
+      setError({ field: 'recipient', message: `Enter a valid SegWit or Taproot address (${addressPrefix()}...)` });
       return;
     }
     if (wallet.vaults.some(item => String(item.address) === trimmed)) {
@@ -551,7 +551,7 @@ export function SendForm() {
       return fail('form', unregisteredVaultMessage());
     }
     const trimmed = recipient.trim();
-    if (!isUserAddress(trimmed)) return fail('recipient', 'Enter a valid regtest SegWit address');
+    if (!isUserAddress(trimmed)) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
     if (wallet.vaults.some(item => String(item.address) === trimmed)) {
       return fail(
         'recipient',
@@ -616,7 +616,7 @@ export function SendForm() {
               import('@ripcord/core/keys'),
               import('@ripcord/core/payment'),
             ]);
-            if (!checkUserAddr(recipient)) return fail('recipient', 'Enter a valid regtest SegWit address');
+            if (!checkUserAddr(recipient)) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
             if (wallet.vaults.some(item => String(item.address) === String(recipient))) {
               return fail('recipient', 'This is a known vault address. Use the recipient wallet’s user receive address.');
             }
@@ -746,7 +746,7 @@ export function SendForm() {
               if (error?.field === 'recipient') setError(null);
             }}
             onBlur={validateRecipientOnBlur}
-            placeholder="bcrt1p…"
+            placeholder={`${addressPrefix()}p…`}
             required
             aria-invalid={error?.field === 'recipient'}
             aria-describedby={error?.field === 'recipient' ? 'send-recipient-error' : undefined}
@@ -770,7 +770,7 @@ export function SendForm() {
             Camera QR scanning requires browser BarcodeDetector support (e.g. Chrome/Chromium).
           </small>
         )}
-        <small className="form-help">Enter a regtest SegWit or Taproot user receive address.</small>
+        <small className="form-help">Enter a {networkLabel()} SegWit or Taproot user receive address.</small>
         {recipient.trim().length > 12 && (() => {
           const parts = parseAddressHighlight(recipient);
           return (
@@ -964,7 +964,7 @@ export function SendForm() {
             />
           </div>
           <small style={{ display: 'block', marginTop: '8px', color: 'var(--text-lo)', fontSize: '12px' }}>
-            Estimate: next block on regtest (blocks advance with network activity). The fee you pick is the fee the send uses.
+            {`Estimate: next block on ${networkLabel()} (blocks advance with network activity). The fee you pick is the fee the send uses.`}
           </small>
         </div>
         <div className="send-summary" aria-label={`Network fee: ${feeDisplay}`}>

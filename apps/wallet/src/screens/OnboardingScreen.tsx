@@ -414,7 +414,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           <span>CSV timelock in blocks (advanced)</span>
           <input type="number" min="1" step="1" inputMode="numeric" value={csv} onChange={event => setCsv(Math.max(1, Math.floor(Number(event.target.value) || 2)))} />
         </label>
-        <small className="form-help">The CSV timelock sets how many blocks your unilateral exit must mature. Leave at 2 on regtest unless you know you need otherwise.</small>
+        <small className="form-help">The CSV timelock sets how many blocks your unilateral exit must mature. Leave at 2 unless you know you need otherwise.</small>
         <button className="test-pull" disabled={busy || (challenge.length > 0 && !challengePassed)}>
           {busy
             ? 'Deriving and reading quorum…'

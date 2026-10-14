@@ -17,6 +17,10 @@ let active: TachiNetwork = 'regtest';
 
 export function setActiveNetwork(network: TachiNetwork): void {
   active = network;
+  // Once a network is selected the whole UI is that network - stamp the page
+  // description too (static HTML ships network-neutral).
+  const meta = document.querySelector('meta[name="description"]');
+  if (meta) meta.setAttribute('content', `A verification-first self-custodial wallet for ${networkLabel()}.`);
 }
 
 export function getActiveNetwork(): TachiNetwork {
@@ -42,6 +46,16 @@ export function daemonBaseFor(network: TachiNetwork, origin: string): string {
  * proxy — on signet a gettxout against the wrong chain returns null and the app
  * cached "spent" forever, voiding real backing).
  */
+/** Display label for the ACTIVE network (Tachi Signet / Tachi Regtest). */
+export function networkLabel(): string {
+  return active === 'signet' ? 'Tachi Signet' : 'Tachi Regtest';
+}
+
+/** Bech32 prefix for the ACTIVE network (UI placeholders/examples). */
+export function addressPrefix(): string {
+  return active === 'signet' ? 'tb1' : 'bcrt1';
+}
+
 export function bitcoinRpcUrl(): string {
   return bitcoinRpcBaseFor(active, window.location.origin);
 }
