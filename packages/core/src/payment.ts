@@ -27,6 +27,7 @@ import { selectCoins, type SpendableVtxo } from './coinselect.js';
 import { RipcordError, RipcordCode, mapDaemonError } from './errors.js';
 import { userAddressForXOnly } from './keys.js';
 import { isUserAddress, toSdkVault, type TachiNetwork, type VaultRecord } from './types.js';
+import { DEFAULT_NETWORK } from './networks.js';
 import type { TxQueue } from './queue.js';
 
 export interface TransferParams {
@@ -64,11 +65,11 @@ export async function sendTransfer(params: TransferParams): Promise<TransferResu
     allowInsecureHttp,
     fetchImpl: globalThis.fetch.bind(globalThis),
   };
-  if (params.network !== 'regtest') {
+  if (params.network !== 'regtest' && params.network !== 'signet') {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Unsupported network: ${params.network}`,
-      { hint: 'Transfers currently support regtest only' },
+      { hint: 'Transfers support Tachi regtest and signet' },
     );
   }
   if (!/^[0-9a-fA-F]{64}$/.test(params.senderXOnly)) {
@@ -224,7 +225,7 @@ export interface CreateVtxoPaymentParams {
   readonly feeSats?: bigint;
   readonly baseUrl: string;
   readonly signer: TaprootSigner;
-  readonly network?: 'regtest';
+  readonly network?: TachiNetwork;
 }
 
 /**
@@ -239,7 +240,7 @@ export async function createVtxoPayment(params: CreateVtxoPaymentParams): Promis
     vault: sdkVault,
     senderXOnly: params.senderXOnly,
     recipientAddress: params.recipientAddress,
-    network: params.network ?? 'regtest',
+    network: params.network ?? DEFAULT_NETWORK,
     amountSats: params.amountSats,
     feeSats: params.feeSats ?? 1n,
     baseUrl: params.baseUrl,

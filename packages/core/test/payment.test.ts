@@ -84,7 +84,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     };
     await expect(sendTransfer({ ...base, senderXOnly: 'zz' })).rejects.toThrow('senderXOnly must be');
     await expect(sendTransfer({ ...base, senderXOnly: '00'.repeat(32) })).rejects.toThrow('does not match vault');
-    await expect(sendTransfer({ ...base, network: 'signet' as 'regtest' })).rejects.toThrow('Unsupported network');
+    await expect(sendTransfer({ ...base, network: 'mainnet' as import('../src/networks.js').TachiNetwork })).rejects.toThrow('Unsupported network');
   });
 
   it('maps a query error instead of leaking the SDK error class', async () => {
