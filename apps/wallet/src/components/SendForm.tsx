@@ -349,7 +349,7 @@ function SendReviewModal({
               <span>Network</span>
               <strong className={safety.networkMatches ? 'safety-ok' : 'safety-warn'}>
                 {safety.networkMatches
-                  ? 'Regtest · matches this wallet'
+                  ? `${networkLabel()} · matches this wallet`
                   : `${safety.network === 'unknown' ? 'Unrecognized' : safety.network} · not this wallet's network`}
               </strong>
               <span>Address type</span>
@@ -359,7 +359,7 @@ function SendReviewModal({
             </div>
             {!safety.networkMatches && (
               <p className="inline-error" role="alert" style={{ marginTop: '10px' }}>
-                This address is not a regtest address. Sending will fail or reach a different network. Go back and check
+                This address is not on the {networkLabel()} network. Sending will fail or reach a different network. Go back and check
                 the address.
               </p>
             )}
