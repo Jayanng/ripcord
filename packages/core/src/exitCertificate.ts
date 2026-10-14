@@ -249,7 +249,7 @@ export function buildExitCertificate(
   const maturityConfirmations = sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
   const csvBlocksNote =
     vault.csvBlocks < 1008
-      ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (regtest). The production Tachi default is 1008 blocks.`
+      ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (demo parameter). The production Tachi default is 1008 blocks.`
       : null;
 
   return {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { networkLabel } from '../lib/network-state';
 import { readExitRecord } from '../lib/exitRecord';
 import { loadSpendLog } from '../lib/conscience';
 import { vaultRecordKey } from '../context/WalletContext';
@@ -205,7 +206,7 @@ export function ActivityFeed() {
             rel="noreferrer"
             style={{ fontSize: '11px' }}
           >
-            Regtest Explorer ↗
+            {networkLabel()} Explorer ↗
           </a>
           <span className={`connection ${indexerStatus.state}`}>Indexer {indexerStatus.state}</span>
         </div>
