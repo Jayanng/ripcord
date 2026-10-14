@@ -616,7 +616,7 @@ export function SendForm() {
               import('@ripcord/core/keys'),
               import('@ripcord/core/payment'),
             ]);
-            if (!checkUserAddr(recipient)) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
+            if (!checkUserAddr(recipient, getActiveNetwork())) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
             if (wallet.vaults.some(item => String(item.address) === String(recipient))) {
               return fail('recipient', 'This is a known vault address. Use the recipient wallet’s user receive address.');
             }
