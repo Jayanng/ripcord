@@ -1,5 +1,37 @@
 # Deployment Log
 
+## 2026-10-16 (comfortable funding bar) — Vault deposit 40,000 -> 10,000 sats + fit-down
+
+Commit `d314659` (pushed to `main`, remote head verified = local). Change:
+DEFAULT_VAULT_DEPOSIT_SATS = 10,000n at all three call sites (OnboardingScreen,
+VaultStatusCard, ActivityFeed resume row) + FaucetModal copy; fit-down retry in
+`depositFromMnemonic` (InsufficientFundsError -> refit to available - fee once,
+floor 2,000); strict error classifier `readInsufficientFunds` (message AND
+bigint available/required fields on the same node, walks the VaultDepositError
+cause chain; fail-closed elsewhere). `depositToVault` untouched (its refusal
+tests pin it directly).
+
+Root cause of the live failure: a wallet funded with exactly the advertised
+40,000 could not deposit - SDK requires amount + 282 fee (available 40000,
+required 40282) and setup died mid-flow. Now the bar is 10,282, and even an
+exactly-10k wallet opens a vault at 9,718 instead of failing.
+
+Tests: deposit-fit (6) + deposit-fit-errors (8) RED->GREEN; core suite
+506 passed / 8 skipped / 0 failed, run twice (skips are fixture-economics
+gates with printed reasons). Typechecks + check:rules green.
+
+Deployments (both surfaces, marker string "whatever fits your balance after
+the network fee" verified in served bundles, old "40,000 sat vault" copy
+absent from both):
+
+| Surface | Deployment | Commit | Result |
+|---|---|---|---|
+| ripcord-wallet.vercel.app (prod, git-linked) | `dpl_HXkugZe9uaKmt2pBEBFQ64tM2uej` | `d314659` | READY; `/docs` 200, `/rpc` POST-only (405 on GET), `/signet/health` 200 |
+| ripcord-signet.vercel.app (static variant, docs stripped) | `dpl_H1ZPKqmcgR3SpEFnt1AKMTEBX72X` (alias re-pointed) | `d314659` | READY; `/docs` 404, `/signet/rpc` POST-only, `/signet/health` 200 |
+
+Live new-user regtest cycle re-run against the deployed build to prove the
+money path at the new 10k target end to end.
+
 ## 2026-10-16 (activity polish) — Restored-wallet credit rows + spender scan fix
 
 - **Journal fix:** restored wallets now journal every historical credit as a
