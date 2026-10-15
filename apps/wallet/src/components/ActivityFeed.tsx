@@ -208,7 +208,7 @@ export function ActivityFeed() {
           >
             {networkLabel()} Explorer ↗
           </a>
-          <span className={`connection ${indexerStatus.state}`}>Indexer {indexerStatus.state}</span>
+          <span className={`connection ${indexerStatus.state}`}>{indexerStatus.state === 'closed' ? 'Live updates: polling' : `Indexer ${indexerStatus.state}`}</span>
         </div>
       </div>
       <div className="activity-toolbar" role="search">

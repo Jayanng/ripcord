@@ -3,7 +3,7 @@ import { getActiveNetwork } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { buildExitCertificate, certificateSummaryText, certificateToJson, type ExitCertificate } from '@ripcord/core/exit-certificate';
 import { proveExitTree, findFundingSpender, buildSweepEvidence, type ExitSweepEvidence } from '@ripcord/core/exit';
-import { L1Txid } from './ui';
+import { L1Txid, explorerBase } from './ui';
 
 /**
  * Exit Readiness Certificate (Bounty #1, Phase 2).
@@ -67,6 +67,7 @@ export function ExitCertificateCard() {
             expectedLeafScriptHex: vault.p2tr
               ? Buffer.from(vault.p2tr.exitLeaf.script).toString('hex')
               : undefined,
+            explorerTxBase: explorerBase(),
           }));
         }
       } catch {
@@ -95,6 +96,7 @@ export function ExitCertificateCard() {
           treeProof: proveExitTree(vault),
           sweep,
           fundingOutpoint: funding,
+          explorerTxBase: explorerBase(),
         },
       );
     } catch {

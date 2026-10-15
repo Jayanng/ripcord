@@ -448,7 +448,7 @@ describe('Domain interfaces', () => {
   it('Identity can be constructed', () => {
     const identity: Identity = {
       mnemonic: 'test mnemonic phrase for testing purposes only',
-      network: TEST_NETWORK,
+      network: 'regtest',
       userKeyDescriptor: {
         version: 1,
         scheme: 'bip84-p2wpkh',
@@ -468,7 +468,9 @@ describe('Domain interfaces', () => {
       userAddress: VALID_USER_ADDRESS,
       l1Address: VALID_USER_ADDRESS,
     };
-    expect(identity.network).toBe(TEST_NETWORK);
+    // Pinned literal (not TEST_NETWORK): this asserts the field round-trips
+    // untouched, independent of the run's network.
+    expect(identity.network).toBe('regtest');
     expect(identity.xOnly).toBe(VALID_XONLY_HEX);
   });
 

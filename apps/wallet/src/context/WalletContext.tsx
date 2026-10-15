@@ -196,7 +196,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const stateGen = useRef(0);
   const indexerStatusRef = useRef(indexerStatus);
   const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
+  // Ref-read mirror of networkResolved for the preflight (review 5B/merge: the
+  // network probes must not fire before resolution, but the STORE READ below
+  // must always run - gating the whole preflight deadlocks returning wallets,
+  // whose stored records are what resolve the network in the first place).
+  const networkResolvedRef = useRef(false);
   useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
+  useEffect(() => { networkResolvedRef.current = networkResolved; }, [networkResolved]);
 
   useEffect(() => {
     if (!store && typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
@@ -325,6 +331,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setStoreReadFailed(true);
           hasLoadedOnce.current = true;
         }
+      }
+
+      // Independence gate: no NETWORK call before the network is resolved by
+      // either a stored identity/vault or the user's step-0 choice. The store
+      // read above always ran. An empty device boots straight to the setup
+      // gate (ready, no probes); a device with records keeps 'checking' only
+      // until the resolution effect stamps the network and the re-fired
+      // preflight runs the probes.
+      if (!networkResolvedRef.current) {
+        // Boot state stays 'checking' here on purpose: the App's 8s watchdog
+        // renders the setup gate via its normal degraded path. (Setting 'ready'
+        // on an empty device routes into the shell and breaks the create flow.)
+        return;
       }
 
       const [nextHealth, wtStatus, wtReceipts] = await Promise.all([

@@ -202,8 +202,10 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     const aliceGateUnspent = aliceGateVtxos.vtxos.filter(v => !v.spent && !v.locked);
     const aliceGateCount = aliceGateUnspent.length;
     const aliceGateTotal = aliceGateUnspent.reduce((acc, v) => acc + v.amountSats, 0n);
-    if (aliceGateCount < 2 || aliceGateTotal < 2501n) {
-      console.warn(`[fixture] skipped: ${aliceGateCount} unspent VTXOs totalling ${aliceGateTotal} sats, need 2 and 2501 - downstream of the fixture-funded transfers (${FIXTURE_FAUCET_NOTE})`);
+    const aliceGateLargest = aliceGateUnspent.reduce((a, v) => (v.amountSats > a ? v.amountSats : a), 0n);
+    // Mirror the test's target: largest + 500 payment + 1 fee, two inputs minimum.
+    if (aliceGateCount < 2 || aliceGateTotal < aliceGateLargest + 501n) {
+      console.warn(`[fixture] skipped: ${aliceGateCount} unspent VTXOs totalling ${aliceGateTotal} sats (largest ${aliceGateLargest}), need 2 inputs covering largest+501 - downstream of the fixture-funded transfers (${FIXTURE_FAUCET_NOTE})`);
       ctx.skip();
       return;
     }
@@ -254,12 +256,13 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(BigInt(changeOutput!.amount)).toBe(totalInputSats - amountSats - feeSats);
   });
 
-  it('two queued transfers serialize without code=5 double-spend', async () => {
+  it('two queued transfers serialize without code=5 double-spend', async ctx => {
     // Use two of Bob's remaining received VTXOs (each 5000) for two sends.
     const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     const unspent = bobVtxos.vtxos.filter(v => !v.spent && !v.locked);
     if (unspent.length < 2) {
-      console.log('SKIP: Bob has fewer than 2 unspent VTXOs for the concurrency proof');
+      console.warn(`[fixture] skipped: Bob has ${unspent.length} unspent VTXOs, need 2 for the concurrency proof - ${FIXTURE_FAUCET_NOTE}`);
+      ctx.skip(); // a bare return would report a fake PASS
       return;
     }
 

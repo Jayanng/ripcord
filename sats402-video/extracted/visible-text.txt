@@ -1,0 +1,84 @@
+[a] Requirements
+[a] GitHub ↗
+[span] Tachi hackathon · Bounty #6 · x402 on Bitcoin
+[h1] Pay-per-request,
+[span] in native sats.
+[p] No accounts. No API keys. No custodian.
+[p] Sats402 is the SDK and protocol that enables autonomous AI agents to make
+          pay-per-request micropayments using native sats on Tachi. An agent pays
+          for each call by signing its own transaction; the service verifies by
+          reading the chain. Settlement is committed on-chain in about 5.5s (Tachi
+          consensus finality). The HTTP round-trip is what the agent sees.
+[a] Run a real payment →
+[a] Browse services →
+[a] Verify a settlement →
+[span] Live Receipt · Tachi Settlement
+[span] committed
+[span] sats
+[span] agent-to-agent
+[span] Tx ID
+[a] 378ba365e7d1…242066ef
+[span] Epoch
+[span] 967602
+[span] Network
+[span] tachi-regtest-1
+[span] Scheme
+[span] exact · tachi_tx
+[span] Latency
+[span] on-chain commit
+[span] 5,492 ms finality
+[span] Daemon-returned · re-fetchable
+[a] Verify tx →
+[div] 20/20
+[div] SETTLED ON-CHAIN
+[b] Request round-trip (what the agent sees):
+[div] the service serves only after the payment is committed on-chain, so the round-trip is the settlement time:
+[b] 5,492 ms p50
+[div] across 20 consecutive calls on Tachi consensus. Re-fetchable by anyone.
+[b] Three requests
+[code] 402 PAYMENT-REQUIRED
+[div] → agent signs its own
+[code] tachi_tx
+[code] 200
+[div] with the data and a
+[code] PAYMENT-RESPONSE
+[div] receipt.
+[b] Verifiable
+[div] Every receipt is a transaction ID anyone can re-fetch from the daemon.
+[b] Sovereign
+[div] The key that owns the sats signs the payment. Verifiers hold no key.
+[span] Agent spend policy
+[span] Zero-custody paywall
+[span] OpenAPI 3.1 contracts
+[span] Machine-readable catalog
+[span] Live services & demo
+[h2] Four live services, priced in sats, each one runnable.
+[a] Run a real payment →
+[b] 1. Challenge (402)
+[div] Service issues price in sats and payee key on first request.
+[b] 2. Settlement (tachi_tx)
+[div] Agent validates policy, signs, and broadcasts native sats transaction.
+[b] 3. Delivery (200)
+[div] Service verifies daemon settlement and delivers response with receipt.
+[h2] Built for the agent economy, on Bitcoin
+[p] Sats402 is the x402
+[code] exact
+[p] scheme on Tachi: the wire format the
+      standard defines, settled as a Tachi transaction. The money moves exactly
+      once, and the proof of payment is a transaction id anyone can check.
+[span] For agents
+[h3] A spending policy is part of the SDK
+[p] Per-call cap, session budget, payee allowlist. A call that breaks policy
+        is refused locally, before any transaction exists.
+[span] For services
+[h3] One middleware, zero custody
+[p] Drop the paywall in front of any handler. It issues the challenge and
+        verifies payment by reading the chain. It never holds a key.
+[span] For everyone
+[h3] Receipts you can re-fetch
+[p] Every settlement is a tx id on Tachi. Check it on the
+[a] verify page
+[p] or with one command in the CLI
+        (from a checkout until the npm package is published).
+[p] Sats402 — SDK and protocol for x402 pay-per-request payments in native sats on Tachi.
+[p] Every settlement is a tx id on Tachi: daemon-returned and re-fetchable.

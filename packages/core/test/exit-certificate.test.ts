@@ -30,12 +30,12 @@ describe('exitCertificate: buildExitCertificate (pure)', () => {
   // Regtest-verified fixture/chain state (frozen crypto constants or live
     // regtest chain artifacts). The signet money path is evidenced live in
     // docs/SIGNET-SUPPORT.md.
-  it.skipIf(TEST_NETWORK !== 'regtest')('issues a 4/4 certificate when every check passes', () => {
+  it('issues a 4/4 certificate when every check passes', () => {
     const cert = buildExitCertificate(vault(), readiness(), { network: TEST_NETWORK, treeVerified: true, now: 1700000000 });
     expect(cert.checks).toHaveLength(4);
     expect(cert.checks.every(c => c.pass)).toBe(true);
     expect(cert.passed).toBe(4);
-    expect(cert.network).toBe('regtest');
+    expect(cert.network).toBe(TEST_NETWORK);
     expect(cert.timestamp).toBe(1700000000);
     expect(cert.userKeyFingerprint).toContain(USER_KEY_HEX.slice(0, 8));
   });

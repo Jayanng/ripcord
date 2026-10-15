@@ -399,14 +399,14 @@ waits for the engine rather than faking one.
 
 ## Mainnet and environment scope
 
-The bounty description does **not** require Bitcoin mainnet, signet, real BTC, or production deployment. RIPCORD therefore uses the official Tachi regtest environment for safe, live verification without risking real funds.
+The bounty description does **not** require Bitcoin mainnet, real BTC, or production deployment. RIPCORD therefore uses the official Tachi test environments for safe, live verification without risking real funds. (The Tachi team later invited signet support for hackathon entries; RIPCORD added it 2026-10-15, see [docs/SIGNET-SUPPORT.md](docs/SIGNET-SUPPORT.md).)
 
 The accurate scope is:
 
 ```text
-Fully functional Tachi regtest wallet, live-verified against the public network
+Fully functional Tachi regtest AND Tachi signet wallet, live-verified against both public networks
 Responsive mobile and desktop browser web application
-No mainnet or signet support
+No mainnet support
 No production custody claim
 ```
 
@@ -416,7 +416,7 @@ Regtest is a deliberate safety and verification boundary, not a substitute claim
 
 RIPCORD is not production-ready. The honest list:
 
-- Regtest only. There is no signet or mainnet support.
+- Regtest and signet, both live-verified. No mainnet support.
 - L1 confirmations run at the regtest cadence (about 10 minutes on mainnet-like timing; regtest blocks advance with network activity).
 - Epoch L1 settlement is not implemented daemon-side yet: payment receipts are daemon-attested, and the UI says exactly that.
 - The Tachi explorer indexes Tachi-native objects (transfers, VTXOs, epochs, vaults) but not Bitcoin L1 transaction IDs (deposits, exits, faucet sends). L1 ids are click-to-copy rather than linkable.
@@ -445,7 +445,7 @@ Start with:
 
 ## Project tags
 
-`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custody` `non-custodial` `typescript` `react` `vite` `web-app` `regtest` `wallet` `bitcoin-wallet` `proof-of-reserves`
+`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custodial` `non-custodial` `typescript` `react` `vite` `web-app` `regtest` `signet` `wallet` `bitcoin-wallet` `proof-of-reserves`
 
 ## License
 

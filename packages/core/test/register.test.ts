@@ -140,7 +140,10 @@ describe('register.ts', { timeout: 60000 }, () => {
     }
   );
 
-  describe('Live adoption on code=17 (live regtest daemon)', { timeout: 180000 }, () => {
+  // Live-money block: self-heals with real sendTransfer broadcasts and live
+  // registerVault calls. On signet the fixtures cannot self-heal (faucet needs
+  // human sign-in), so it runs only with pre-funded fixtures (TACHI_SIGNET_FUNDED=1).
+  describe.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('Live adoption on code=17 (live daemon)', { timeout: 180_000 }, () => {
     // Provenance: this fixture outpoint belongs to Alice (02e7ab25...) and is already
     // registered on the live regtest daemon (GET /tachi_listVaults?user=e7ab2537b5...)
     const INTERNAL_FUNDING_TXID = '8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a';
@@ -163,7 +166,7 @@ describe('register.ts', { timeout: 60000 }, () => {
       }
       // 1. Find an unspent VTXO owned by Alice to construct the live registration transaction
       let vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));
-      let unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
+      let unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && !v.locked && v.amountSats >= 1000n);
 
       if (!unspentVtxo) {
         // Self-heal: ensure Alice has an unspent VTXO of at least 1000 sats using sendTransfer
@@ -218,7 +221,7 @@ describe('register.ts', { timeout: 60000 }, () => {
             },
           },
         );
-        unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && v.amountSats >= 1000n);
+        unspentVtxo = vtxoRes.vtxos.find(v => !v.spent && !v.locked && v.amountSats >= 1000n);
       }
 
       expect(unspentVtxo).toBeDefined();

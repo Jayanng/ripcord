@@ -620,9 +620,12 @@ async function scanForSpender(
   if (cached) {
     try {
       const fresh = await bitcoinRpc(baseUrl, 'getrawtransaction', [cached.txid, true]);
-      const conf = (fresh.result as { confirmations?: number } | null)?.confirmations;
+      const freshResult = fresh.result as { confirmations?: number; blockhash?: string } | null;
+      const conf = freshResult?.confirmations;
       if (typeof conf === 'number') {
-        const updated = { ...cached, confirmations: conf };
+        // Keep blockHash fresh too (review 5B: a mempool-found spender cached
+        // blockHash null and the refresh never filled it in).
+        const updated = { ...cached, confirmations: conf, blockHash: freshResult?.blockhash ?? cached.blockHash };
         spenderCache.set(key, updated);
         negativeCache.delete(key);
         return updated;
@@ -780,6 +783,9 @@ export function buildSweepEvidence(args: {
    * (review pass 4).
    */
   expectedLeafScriptHex?: string;
+  /** Explorer base for the tx link in the export (review 5B: the export must
+   *  carry a real explorer URL at the top level, never an empty string). */
+  explorerTxBase?: string;
 }): ExitSweepEvidence {
   const { funding, spender, destination } = args;
   const spentOutpoint = `${funding.txid}:${funding.vout}`;
@@ -809,7 +815,9 @@ export function buildSweepEvidence(args: {
     feeSats: feeSats >= 0n ? feeSats : null,
     blockHash: spender.blockHash,
     confirmations: spender.confirmations,
-    explorerUrl: '',
+    explorerUrl: args.explorerTxBase
+      ? `${args.explorerTxBase.replace(/\/$/, '')}/tx/${spender.txid}`
+      : '',
     sovereign,
     note: sovereign
       ? leafHex.length > 0

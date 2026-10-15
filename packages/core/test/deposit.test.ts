@@ -164,10 +164,8 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     });
   });
 
-  // Live-money test: on signet the fixtures cannot self-heal (the faucet
-  // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
-  // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
-  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', { timeout: 240_000 }, async () => {
+  // Read-only test (getUtxos): runs on any network.
+  it('routes SDK global RPC (getUtxos/scantxoutset) through the configured base URL', { timeout: 240_000 }, async () => {
     // Regression for the 2026-09-28 production "Failed to fetch": the SDK's
     // global rpcCall/getUtxos (taurus-wallet-aggregator chunk-V3QPXLNG.js:332/480)
     // POST to network.rpc.jsonRpc, whose default is the ABSOLUTE daemon URL that
@@ -176,19 +174,19 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     // must honor that redirect at call time.
     const { useProxyAwareTaurusRpc } = await import('../src/deposit.js');
     const base = `${DAEMON}/`;
-    useProxyAwareTaurusRpc(base);
-    const regtest = agg.REGTEST as unknown as { rpc: { jsonRpc: string; rest: string } };
-    expect(regtest.rpc.jsonRpc).toBe(base);
-    expect(regtest.rpc.rest).toBe(base);
+    useProxyAwareTaurusRpc(base, TEST_NETWORK);
+    const sdkNet = (TEST_NETWORK === 'signet' ? agg.SIGNET : agg.REGTEST) as unknown as { rpc: { jsonRpc: string; rest: string } };
+    expect(sdkNet.rpc.jsonRpc).toBe(base);
+    expect(sdkNet.rpc.rest).toBe(base);
     // Live call THROUGH the redirected endpoint. Node has no CORS, so this
     // proves the config channel the browser fix depends on is real: if the SDK
     // read any other URL, this call would not follow our redirect.
     const utxos = await withTransportRetry(
-      () => agg.getUtxos(agg.REGTEST, aliceIdentity.userAddress),
+      () => agg.getUtxos(TEST_NETWORK === 'signet' ? agg.SIGNET : agg.REGTEST, aliceIdentity.userAddress),
       { validate: (r: unknown) => { if (!Array.isArray(r)) throw new Error('getUtxos did not return an array'); } },
     );
     expect(Array.isArray(utxos)).toBe(true);
     // restore the SDK default for any later tests in this process
-    useProxyAwareTaurusRpc(DAEMON);
+    useProxyAwareTaurusRpc(DAEMON, TEST_NETWORK);
   });
 });

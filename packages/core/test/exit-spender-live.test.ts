@@ -9,10 +9,11 @@
  * instead of failing on chain history the test does not control.
  */
 import { describe, expect, it } from 'vitest';
+import { TEST_DAEMON } from './live-fixtures.js';
 import { buildSweepEvidence, findFundingSpender, inspectExitMaturity } from '../src/exit.js';
 import type { VaultRecord } from '../src/types.js';
 
-const BASE = process.env.RIPCORD_TEST_DAEMON ?? 'https://rpc-regtest.tachibtc.com/';
+const BASE = process.env.RIPCORD_TEST_DAEMON ?? `${TEST_DAEMON}/`;
 
 // The two independently verified sovereign exits on this chain. Live evidence,
 // not product constants: packages/core/src/exit.ts contains no txid literals.

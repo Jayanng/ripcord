@@ -35,15 +35,18 @@ listed in `SIGNET-SUPPORT.md` and reproducible from the public signet chain.
   Tachi regtest or Tachi Signet first; the choice is stamped on the identity and
   every vault record. A wallet is permanently bound to its network: in a signet
   session no regtest string, address, RPC path, or label appears anywhere in
-  the UI (enforced by an automated DOM sweep gate on every screen).
+  the UI. Enforced by `scripts/dom-sweep.mjs`, an automated gate that sweeps
+  every screen (text, tooltips, links, metadata, tab title) and the request
+  stream of a live signet journey, and refuses hollow passes.
 - **Regtest is untouched.** Signet support is a second layer on a separate
   branch and deployment; the regtest derivation output is byte-identical to the
   previous release and the regtest production deployment keeps serving as
   before.
 - **Proof before promise.** Exit certificates carry the raw transaction, the
-  spent outpoint, the destination, amounts, fees, and the exit-leaf/control-
-  block evidence at the top level, and the UI labels demo parameters (CSV = 2
-  blocks vs the production default of 1008) as demo-only.
+  spent outpoint, the destination, amounts, fees, the block hash, an explorer
+  link, and the exit-leaf/control-block evidence at the top level, and the UI
+  labels demo parameters (CSV = 2 blocks vs the production default of 1008) as
+  demo-only.
 
 ## Try it
 

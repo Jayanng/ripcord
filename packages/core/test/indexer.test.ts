@@ -723,9 +723,11 @@ describe('VaultIndexer (live daemon)', () => {
   it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async ctx => {
     // Fixture-economics gate: this live transfer spends a real Alice VTXO.
     const gate = await withTransportRetry(() => vc.getAddressVtxos('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319', { baseUrl: DAEMON }));
-    const gateTotal = gate.vtxos.filter(v => !v.spent && !v.locked).reduce((a, v) => a + v.amountSats, 0n);
-    if (gateTotal < 2001n) {
-      console.warn(`[fixture] skipped: ${gateTotal} sats in Alice's VTXOs, need 2001 - ${FIXTURE_FAUCET_NOTE}`);
+    const gateUnspent = gate.vtxos.filter(v => !v.spent && !v.locked);
+    const gateLargest = gateUnspent.reduce((a, v) => (v.amountSats > a ? v.amountSats : a), 0n);
+    // The test spends the LARGEST unspent as one input: 500 payment + 1 fee.
+    if (gateLargest < 501n) {
+      console.warn(`[fixture] skipped: largest unspent VTXO is ${gateLargest} sats, need 501 - ${FIXTURE_FAUCET_NOTE}`);
       ctx.skip();
       return;
     }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { addressToScriptPubKeyHex, type ExplicitSpendableInput } from '@ripcord/core/deposit';
-import { getActiveNetwork, bitcoinRpcUrl } from '../lib/network-state';
+import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-state';
 import { networkConfig } from '@ripcord/core';
 
 type State = 'idle' | 'requesting' | 'waiting' | 'confirmed' | 'error';
@@ -128,13 +128,13 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
         if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) {
           throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
         }
-        setMessage(`Funding is in the mempool: ${txid} · 0 confirmations · regtest blocks arrive on the live chain, not on a UI timer`);
+        setMessage(`Funding is in the mempool: ${txid} · 0 confirmations · ${networkLabel()} blocks arrive on the live chain, not on a UI timer`);
       } catch (error) {
         if (controller.signal.aborted) return;
         const errMsg =
           error instanceof Error && /timeout/i.test(error.message)
             ? 'Bitcoin RPC check timed out; retrying live confirmation.'
-            : describeDaemonFailure(error, { url: '/rpc', method: 'POST' });
+            : describeDaemonFailure(error, { url: bitcoinRpcUrl(), method: 'POST' });
         setMessage(`${errMsg} (${Math.floor((Date.now() - started) / 1000)}s elapsed)`);
       }
       await new Promise(resolve => setTimeout(resolve, 5000));

@@ -406,10 +406,8 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Register-only mode (0 sats) never broadcasts', () => {
-    // Regtest-verified fixture/chain state (frozen crypto constants or live
-    // regtest chain artifacts). The signet money path is evidenced live in
-    // docs/SIGNET-SUPPORT.md.
-    it.skipIf(TEST_NETWORK !== 'regtest')('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
+    // Pure error-contract test (virgin vault, no chain state): runs on any network.
+    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
       // Virgin identity vault: never funded on-chain. Register-only mode must
       // refuse to broadcast and say why (this is the direct-to-vault deposit
       // registration path used by the Receive screen).

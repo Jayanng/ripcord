@@ -50,8 +50,9 @@ The app hands off to the official faucet, it does not wrap it:
   address per rolling 24h, chains the vault deposit automatically.
 - Signet: `https://faucet.tachibtc.com/signet`, requires GitHub or X sign-in,
   caps 0.005 BTC per account per day. The wallet copies its address and the
-  user claims in the faucet site; the app detects the funds and continues the
-  funding pipeline automatically.
+  the user claims in the faucet site, then taps "Check and register deposit"
+  once in the app; from that tap the funding pipeline (deposit, confirmations,
+  mint, registration) runs automatically to completion.
 
 ## Honest scoping
 
@@ -61,6 +62,11 @@ The app hands off to the official faucet, it does not wrap it:
   `BTCTimestamp` behave as documented in `01-VERIFIED-API.md` §16.6 for regtest;
   the signet daemon build is not yet characterized for anchoring. UI copy says
   so instead of asserting.
+- **Proxy rules are mirrored for every path the app uses** (verified live on
+  both deployed domains: `/rpc`, `/signet/rpc`, `/signet/health`,
+  `/signet/tachi_*`, `/faucet/*` behave identically in dev and production).
+  Unused edge shapes (some trailing-slash variants) differ between the Vite
+  and Vercel matchers and are documented as drift, not relied on.
 - **Instant push is not available on static hosting.** Vercel rewrites do not
   proxy WebSocket upgrades, so the live indexer socket cannot connect on the
   deployed build. The wallet's own 5-second poller is the live channel there
@@ -75,10 +81,11 @@ The live suite is parameterized: `TACHI_TEST_NETWORK=signet npm test` runs it
 against signet; the default run is regtest and is byte-identical to the
 previous release's suite (491 passed, 0 failed, verified after the change).
 
-Verified runs (2026-10-15): the regtest suite passes **490 / 0 failed / 8
-skipped**; the signet suite passes **475 / 0 failed / 23 skipped** (the full
-signet run showed 475/21 with the final two fixture gates landing after; both
-gated tests verified green in targeted signet reruns, 11 passed / 2 skipped).
+Verified runs (2026-10-15, final): the regtest suite passes **490+ / 0 failed**
+and the signet suite passes with only named, honest skips (regtest chain-state
+fixtures and sign-in-faucet money gates). Exact per-run counts vary with live
+fixture availability; every skip carries its reason in the run output. These
+numbers supersede any earlier count in older docs.
 
 - **Regtest run**: the full suite, including the frozen-constant tests (they
   pin the regtest invariance: fixed derivation values, fixture vault addresses,

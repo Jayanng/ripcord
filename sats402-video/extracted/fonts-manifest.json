@@ -1,0 +1,81 @@
+{
+  "files": [
+    {
+      "file": "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2",
+      "family": "Plus Jakarta Sans",
+      "rawFamily": "Plus Jakarta Sans",
+      "subfamily": "Regular",
+      "postscript": "PlusJakartaSans-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [
+        "wght"
+      ],
+      "identified": true,
+      "isIcon": false
+    },
+    {
+      "file": "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yygg_vbd-E.woff2",
+      "family": "Plus Jakarta Sans",
+      "rawFamily": "Plus Jakarta Sans",
+      "subfamily": "Regular",
+      "postscript": "PlusJakartaSans-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [
+        "wght"
+      ],
+      "identified": true,
+      "isIcon": false
+    },
+    {
+      "file": "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yygg_vbd-E.woff2",
+      "family": "Plus Jakarta Sans",
+      "rawFamily": "Plus Jakarta Sans",
+      "subfamily": "Regular",
+      "postscript": "PlusJakartaSans-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [
+        "wght"
+      ],
+      "identified": true,
+      "isIcon": false
+    },
+    {
+      "file": "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yygg_vbd-E.woff2",
+      "family": "Plus Jakarta Sans",
+      "rawFamily": "Plus Jakarta Sans",
+      "subfamily": "Regular",
+      "postscript": "PlusJakartaSans-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [
+        "wght"
+      ],
+      "identified": true,
+      "isIcon": false
+    }
+  ],
+  "families": [
+    {
+      "family": "Plus Jakarta Sans",
+      "weights": [
+        400
+      ],
+      "variable": true,
+      "fileCount": 4,
+      "files": [
+        "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2",
+        "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko40yygg_vbd-E.woff2",
+        "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko50yygg_vbd-E.woff2",
+        "LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko70yygg_vbd-E.woff2"
+      ]
+    }
+  ],
+  "unidentified": [],
+  "meta": {
+    "generatedAt": "2026-10-07T13:56:15.741Z",
+    "tool": "fontkit"
+  }
+}

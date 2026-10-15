@@ -73,9 +73,9 @@ describe('proveExitTree (stored leaf + control block, no session flag)', () => {
   // Regtest-verified fixture/chain state (frozen crypto constants or live
     // regtest chain artifacts). The signet money path is evidenced live in
     // docs/SIGNET-SUPPORT.md.
-  it.skipIf(TEST_NETWORK !== 'regtest')('fails when the stored bundle commits to a different address', () => {
+  it('fails when the stored bundle commits to a different address', () => {
     const { record, p2tr } = makeVault();
-    const tampered = { ...record, address: p2tr.address.replace(/^bcrt1p/, 'bcrt1q') } as VaultRecord;
+    const tampered = { ...record, address: p2tr.address.replace(/1p/, '1q') } as VaultRecord;
     const proof = proveExitTree(tampered);
     expect(proof.verified).toBe(false);
     expect(proof.reason).toBeTruthy();

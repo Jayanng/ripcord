@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getActiveNetwork } from '../lib/network-state';
+import { getActiveNetwork, networkLabel } from '../lib/network-state';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { useRipcord } from '../hooks/useRipcord';
 import { describeDaemonFailure } from '@ripcord/core/net';
@@ -59,7 +59,7 @@ export function RipcordPanel() {
 
   return <section id="ripcord" className="ripcord-panel" aria-labelledby="ripcord-title">
     <div className="ripcord-kicker"><span className="cord" /><div><p className="eyebrow">User-signature exit path</p><h2 id="ripcord-title">Ripcord</h2></div><span className={`exit-status ${status}`}>{statusBadge}</span></div>
-    <p className="ripcord-copy">{status === 'live' ? 'The funding output is mature. Your signature can move it to Bitcoin L1.' : status === 'maturing' ? `The exit needs ${readiness?.confirmationsRemaining ?? vault?.csvBlocks ?? 0} more confirmations. Regtest advances with network activity, not time.` : status === 'spent' ? 'The recorded funding output has already been spent.' : 'Create and fund a vault before testing the unilateral exit path.'}</p>
+    <p className="ripcord-copy">{status === 'live' ? 'The funding output is mature. Your signature can move it to Bitcoin L1.' : status === 'maturing' ? `The exit needs ${readiness?.confirmationsRemaining ?? vault?.csvBlocks ?? 0} more confirmations. ${networkLabel()} advances with network activity, not time.` : status === 'spent' ? 'The recorded funding output has already been spent.' : 'Create and fund a vault before testing the unilateral exit path.'}</p>
     <dl className="ripcord-facts">
       <div><dt>Vault</dt><dd>{vault ? truncate(vault.address, 12, 8) : 'No vault loaded'}</dd></div>
       <div>

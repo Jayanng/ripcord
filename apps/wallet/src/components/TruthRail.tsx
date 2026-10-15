@@ -68,7 +68,7 @@ export function TruthRail() {
           <div><dt>Chain</dt><dd>{health?.chainId || 'Not verified'}</dd></div>
           <div><dt>Quorum</dt><dd>{health?.quorumSize ? `${health.quorumThreshold} of ${health.quorumSize}` : 'Not verified'}</dd></div>
           <div><dt>L1 height</dt><dd>{health?.l1Height ?? 'Unavailable'}</dd></div>
-          <div><dt>Indexer</dt><dd>{`Indexer ${indexerStatus.state}`}</dd></div>
+          <div><dt>Indexer</dt><dd>{`Indexer ${indexerStatus.state}${indexerStatus.state === 'closed' ? ' (5s poller is the live channel)' : ''}`}</dd></div>
           {/* Scope 5: Watchtower status in CHAIN TRUTH */}
           <div><dt>Watchtower</dt><dd>{watchtowerStatus ? `${watchtowerStatus.mode} (L1: ${watchtowerStatus.lastScannedHeight})` : 'Not checked'}</dd></div>
           <div><dt>WT Receipts</dt><dd>{watchtowerStatus ? `${watchtowerStatus.receiptCount} receipts` : 'Not checked'}</dd></div>
