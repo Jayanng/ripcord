@@ -29,6 +29,15 @@
   via `--prebuilt` in the meantime (per vercel-deploy skill). The docs-stripped
   signet variant is a separate preview-target build (production-target output
   cannot deploy as preview — known --prebuilt mismatch).
+- **Cloud build fully restored** (three stacked root causes, all fixed): (1) the
+  Tencent mirror `resolved` URL above; (2) `outputDirectory` unset defaulted to
+  `public` — now `apps/wallet/dist`; (3) routing in `apps/wallet/vercel.json`
+  was invisible to the root-scoped project — root `vercel.json` is now a git
+  symlink to the app's single file. Project settings: `installCommand: npm ci`,
+  `buildCommand: npm run build`. Proven by a clean git-based build at `e347302`
+  (production build `vmv9pzg4i-iy06ct`): /docs 200, /rpc regtest, /signet/rpc
+  signet, /signet/health ok, /faucet proxy routes (403 at the faucet's own gate
+  as known), SPA deep link 200.
 - Rollback (production): `vercel alias set ripcord-wallet-3kq25n8cw-jayanngs-projects.vercel.app ripcord-wallet.vercel.app`
   (previous build `vmv9dvqv6-7yauy9`, the cutover build).
 
