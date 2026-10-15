@@ -51,7 +51,7 @@ function fundingIsSpent(funding: { txid: string; vout: number }, key: string): P
 }
 
 export function useBalance() {
-  const { vaults, liveVtxos, pendingIncomingSats, lockedVtxos, exitReadiness, activeVault, receipts, identity } = useWallet();
+  const { vaults, liveVtxos, pendingIncomingSats, lockedVtxos, exitReadiness, activeVault, receipts, identity, networkResolved } = useWallet();
   const [spentKeys, setSpentKeys] = useState<ReadonlySet<string>>(
     () => new Set(Array.from(spentCache.entries()).filter(([, s]) => s).map(([k]) => k)),
   );
@@ -65,6 +65,7 @@ export function useBalance() {
   );
 
   useEffect(() => {
+    if (!networkResolved) return; // independence gate: no RPC before the network is known
     let cancelled = false;
     const check = async () => {
       const results = await Promise.all(
