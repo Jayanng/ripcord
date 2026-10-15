@@ -1,6 +1,7 @@
 # @ripcord/core
 
-Verified TypeScript core library for Tachi/Taurus Bitcoin regtest wallet mechanics.
+Verified TypeScript core library for Tachi/Taurus Bitcoin wallet mechanics
+(Tachi regtest and Tachi signet; network-parameterized).
 
 ## Scope
 
@@ -19,7 +20,7 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 | `./sentinel` `./exit-certificate` `./spend-conscience` **(subpath only)** | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine. Import via `@ripcord/core/sentinel`, `@ripcord/core/exit-certificate`, `@ripcord/core/spend-conscience` — not re-exported from the root. |
 | `./idle-timer` `./address-safety` `./units` | Injectable idle timer, address highlight and mangled-paste checks, sats/BTC formatting |
 
-The current release is **fully functional on Tachi regtest**. It is not production custody software and must not be used with funds that matter.
+The current release is **fully functional on Tachi regtest and Tachi signet**. It is not production custody software and must not be used with funds that matter.
 
 ## Install
 
@@ -69,15 +70,17 @@ The package exports the root API and focused subpaths for `types`, `bytes`, `net
 
 ## Verified environment
 
-- Network: `tachi-regtest-1`
-- Daemon: `https://rpc-regtest.tachibtc.com`
-- WebSocket indexer: `wss://rpc-regtest.tachibtc.com/tachi_ws`
+- Regtest: network `tachi-regtest-1`, daemon `https://rpc-regtest.tachibtc.com`,
+  WebSocket indexer `wss://rpc-regtest.tachibtc.com/tachi_ws`
+- Signet: network `tachi-signet-1`, daemon `https://rpc-signet.tachibtc.com`,
+  WebSocket indexer `wss://rpc-signet.tachibtc.com/tachi_ws`
 - Node.js: 22 or newer recommended
 
 ## Limitations
 
-- No mainnet or signet support.
-- Live behavior depends on the public Tachi regtest daemon.
+- No mainnet support. Tachi regtest and Tachi signet are both supported
+  (network-parameterized; see `src/networks.ts`).
+- Live behavior depends on the public Tachi daemons (regtest and signet).
 - HAT/RIP and Verkle data are daemon-attested where local recomputation is unavailable.
 - Unilateral-exit maturity depends on live Bitcoin confirmation state.
 - Protocol dependencies are pinned and should not be upgraded without re-probing the live daemon.
@@ -123,5 +126,5 @@ MIT. See the repository `LICENSE` file.
 - Issues: https://github.com/Jayanng/ripcord/issues
 - Tachi: https://tachibtc.com/
 
-RIPCORD is live on Tachi regtest. Review the repository's verified API and current test results before relying on any behavior.
+RIPCORD is live on Tachi regtest and Tachi signet. Review the repository's verified API and current test results before relying on any behavior.
 

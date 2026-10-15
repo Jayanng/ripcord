@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { MemoryStore, IndexedDbStore, type RipcordStore } from '../src/store.js';
 import type { VaultP2tr } from '@tachibtc/taurus-vault-core';
 import type {
@@ -35,7 +36,7 @@ function makeVault(address: string, valueSats: bigint, identity?: Identity): Vau
       scheme: 'bip84-p2wpkh',
       purpose: 84,
       coinType: 1,
-      network: 'regtest',
+      network: TEST_NETWORK,
       account: 0,
       change: false,
       index: 0,
@@ -71,12 +72,12 @@ const VAULT_B = 'bcrt1p' + 'b'.repeat(58) + 'xyz';
 
 describe('MemoryStore', () => {
   it('does not expose another identity’s persisted vaults to a fresh identity', { timeout: 60_000 }, async () => {
-    const alice = deriveIdentity('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', 'regtest');
-    const fresh = deriveIdentity('legal winner thank year wave sausage worth useful legal winner thank yellow', 'regtest');
-    const quorum = await getQuorum('https://rpc-regtest.tachibtc.com');
+    const alice = deriveIdentity('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', TEST_NETWORK);
+    const fresh = deriveIdentity('legal winner thank year wave sausage worth useful legal winner thank yellow', TEST_NETWORK);
+    const quorum = await getQuorum(TEST_DAEMON);
     const store = new MemoryStore();
-    await store.saveVault(await createVault({ network: 'regtest', nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 2, userKeyDescriptor: alice.userKeyDescriptor }));
-    await store.saveVault(await createVault({ network: 'regtest', nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 144, userKeyDescriptor: alice.userKeyDescriptor }));
+    await store.saveVault(await createVault({ network: TEST_NETWORK, nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 2, userKeyDescriptor: alice.userKeyDescriptor }));
+    await store.saveVault(await createVault({ network: TEST_NETWORK, nodePubkeys: quorum.nodePubkeys, threshold: quorum.threshold, csvBlocks: 144, userKeyDescriptor: alice.userKeyDescriptor }));
 
     const persisted = await store.getVaults();
     const visible = vaultsForIdentity(persisted, fresh);

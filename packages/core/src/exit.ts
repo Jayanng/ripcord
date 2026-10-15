@@ -27,6 +27,7 @@ import {
 import {
   asDisplayTxid,
   asUserAddress,
+  assertSameNetwork,
   isDisplayTxid,
   isUserAddress,
   toSdkVault,
@@ -35,6 +36,8 @@ import {
   type Identity,
   type VaultRecord,
 } from './types.js';
+import { DEFAULT_NETWORK, networkOf, type TachiNetwork } from './networks.js';
+
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
 import { bytesEqual } from '@tachibtc/taurus-vault-core';
@@ -117,8 +120,8 @@ function requireFee(feeSats: bigint): bigint {
   return feeSats;
 }
 
-function requireDest(destAddress: string, vaultAddress: string): string {
-  if (!isUserAddress(destAddress)) {
+function requireDest(destAddress: string, vaultAddress: string, network: TachiNetwork = DEFAULT_NETWORK): string {
+  if (!isUserAddress(destAddress, network)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Exit destination must be a SegWit address, got: ${destAddress}`,
@@ -191,7 +194,7 @@ async function buildSignFinalize(params: {
     );
   }
 
-  const dest = requireDest(params.destAddress, params.vault.address);
+  const dest = requireDest(params.destAddress, params.vault.address, networkOf(params.vault));
   const sdkVault = toSdkVault(params.vault);
   const scriptPubKey = vaultScriptHex(params.vault);
   const expectedUserKey = Buffer.from(params.vault.userKeyDescriptor.publicKey.slice(2), 'hex');
@@ -341,10 +344,12 @@ export async function inspectExitMaturity(
  * Status comes from live `gettxout` confirmations vs `vault.csvBlocks`.
  */
 export async function assessExit(params: AssessExitParams): Promise<ExitReadiness> {
+  assertSameNetwork(params.identity, params.vault);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
   const destAddress = requireDest(
     params.destAddress ?? params.identity.l1Address,
     params.vault.address,
+    networkOf(params.identity),
   );
   const required = params.vault.csvBlocks;
   if (!Number.isInteger(required) || required < 1) {
@@ -377,7 +382,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
       { hint: 'Derive the identity at the same index the vault was created with' },
     );
   }
-  const signer = makeSigner(params.identity.mnemonic, 'regtest', params.vault.userKeyIndex);
+  const signer = makeSigner(params.identity.mnemonic, networkOf(params.identity), params.vault.userKeyIndex);
 
   const finalized = await buildSignFinalize({
     vault: params.vault,
@@ -392,7 +397,7 @@ export async function assessExit(params: AssessExitParams): Promise<ExitReadines
   const live = confirmations >= required;
   const dryRun = {
     txid: asDisplayTxid(finalized.decoded.txid),
-    destination: asUserAddress(destAddress),
+    destination: asUserAddress(destAddress, networkOf(params.identity)),
     vsize: finalized.decoded.vsize,
     sequence: finalized.decoded.vin?.[0]?.sequence ?? finalized.sequence,
     rawHex: finalized.hex,
@@ -480,8 +485,9 @@ async function spentReadiness(
  * Immature exits surface as `EXIT_IMMATURE` (non-BIP68-final).
  */
 export async function executeExit(params: ExecuteExitParams): Promise<{ txid: DisplayTxid }> {
+  assertSameNetwork(params.identity, params.vault);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_EXIT_FEE_SATS);
-  const destAddress = requireDest(params.destAddress, params.vault.address);
+  const destAddress = requireDest(params.destAddress, params.vault.address, networkOf(params.vault));
 
   // Mandate: tree-proof must pass BEFORE broadcast. The stored exit leaf and
   // control block must re-derive to this vault's address first (review pass 4).
@@ -614,9 +620,12 @@ async function scanForSpender(
   if (cached) {
     try {
       const fresh = await bitcoinRpc(baseUrl, 'getrawtransaction', [cached.txid, true]);
-      const conf = (fresh.result as { confirmations?: number } | null)?.confirmations;
+      const freshResult = fresh.result as { confirmations?: number; blockhash?: string } | null;
+      const conf = freshResult?.confirmations;
       if (typeof conf === 'number') {
-        const updated = { ...cached, confirmations: conf };
+        // Keep blockHash fresh too (review 5B: a mempool-found spender cached
+        // blockHash null and the refresh never filled it in).
+        const updated = { ...cached, confirmations: conf, blockHash: freshResult?.blockhash ?? cached.blockHash };
         spenderCache.set(key, updated);
         negativeCache.delete(key);
         return updated;
@@ -670,13 +679,27 @@ async function scanForSpender(
     };
   };
 
-  // Unconfirmed spender first (cheapest).
+  // Unconfirmed spender first (cheapest). Fetched in parallel waves: the
+  // public node serves ~270ms per sequential RPC (measured 2026-10-14), so a
+  // per-tx sequential walk over a busy mempool is the same trap as the block
+  // scan below. Wave order resolves mempool order; the first match wins.
   try {
     const mempool = await bitcoinRpc(baseUrl, 'getrawmempool', []);
-    for (const txid of (mempool.result as string[] | null) ?? []) {
-      const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
-      if (matches((t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> })) {
-        const spender = await readSpender(txid, null);
+    const mempoolIds = (mempool.result as string[] | null) ?? [];
+    const MEMPOOL_WAVE = 32;
+    for (let i = 0; i < mempoolIds.length; i += MEMPOOL_WAVE) {
+      const wave = mempoolIds.slice(i, i + MEMPOOL_WAVE);
+      const decoded = await Promise.all(wave.map(async (txid) => {
+        try {
+          const t = await bitcoinRpc(baseUrl, 'getrawtransaction', [txid, true]);
+          return { txid, tx: (t.result ?? {}) as { vin?: ReadonlyArray<{ txid?: string; vout?: number }> } };
+        } catch {
+          return null;
+        }
+      }));
+      for (const entry of decoded) {
+        if (!entry || !matches(entry.tx)) continue;
+        const spender = await readSpender(entry.txid, null);
         if (spender) {
           spenderCache.set(key, spender);
           negativeCache.delete(key);
@@ -696,28 +719,48 @@ async function scanForSpender(
   // Scan backward from the tip: recent spenders are near the top, and the
   // bound plus per-block guards keep one transient node error from failing the
   // whole check (review fix 2026-10-02).
+  //
+  // PARALLEL WAVES (fix 2026-10-14): the walk used to be 2 sequential RPCs per
+  // block, ~400ms per block on the public node — a historical outpoint 1,800
+  // blocks below the tip needed ~12 minutes and blew every caller's budget
+  // (4 live tests timing out at 120s). Heights are now processed in waves of
+  // WAVE concurrent slots; within a wave the HIGHEST height wins, so the
+  // backward preference is unchanged. A wave costs ~2 round-trip latencies
+  // regardless of its size (measured: 16 parallel RPCs = 314ms total vs
+  // 270ms for ONE sequential RPC).
   const maxScan = 2_000;
-  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) {
-    try {
-      const hashRes = await bitcoinRpc(baseUrl, 'getblockhash', [h]);
-      const blockHash = hashRes.result as string | null;
-      if (!blockHash) continue;
-      const blockRes = await bitcoinRpc(baseUrl, 'getblock', [blockHash, 2]);
-      const block = blockRes.result as {
-        tx?: ReadonlyArray<{ txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }>;
-      } | null;
-      for (const tx of block?.tx ?? []) {
-        if (matches(tx)) {
-          const spender = await readSpender(String(tx.txid), blockHash);
-          if (spender) {
-            spenderCache.set(key, spender);
-            negativeCache.delete(key);
-          }
-          return spender;
+  const WAVE = 32;
+  const heights: number[] = [];
+  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) heights.push(h);
+  for (let i = 0; i < heights.length; i += WAVE) {
+    const wave = heights.slice(i, i + WAVE);
+    const found = await Promise.all(wave.map(async (h) => {
+      try {
+        const hashRes = await bitcoinRpc(baseUrl, 'getblockhash', [h]);
+        const blockHash = hashRes.result as string | null;
+        if (!blockHash) return null;
+        const blockRes = await bitcoinRpc(baseUrl, 'getblock', [blockHash, 2]);
+        const block = blockRes.result as {
+          tx?: ReadonlyArray<{ txid?: string; vin?: ReadonlyArray<{ txid?: string; vout?: number }> }>;
+        } | null;
+        for (const tx of block?.tx ?? []) {
+          if (matches(tx)) return { txid: String(tx.txid), blockHash };
         }
+        return null;
+      } catch {
+        // Skip a block the node failed to serve; keep scanning.
+        return null;
       }
-    } catch {
-      // Skip a block the node failed to serve; keep scanning.
+    }));
+    // wave is ordered tip-down, so the first hit is the highest (newest) spender.
+    const hit = found.find((entry) => entry !== null);
+    if (hit) {
+      const spender = await readSpender(hit.txid, hit.blockHash);
+      if (spender) {
+        spenderCache.set(key, spender);
+        negativeCache.delete(key);
+      }
+      return spender;
     }
   }
   negativeCache.set(key, Date.now());
@@ -740,6 +783,9 @@ export function buildSweepEvidence(args: {
    * (review pass 4).
    */
   expectedLeafScriptHex?: string;
+  /** Explorer base for the tx link in the export (review 5B: the export must
+   *  carry a real explorer URL at the top level, never an empty string). */
+  explorerTxBase?: string;
 }): ExitSweepEvidence {
   const { funding, spender, destination } = args;
   const spentOutpoint = `${funding.txid}:${funding.vout}`;
@@ -769,7 +815,9 @@ export function buildSweepEvidence(args: {
     feeSats: feeSats >= 0n ? feeSats : null,
     blockHash: spender.blockHash,
     confirmations: spender.confirmations,
-    explorerUrl: '',
+    explorerUrl: args.explorerTxBase
+      ? `${args.explorerTxBase.replace(/\/$/, '')}/tx/${spender.txid}`
+      : '',
     sovereign,
     note: sovereign
       ? leafHex.length > 0

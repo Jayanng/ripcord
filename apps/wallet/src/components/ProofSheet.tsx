@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { getActiveNetwork } from '../lib/network-state';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { Icon, truncate, explorerTxUrl } from './ui';
 import { downloadText } from '../lib/activityExport';
@@ -122,6 +123,6 @@ export function ProofSheet({ receipt, onClose }: { receipt: PaymentReceipt | nul
           </button>
         </div>
         {fetchError && <p style={{ margin: '10px 0 0', color: 'var(--danger, #e5484d)', fontSize: '13px' }}>{fetchError}</p>}
-        <div className="proof-caveats"><p><strong>PSBT payload</strong> unavailable on regtest; HAT is not recomputed locally.</p><p><strong>L1 anchor</strong> not populated in sampled regtest proofs.</p></div></aside></div>;
+        <div className="proof-caveats"><p><strong>PSBT payload</strong> {getActiveNetwork() === 'regtest' ? 'unavailable on regtest; HAT is not recomputed locally.' : 'not recomputed locally on this network; HAT is an inclusion proof only.'}</p><p><strong>L1 anchor</strong> {getActiveNetwork() === 'regtest' ? 'not populated in sampled regtest proofs.' : 'not yet verified on this network.'}</p></div></aside></div>;
 }
 function ProofStep({ label, value, detail }: { label: string; value: ReactNode; detail: string }) { return <div className="proof-step"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>; }

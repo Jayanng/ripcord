@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON } from './live-fixtures.js';
 import { generateMnemonic } from 'bip39';
 import {
   deriveIdentity,
@@ -11,7 +12,7 @@ import {
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const FAUCET_URL = 'https://faucet.tachibtc.com';
 
 function isPreConnectionFailure(error: unknown): boolean {
@@ -58,7 +59,9 @@ async function requestFaucet(address: string): Promise<string> {
 // 20 minutes (1,200,000 ms) provides plenty of headroom for a single L1 wait.
 const SINGLE_WAIT_TIMEOUT_MS = 1_200_000;
 
-describe.skipIf(!process.env.RIPCORD_LIVE)(
+// Round 8A-2: this manual opt-in still spends real funds - on signet that
+// additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
+describe.skipIf(!process.env.RIPCORD_LIVE || (TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1'))(
   '0-conf faucet chaining live end-to-end: faucet → chained deposit → single wait → mint → register',
   { timeout: SINGLE_WAIT_TIMEOUT_MS },
   () => {
@@ -70,7 +73,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
       // 1. Fresh identity with distinct userKeyIndex
       const mnemonic = generateMnemonic(128);
       const userKeyIndex = 10000 + Math.floor(Math.random() * 80000);
-      const identity = deriveIdentity(mnemonic, 'regtest', userKeyIndex);
+      const identity = deriveIdentity(mnemonic, TEST_NETWORK, userKeyIndex);
 
       console.log('\n=============================================================');
       console.log('FAUCET-CHAINING LIVE END-TO-END VERIFICATION');
@@ -86,7 +89,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
 
       // 3. Immediately resolve payout UTXO from mempool (0-conf)
       const rpcClient = new agg.BitcoinCoreRpcClient({ url: DAEMON_URL });
-      const expectedScriptHex = addressToScriptPubKeyHex(identity.l1Address, 'regtest').toLowerCase();
+      const expectedScriptHex = addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK).toLowerCase();
 
       let explicitInput: ExplicitSpendableInput | null = null;
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -122,7 +125,7 @@ describe.skipIf(!process.env.RIPCORD_LIVE)(
       // 4. Derive vault
       const quorum = await getQuorum(DAEMON_URL);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 1008,
         userKeyDescriptor: identity.userKeyDescriptor,

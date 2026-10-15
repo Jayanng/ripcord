@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { getActiveNetwork, networkLabel } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { Icon, truncate, explorerVtxoUrl, explorerBlockUrl, formatSats } from './ui';
 import { deriveVtxoProvenance, type VtxoRecordItem, type VtxoProvenance } from '../lib/provenance';
@@ -135,7 +136,7 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
   const hasL1Anchor = (current.btcHeight ?? 0) > 0 || (current.btcTimestamp ?? 0) > 0;
   const l1AnchorText = hasL1Anchor
     ? `Block ${current.btcHeight ?? 0}${current.btcTimestamp ? ` · ${new Date((current.btcTimestamp ?? 0) * 1000).toLocaleString()}` : ''}`
-    : '0 (unanchored on regtest)';
+    : getActiveNetwork() === 'regtest' ? '0 (unanchored on regtest)' : '0 (unanchored)';
 
   const lockStatusText = current.locked
     ? `Locked in cooperative escrow${current.vaultAddress ? ` to vault ${truncate(current.vaultAddress, 10, 8)}` : ''}`
@@ -274,7 +275,9 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
             detail={
               hasL1Anchor
                 ? `Bitcoin L1 block anchor per INTEGRATION.md VTXOResponse`
-                : `Regtest epochs run unanchored; BTCHeight / BTCTimestamp are 0 (docs/01-VERIFIED-API.md §16.6)`
+                : getActiveNetwork() === 'regtest'
+                ? `Regtest epochs run unanchored; BTCHeight / BTCTimestamp are 0 (docs/01-VERIFIED-API.md §16.6)`
+                : `BTCHeight / BTCTimestamp are 0 (unanchored). L1 anchoring on this network is not yet verified by RIPCORD (docs/01-VERIFIED-API.md §16.6).`
             }
           />
 
@@ -287,7 +290,7 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
               className="action-btn"
               style={{ textDecoration: 'none', justifyContent: 'center', minHeight: '44px' }}
             >
-              <span>View in Regtest Explorer</span>
+              <span>View in {networkLabel()} Explorer</span>
               <span>↗</span>
             </a>
           </div>
@@ -295,8 +298,10 @@ export function VtxoDetailSheet({ vtxo, onClose }: VtxoDetailSheetProps) {
 
         <div className="proof-caveats" style={{ marginTop: '16px' }}>
           <p>
-            <strong>Regtest Environment:</strong> VTXO commitments are verified by the live CometBFT quorum.
-            L1 block anchoring is unpopulated on regtest per verified daemon contract.
+            <strong>{networkLabel()} Environment:</strong> VTXO commitments are verified by the live CometBFT quorum.
+            {getActiveNetwork() === 'regtest'
+              ? ' L1 block anchoring is unpopulated on regtest per verified daemon contract.'
+              : ' L1 block anchoring fields are 0 in the current daemon build; anchoring on this network is not yet verified.'}
           </p>
         </div>
       </aside>

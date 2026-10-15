@@ -3,8 +3,9 @@ import { depositFromMnemonic, type DepositResult } from './deposit.js';
 import { makeSigner } from './keys.js';
 import { registerVault, isCode17VaultExists, adoptVaultOnCode17 } from './register.js';
 import { mapDaemonError } from './errors.js';
-import { joinDaemonUrl, describeDaemonFailure } from './net.js';
+import { joinDaemonUrl, describeDaemonFailure, enqueueScan, isScanBusyError } from './net.js';
 import type { VaultRecord } from './types.js';
+import { networkOf } from './networks.js';
 
 export const DAEMON_SLOW_NOTE = 'The daemon is slow to answer. Your setup continues safely; status will refresh shortly.';
 
@@ -300,9 +301,9 @@ async function findExistingVaultFunding(
   // the scan must never adopt another record's funding.
   excludeOutpoints: ReadonlySet<string> = new Set(),
 ) {
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 8; attempt++) {
     try {
-      const response = await fetchImpl(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) });
+      const response = await enqueueScan(() => fetchImpl(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'scantxoutset', params: ['start', [`addr(${vault.address})`]] }) }));
       if (!response.ok) {
         if ([502, 503, 504, 429].includes(response.status) && attempt < 3) {
           await new Promise(r => setTimeout(r, attempt * 1000));
@@ -311,7 +312,15 @@ async function findExistingVaultFunding(
         throw new Error(`Bitcoin RPC HTTP ${response.status}`);
       }
       const payload = await response.json() as { result?: { unspents?: Array<{ txid: string; vout: number; scriptPubKey: string; amount: number }> }; error?: { message?: string } };
-      if (payload.error) throw new Error(payload.error.message ?? 'Vault UTXO scan failed');
+      if (payload.error) {
+        // Overlap refusal is transient: our queue serializes OUR scans, but the
+        // SDK's own getUtxos scans share the node. Retry after a pause.
+        if (isScanBusyError(payload.error.message ?? '') && attempt < 8) {
+          await new Promise(r => setTimeout(r, 4_000));
+          continue;
+        }
+        throw new Error(payload.error.message ?? 'Vault UTXO scan failed');
+      }
       const expectedScript = vault.p2tr ? Buffer.from(vault.p2tr.output).toString('hex').toLowerCase() : '';
       const found = payload.result?.unspents?.find(item =>
         item.scriptPubKey.toLowerCase() === expectedScript
@@ -815,7 +824,7 @@ async function fundVaultLifecycleRun(params: FundVaultLifecycleParams): Promise<
     }
 
     params.onProgress?.('minting');
-    const signer = makeSigner(params.mnemonic, 'regtest', params.vault.userKeyIndex);
+    const signer = makeSigner(params.mnemonic, networkOf(params.vault), params.vault.userKeyIndex);
     const mintAmount = deposit.amountSats - 1n;
     const owner = params.vault.userKeyDescriptor.publicKey.slice(2);
     const existing = await retryDaemonQuery(() => vc.getAddressVtxos(owner, { baseUrl: params.daemonBaseUrl, allowInsecureHttp, fetchImpl: params.fetchImpl ?? globalThis.fetch.bind(globalThis) }));

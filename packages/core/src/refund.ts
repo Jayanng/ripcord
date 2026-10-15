@@ -48,6 +48,7 @@ import type * as bitcoin from 'bitcoinjs-lib';
 import {
   asDisplayTxid,
   asUserAddress,
+  assertSameNetwork,
   isDisplayTxid,
   isUserAddress,
   toSdkVault,
@@ -55,6 +56,8 @@ import {
   type Identity,
   type VaultRecord,
 } from './types.js';
+import { DEFAULT_NETWORK, networkOf, type TachiNetwork } from './networks.js';
+
 import { RipcordCode, RipcordError, mapDaemonError } from './errors.js';
 import { makeSigner } from './keys.js';
 import { joinDaemonUrl } from './net.js';
@@ -121,8 +124,8 @@ function requireFee(feeSats: bigint): bigint {
   return feeSats;
 }
 
-function requireDest(destAddress: string, prohibitedAddress?: string): string {
-  if (!isUserAddress(destAddress)) {
+function requireDest(destAddress: string, prohibitedAddress?: string, network: TachiNetwork = DEFAULT_NETWORK): string {
+  if (!isUserAddress(destAddress, network)) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Destination must be a SegWit address, got: ${destAddress}`,
@@ -703,6 +706,7 @@ export interface RefundReadiness {
  * builds, verifies, and user-signs the refund PSBT. Never broadcasts.
  */
 export async function assessRefund(params: AssessRefundParams): Promise<RefundReadiness> {
+  assertSameNetwork(params.identity, params.vault);
   const fundingState = await inspectFunding(params.vault, params.baseUrl);
   if (fundingState.status === 'unfunded') {
     return {
@@ -757,7 +761,7 @@ export async function assessRefund(params: AssessRefundParams): Promise<RefundRe
 
   verifyRefund(built.psbt, sdkVault, verifyOpts);
 
-  const signer = makeSigner(params.identity.mnemonic, 'regtest', params.vault.userKeyIndex);
+  const signer = makeSigner(params.identity.mnemonic, networkOf(params.identity), params.vault.userKeyIndex);
   await signRefundAsUser(built.psbt, signer, sdkVault, verifyOpts);
 
   return {
@@ -801,6 +805,7 @@ export interface ExecuteRefundResult {
  * finalizeRefund + broadcast to Bitcoin L1 via Bitcoin RPC proxy sendrawtransaction.
  */
 export async function executeRefund(params: ExecuteRefundParams): Promise<ExecuteRefundResult> {
+  assertSameNetwork(params.identity, params.vault);
   const fundingState = await inspectFunding(params.vault, params.baseUrl);
   if (fundingState.status === 'unfunded') {
     throw new RipcordError(RipcordCode.FUNDING_MISSING, 'Vault has no funding outpoint on L1');
@@ -967,10 +972,12 @@ export async function inspectToLocalMaturity(params: {
  * builds, verifies, signs, and finalizes the self-exit PSBT. Never broadcasts.
  */
 export async function assessToLocalClaim(params: AssessToLocalClaimParams): Promise<ToLocalClaimReadiness> {
+  assertSameNetwork(params.identity, params.toLocal);
   const feeSats = requireFee(params.feeSats ?? DEFAULT_CLAIM_FEE_SATS);
   const destAddress = requireDest(
     params.destAddress ?? params.identity.l1Address,
     params.toLocal.address,
+    networkOf(params.identity),
   );
 
   const maturity = await inspectToLocalMaturity({
@@ -1001,7 +1008,7 @@ export async function assessToLocalClaim(params: AssessToLocalClaimParams): Prom
 
   const signer =
     params.signer ??
-    makeSigner(params.identity.mnemonic, 'regtest', params.identity.userKeyDescriptor.index);
+    makeSigner(params.identity.mnemonic, networkOf(params.identity), params.identity.userKeyDescriptor.index);
   const signerPublicKey = Buffer.from(signer.publicKey);
   const signerXOnly = signerPublicKey.length === 33 ? signerPublicKey.subarray(1) : signerPublicKey;
 
@@ -1050,7 +1057,7 @@ export async function assessToLocalClaim(params: AssessToLocalClaimParams): Prom
 
   const dryRun = {
     txid: asDisplayTxid(decoded.txid),
-    destination: asUserAddress(destAddress),
+    destination: asUserAddress(destAddress, networkOf(params.identity)),
     vsize: decoded.vsize,
     sequence: decoded.vin?.[0]?.sequence ?? built.sequence,
     rawHex,
@@ -1084,7 +1091,7 @@ export async function claimToLocalPayout(
   params: ClaimToLocalPayoutParams,
 ): Promise<{ txid: DisplayTxid; rawHex: string }> {
   const feeSats = requireFee(params.feeSats ?? DEFAULT_CLAIM_FEE_SATS);
-  const destAddress = requireDest(params.destAddress, params.toLocal.address);
+  const destAddress = requireDest(params.destAddress, params.toLocal.address, networkOf(params.toLocal));
 
   const signerPublicKey = Buffer.from(params.signer.publicKey);
   const signerXOnly = signerPublicKey.length === 33 ? signerPublicKey.subarray(1) : signerPublicKey;

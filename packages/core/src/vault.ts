@@ -11,12 +11,13 @@ import * as vc from '@tachibtc/taurus-vault-core';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import { RipcordError, RipcordCode } from './errors.js';
 import { computeFingerprint, assertDistinctPubkeys } from './quorum.js';
+import type { TachiNetwork } from './networks.js';
 
-/** The daemon's cooperative threshold on regtest (SDK `DEFAULT_THRESHOLD`). */
-const REGTEST_THRESHOLD = 5;
+/** Cooperative M-of-N threshold (SDK `DEFAULT_THRESHOLD`; 5-of-7 on BOTH regtest and signet — live-probed). */
+const DEFAULT_COOPERATIVE_THRESHOLD = 5;
 
 export interface CreateVaultParams {
-  network: 'regtest';
+  network: TachiNetwork;
   nodePubkeys: CompressedHex[];
   csvBlocks: number;
   userKeyDescriptor: UserKeyDescriptor;
@@ -101,7 +102,7 @@ function toSdkUserKeyDescriptor(desc: UserKeyDescriptor): agg.UserKeyDescriptor 
 
 export async function createVault(params: CreateVaultParams): Promise<VaultRecord> {
   const { network, nodePubkeys, csvBlocks, userKeyDescriptor } = params;
-  const threshold = params.threshold ?? REGTEST_THRESHOLD;
+  const threshold = params.threshold ?? DEFAULT_COOPERATIVE_THRESHOLD;
 
   validateNodePubkeys(nodePubkeys);
   validateThreshold(threshold, nodePubkeys.length);
@@ -109,7 +110,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
   const sdkUserKeyDescriptor = toSdkUserKeyDescriptor(userKeyDescriptor);
 
   const vault = await vc.createVault({
-    network: 'regtest',
+    network,
     nodePubkeys,
     csvBlocks,
     // Passed explicitly rather than relying on the SDK default, so the value the
@@ -150,7 +151,8 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
 
   const record: VaultRecord = {
     vaultIdHex: '',
-    address: asVaultAddress(expectedAddress),
+    network,
+    address: asVaultAddress(expectedAddress, network),
     csvBlocks,
     userKeyIndex: userKeyDescriptor.index,
     userKeyDescriptor,
@@ -169,7 +171,10 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
   // Alice's fixture (live-proven 2026-08-22: Bob's index-0 csv=2 vault derives
   // to a different address). The SDK's verifyVaultP2tr above already validates
   // the cryptographic structure for every vault.
-  if (csvBlocks === 2 && userKeyDescriptor.publicKey === ALICE_FIXTURE_USER_PUBKEY) {
+  // The determinism fixtures are REGTEST-VERIFIED constants (bcrt1 addresses,
+  // live-probed 2026-08-22). On other networks the same keys legitimately
+  // encode to a different address (signet: tb1p...) — never compare across.
+  if (network === 'regtest' && csvBlocks === 2 && userKeyDescriptor.publicKey === ALICE_FIXTURE_USER_PUBKEY) {
     if (expectedAddress !== ALICE_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
@@ -178,7 +183,7 @@ export async function createVault(params: CreateVaultParams): Promise<VaultRecor
       );
     }
   }
-  if (csvBlocks === 2 && userKeyDescriptor.publicKey === '02028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80') {
+  if (network === 'regtest' && csvBlocks === 2 && userKeyDescriptor.publicKey === '02028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80') {
     if (expectedAddress !== BOB_FIXTURE_VAULT_ADDRESS_CSV2) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,

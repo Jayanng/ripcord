@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getActiveNetwork } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { buildExitCertificate, certificateSummaryText, certificateToJson, type ExitCertificate } from '@ripcord/core/exit-certificate';
 import { proveExitTree, findFundingSpender, buildSweepEvidence, type ExitSweepEvidence } from '@ripcord/core/exit';
-import { L1Txid } from './ui';
+import { L1Txid, explorerBase } from './ui';
 
 /**
  * Exit Readiness Certificate (Bounty #1, Phase 2).
@@ -35,7 +36,7 @@ export function ExitCertificateCard() {
     void (async () => {
       try {
         const { deriveIdentity } = await import('@ripcord/core/keys');
-        const derived = deriveIdentity(identity.mnemonic, 'regtest', vault.userKeyIndex);
+        const derived = deriveIdentity(identity.mnemonic, getActiveNetwork(), vault.userKeyIndex);
         if (!cancelled) setUserKeyHex(String(derived.xOnly));
       } catch {
         if (!cancelled) setUserKeyHex('');
@@ -66,6 +67,7 @@ export function ExitCertificateCard() {
             expectedLeafScriptHex: vault.p2tr
               ? Buffer.from(vault.p2tr.exitLeaf.script).toString('hex')
               : undefined,
+            explorerTxBase: explorerBase(),
           }));
         }
       } catch {
@@ -90,10 +92,11 @@ export function ExitCertificateCard() {
         },
         readiness ?? null,
         {
-          network: 'regtest',
+          network: getActiveNetwork(),
           treeProof: proveExitTree(vault),
           sweep,
           fundingOutpoint: funding,
+          explorerTxBase: explorerBase(),
         },
       );
     } catch {

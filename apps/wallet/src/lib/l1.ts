@@ -41,7 +41,21 @@ export async function scanL1Settlement(options: {
   /** The vault funding outpoint, used to prove which transaction is the exit. */
   funding?: { txid: string; vout: number };
 }): Promise<L1Scan> {
-  const scanned = await rpc(options.baseUrl, 'scantxoutset', ['start', [`addr(${options.address})`]]);
+  const { enqueueScan, isScanBusyError } = await import('@ripcord/core/net');
+  const scanned = await enqueueScan(async () => {
+    for (let attempt = 1; attempt <= 36; attempt++) {
+      const res = await rpc(options.baseUrl, 'scantxoutset', ['start', [`addr(${options.address})`]]) as {
+        result?: unknown;
+        error?: { message?: string };
+      };
+      if (res.error && isScanBusyError(res.error.message ?? '')) {
+        await new Promise(resolve => setTimeout(resolve, 5_000));
+        continue;
+      }
+      return res;
+    }
+    throw new Error('L1 scan busy for too long; will retry on the next poll');
+  });
   const result = scanned.result as { success?: boolean; unspents?: RpcUnspent[] } | null;
   const unspents = (result?.unspents ?? []).map(u => ({
     txid: u.txid,

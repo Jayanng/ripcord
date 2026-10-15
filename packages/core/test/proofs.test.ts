@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { fetchHat, fetchRip, type HatProof, type RipProof } from '../src/proofs.js';
 import { RipcordCode, RipcordError } from '../src/errors.js';
 import {
@@ -10,9 +10,9 @@ import {
   toSdkVault,
 } from '../src/index.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
-import { getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, getLiveProofFixtures, withTransportRetry, FixtureUnavailableError, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -28,21 +28,39 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   let ripA0: RipProof;
   let currentEpoch: number;
 
+  // Round 7A-1/7A-3: fixture unavailability degrades every case to an honest
+  // SKIP with the reason in the run output - never a beforeAll hard red and
+  // never an ungated spend.
+  let fixtureSkipReason: string | null = null;
+
   beforeAll(async () => {
-    const stats = await withTransportRetry(async () => {
-      const statsRes = await fetch(`${DAEMON}/tachi_stats`);
-      if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
-      return (await statsRes.json()) as { current_epoch: number };
-    });
-    currentEpoch = stats.current_epoch;
+    try {
+      const stats = await withTransportRetry(async () => {
+        const statsRes = await fetch(`${DAEMON}/tachi_stats`);
+        if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
+        return (await statsRes.json()) as { current_epoch: number };
+      });
+      currentEpoch = stats.current_epoch;
 
-    const fixtures = await getLiveProofFixtures(2, 50, DAEMON);
-    HIST_A = fixtures[0];
-    HIST_B = fixtures[1];
+      const fixtures = await getLiveProofFixtures(2, 50, DAEMON);
+      HIST_A = fixtures[0];
+      HIST_B = fixtures[1];
 
-    hatA = await withTransportRetry(() => fetchHat(HIST_A.hash, { baseUrl: DAEMON }));
-    ripA0 = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
+      hatA = await withTransportRetry(() => fetchHat(HIST_A.hash, { baseUrl: DAEMON }));
+      ripA0 = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
+    } catch (err) {
+      if (err instanceof FixtureUnavailableError) {
+        fixtureSkipReason = err.message;
+        console.warn(`[fixture] proofs.test: ${err.message} - every case skips honestly`);
+        return;
+      }
+      throw err;
+    }
   }, 180000);
+
+  beforeEach(ctx => {
+    if (fixtureSkipReason) ctx.skip();
+  });
 
   describe('fetchHat', () => {
     it('returns a 64-char bare lowercase hex proof and the spent-input vtxo_id', () => {
@@ -185,12 +203,27 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   });
 
   describe('fresh live transfer', () => {
-    it('fetchHat on a just-committed send returns a 64-char proof for the spent input', async () => {
-      const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-      const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
+    // Round 7A-2: this case SPENDS REAL FUNDS (1000 + 1 fee). On signet that
+    // is opt-in only, like every other transfer test in the suite.
+    it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('fetchHat on a just-committed send returns a 64-char proof for the spent input', { timeout: 240_000 }, async (ctx) => {
+      // Fixture economics gate-before: Alice needs >= 1001 unspent sats.
+      const vc = await import('@tachibtc/taurus-vault-core');
+      const aliceVtxos = await withTransportRetry(() =>
+        vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }),
+      );
+      const aliceTotal = (aliceVtxos as unknown as { vtxos: Array<{ spent: boolean; locked?: boolean; amountSats: bigint }> }).vtxos
+        .filter(v => !v.spent && !v.locked)
+        .reduce((acc, v) => acc + v.amountSats, 0n);
+      if (aliceTotal < 1001n) {
+        console.warn(`[fixture] skipped: Alice has ${aliceTotal} sats unspent, need 1001 (1000 + 1 fee) for the fresh-transfer proof`);
+        ctx.skip();
+        return;
+      }
+      const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+      const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
       const quorum = await withTransportRetry(() => getQuorum(DAEMON));
       const aliceVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: alice.userKeyDescriptor,
@@ -205,8 +238,8 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
           amountSats: 1000n,
           feeSats: 1n,
           baseUrl: DAEMON,
-          network: 'regtest',
-          userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
+          network: TEST_NETWORK,
+          userSigner: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0),
           onInputsSelected: ids => {
             spentIds = [...ids];
           },
@@ -217,11 +250,31 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
       expect(result.epoch).toBeGreaterThan(0);
       expect(spentIds.length).toBeGreaterThan(0);
 
-      const hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl: DAEMON }));
+      // The daemon publishes proof trees only after the ORIGIN epoch closes
+      // (~5s cadence): "epoch N not closed (no tree available)" on a fresh
+      // commit is honest not-yet, not a failure. Poll to the closure within a
+      // bounded budget instead of racing it (fix 2026-10-14 — this race was
+      // the suite's persistent 1x failure).
+      const deadline = Date.now() + 120_000;
+      let hat = null;
+      let rip = null;
+      let lastError: unknown = null;
+      while (Date.now() < deadline) {
+        try {
+          hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl: DAEMON }));
+          rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 }));
+          break;
+        } catch (err) {
+          lastError = err;
+          await new Promise(resolve => setTimeout(resolve, 4_000));
+        }
+      }
+      if (!hat || !rip) {
+        throw lastError instanceof Error ? lastError : new Error('proofs did not appear within the epoch-close budget');
+      }
       expect(hat.proof).toMatch(/^[0-9a-f]{64}$/);
       expect(spentIds.map(id => id.toLowerCase())).toContain(hat.vtxoId);
 
-      const rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl: DAEMON, window: 0 }));
       expect(rip.originEpoch).toBe(result.epoch);
       expect(rip.chainLength).toBe(0);
       expect(rip.finalRoot).toBe(rip.originRoot);

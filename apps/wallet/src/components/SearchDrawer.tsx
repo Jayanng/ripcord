@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { addressPrefix } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { formatSats, truncate, Icon, explorerTxUrl } from './ui';
 import type { ChainSearchResult } from '@ripcord/core/search';
@@ -121,7 +122,7 @@ export function SearchDrawer() {
                 id="protocol-search-input"
                 value={query}
                 onChange={event => setQuery(event.target.value)}
-                placeholder="e.g. 14360 or bcrt1p… or 64-hex"
+                placeholder={`e.g. 14360 or ${addressPrefix()}p… or 64-hex`}
                 autoComplete="off"
               />
               <button type="submit" className="scan-btn" disabled={busy || !query.trim()}>

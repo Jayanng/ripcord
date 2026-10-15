@@ -77,6 +77,8 @@ export interface ExitCertificate {
   readonly feeSats: number | null;
   readonly blockHash: string | null;
   readonly confirmations: number | null;
+  /** Explorer link for the exit transaction at TOP LEVEL (completeness bar). */
+  readonly explorerUrl: string | null;
   readonly evidence: ExitCertificateEvidence;
   readonly network: string;
   readonly timestamp: number;
@@ -249,7 +251,7 @@ export function buildExitCertificate(
   const maturityConfirmations = sweep ? sweep.confirmations : (readiness?.confirmations ?? 0);
   const csvBlocksNote =
     vault.csvBlocks < 1008
-      ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (regtest). The production Tachi default is 1008 blocks.`
+      ? `Demo-only: this vault declares ${vault.csvBlocks} CSV blocks (demo parameter). The production Tachi default is 1008 blocks.`
       : null;
 
   return {
@@ -277,6 +279,11 @@ export function buildExitCertificate(
     feeSats: sweep?.feeSats === null || sweep?.feeSats === undefined ? null : Number(sweep.feeSats),
     blockHash: sweep?.blockHash ?? null,
     confirmations: sweep?.confirmations ?? null,
+    // Top-level explorer link (completeness bar, review 5B): built from the
+    // explorer base option, falling back to the sweep's own link.
+    explorerUrl: options.explorerTxBase && sweep?.exitTxid
+      ? `${options.explorerTxBase.replace(/\/$/, '')}/tx/${sweep.exitTxid}`
+      : (sweep?.explorerUrl || null),
     csvBlocksNote,
     sweep: sweep ?? null,
     evidence: {

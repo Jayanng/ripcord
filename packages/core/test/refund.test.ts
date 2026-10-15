@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON, withScanBusyRetry , FIXTURE_FAUCET_NOTE } from './live-fixtures.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 import {
@@ -24,7 +25,7 @@ import {
 import { RipcordCode, RipcordError } from '../src/errors.js';
 import type { VaultRecord } from '../src/types.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -60,21 +61,21 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 0);
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 0);
     quorum = await getQuorum(DAEMON);
     const rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(ALICE_MNEMONIC, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
-    await userWallet.sync();
-  }, 60000);
+    await withScanBusyRetry(() => userWallet.sync());
+  }, 240_000);
 
   describe('1. buildToLocalCommitment', () => {
     it('constructs to_local commitment bound to this vault (network, quorum, delay)', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -82,7 +83,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
       const toLocal = buildToLocalCommitment(vault);
 
-      expect(toLocal.address).toMatch(/^bcrt1p[0-9a-z]{58,}$/);
+      expect(toLocal.address).toMatch(TEST_NETWORK === 'signet' ? /^tb1p[0-9a-z]{58,}$/ : /^bcrt1p[0-9a-z]{58,}$/);
       expect(toLocal.toSelfDelay).toBe(2);
       expect(toLocal.threshold).toBe(quorum.threshold);
       expect(toLocal.nodeKeysCompressed.length).toBe(quorum.nodePubkeys.length);
@@ -94,7 +95,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
     it('rejects drifting delayed key when bound to the vault', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -125,7 +126,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   describe('2 & 3. buildRefund & verifyRefund', () => {
     it('enforces exact balance conservation feeSats === funding.valueSats - sum(outputs)', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -150,7 +151,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
     it('verifyRefund strictly requires expectedDelayedPubkey to prevent key redirection', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -200,7 +201,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   describe('4 & 5. signRefundAsUser & cosignRefundWithQuorum', () => {
     it('cosignRefundWithQuorum enforces user-signs-first gate', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -232,9 +233,9 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
     it('signRefundAsUser attaches user signature; cosigning unregistered vault fails with mapped daemon error', async () => {
       const index = 61000 + Math.floor(Math.random() * 10000);
-      const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+      const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -254,7 +255,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
         feeSats: 500n,
       });
 
-      const signer = makeSigner(ALICE_MNEMONIC, 'regtest', index);
+      const signer = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, index);
       await signRefundAsUser({
         psbt: built.psbt,
         userSigner: signer,
@@ -281,7 +282,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   });
 
   describe('6. finalizeRefund and live quorum cosignature on registered vault', () => {
-    it('live registered vault: cosignRefund -> finalizeRefund succeeds with 5 partials and code 0', async () => {
+    it('live registered vault: cosignRefund -> finalizeRefund succeeds with 5 partials and code 0', async (ctx) => {
       // Find an open registered vault for Alice on the live daemon with retry
       let listData: { vaults?: Array<{ funding_txid: string; funding_vout: number; state: string }> } = {};
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -313,7 +314,10 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       } | null;
 
       if (!txout || typeof txout.value !== 'number') {
+        // Honest skip (round 6A-3): the cosign needs live unspent funding; a
+        // bare return here would report a PASS with zero assertions.
         console.log(`Funding ${displayTxid}:${candidate.funding_vout} already spent on L1 — skipping live cosign`);
+        ctx.skip();
         return;
       }
 
@@ -322,7 +326,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       const userValueSats = fundingValueSats - feeSats;
 
       const aliceVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -343,7 +347,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
         feeSats,
       });
 
-      const signer = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
+      const signer = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0);
       const verifyOpts = {
         toLocal,
         expectedUserValueSats: userValueSats,
@@ -392,9 +396,9 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   describe('7. assessRefund (dry-run, no broadcast)', () => {
     it('returns unfunded when vault has no L1 funding outpoint', async () => {
       const index = 62000 + Math.floor(Math.random() * 10000);
-      const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+      const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -406,11 +410,30 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       expect(readiness.dryRun).toBeUndefined();
     });
 
-    it('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async () => {
+    // Live-money test: on signet the fixtures cannot self-heal (the faucet
+    // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
+    // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
+    it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async (ctx) => {
+      const fixtureUtxos = userWallet.utxos ?? [];
+      const fixtureTotal = fixtureUtxos.reduce(
+        (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
+      // Round 6A-10 / 7A-4: the true requirement is the 40,000-sat deposit PLUS
+      // the first-attempt fee at 15 sat/vB (the ladder only retries on fee
+      // rejects, never on insufficient funds). Real P2WPKH deposit tx is
+      // ~85 + 68 vB per input (round 7A-4 measured; the earlier 120+40n model
+      // under-counted inputs and admitted failing fixtures).
+      const estimatedFeeSats = 15n * (85n + 68n * BigInt(fixtureUtxos.length || 1));
+      const neededSats = 40_000n + estimatedFeeSats;
+      if (fixtureTotal < neededSats) {
+        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${neededSats} (40000 + ~${estimatedFeeSats} fee at 15 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
+        ctx.skip();
+        return;
+      }
+
       const index = 63000 + Math.floor(Math.random() * 10000);
-      const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+      const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -458,12 +481,20 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
           funding: { txid: dep.txid, vout: vout!.n, valueSats: dep.amountSats },
         };
       } else {
+        // Round 7A-5: this fallback is REGTEST chain history (a specific
+        // regtest outpoint and exact value asserted below). On signet there is
+        // no such fixture; an honest skip beats verifying the wrong chain.
+        if (TEST_NETWORK !== 'regtest') {
+          console.warn('[fixture] skipped: deposit unavailable and the fallback fixture is regtest chain history');
+          ctx.skip();
+          return;
+        }
         // Fallback to Alice confirmed unspent funded vault on L1
         expectedTxid = '3af5eca7259981bb3f64f134913ab331e390daa4a6e637871ba7d3d92e7ae111';
         expectedVout = 0;
         testIdentity = aliceIdentity;
         const aliceVault = await createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: quorum.nodePubkeys,
           csvBlocks: 2,
           userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -485,7 +516,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       expect(readiness.userValueSats).toBe(expectedValueSats - DEFAULT_REFUND_FEE_SATS);
       expect(readiness.feeSats).toBe(DEFAULT_REFUND_FEE_SATS);
       expect(readiness.dryRun).toBeDefined();
-      expect(readiness.dryRun!.toLocalAddress).toMatch(/^bcrt1p/);
+      expect(readiness.dryRun!.toLocalAddress).toMatch(TEST_NETWORK === 'signet' ? /^tb1p/ : /^bcrt1p/);
       expect(readiness.dryRun!.psbtBase64.length).toBeGreaterThan(0);
       expect(readiness.dryRun!.psbtHex.length).toBeGreaterThan(0);
 
@@ -508,9 +539,9 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   describe('8. to_local claim path (self-exit)', () => {
     it('assessToLocalClaim builds, verifies, signs with minimal false, and decodes via live Bitcoin RPC', async () => {
       const index = 64000 + Math.floor(Math.random() * 10000);
-      const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+      const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -538,7 +569,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       expect(claimReadiness.requiredConfirmations).toBe(2);
 
       // Re-run with the low-level self-exit functions directly to test witness generation and RPC decoding
-      const signer = makeSigner(ALICE_MNEMONIC, 'regtest', index);
+      const signer = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, index);
       const claimBuilt = vc.buildToLocalSelfExitPsbt({
         toLocal,
         funding: {
@@ -582,15 +613,15 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
 
     it('claimToLocalPayout rejects an immature / unfunded to_local UTXO', async () => {
       const index = 65000 + Math.floor(Math.random() * 10000);
-      const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+      const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: identity.userKeyDescriptor,
       });
       const toLocal = buildToLocalCommitment(vault);
-      const signer = makeSigner(ALICE_MNEMONIC, 'regtest', index);
+      const signer = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, index);
 
       // Attempting to broadcast a spend of an unconfirmed/nonexistent funding output fails at Bitcoin RPC
       await expect(

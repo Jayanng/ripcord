@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_NETWORK } from './live-fixtures.js';
 import {
   type DisplayTxid,
   type InternalTxid,
@@ -305,7 +306,7 @@ describe('Domain interfaces', () => {
         scheme: 'bip84-p2wpkh',
         purpose: 84,
         coinType: 1,
-        network: 'regtest',
+        network: TEST_NETWORK,
         account: 0,
         change: false,
         index: 0,
@@ -342,7 +343,7 @@ describe('Domain interfaces', () => {
         scheme: 'bip84-p2wpkh',
         purpose: 84,
         coinType: 1,
-        network: 'regtest',
+        network: TEST_NETWORK,
         account: 0,
         change: false,
         index: 1,
@@ -453,7 +454,7 @@ describe('Domain interfaces', () => {
         scheme: 'bip84-p2wpkh',
         purpose: 84,
         coinType: 1,
-        network: 'regtest',
+        network: TEST_NETWORK,
         account: 0,
         change: false,
         index: 0,
@@ -467,6 +468,8 @@ describe('Domain interfaces', () => {
       userAddress: VALID_USER_ADDRESS,
       l1Address: VALID_USER_ADDRESS,
     };
+    // Pinned literal (not TEST_NETWORK): this asserts the field round-trips
+    // untouched, independent of the run's network.
     expect(identity.network).toBe('regtest');
     expect(identity.xOnly).toBe(VALID_XONLY_HEX);
   });
@@ -487,7 +490,7 @@ describe('Domain interfaces', () => {
       scheme: 'bip84-p2wpkh',
       purpose: 84,
       coinType: 1,
-      network: 'regtest',
+      network: TEST_NETWORK,
       account: 0,
       change: false,
       index: 0,

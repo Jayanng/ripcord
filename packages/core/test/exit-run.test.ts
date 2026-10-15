@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON } from './live-fixtures.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import {
   deriveIdentity,
@@ -11,7 +12,7 @@ import {
 } from '../src/index.js';
 import type { VaultRecord } from '../src/types.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -66,7 +67,9 @@ async function waitForConfirmations(
 
 // Mature broadcast needs two L1 confirmations. Regtest has no scheduled miner
 // (activity-driven). Set RIPCORD_LIVE_EXIT=1 when the chain is producing blocks.
-const LIVE_EXIT = process.env.RIPCORD_LIVE_EXIT === '1';
+// Round 8A-2: this manual opt-in broadcasts real L1 transactions - on signet
+// that additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
+const LIVE_EXIT = process.env.RIPCORD_LIVE_EXIT === '1' && (TEST_NETWORK !== 'signet' || process.env.TACHI_SIGNET_FUNDED === '1');
 
 describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout: 300000 }, () => {
   let quorum: Awaited<ReturnType<typeof getQuorum>>;
@@ -76,7 +79,7 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
     quorum = await getQuorum(DAEMON);
     const rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(ALICE_MNEMONIC, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
@@ -85,9 +88,9 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
 
   it.skipIf(!LIVE_EXIT)('assessExit is live at 2 confs; executeExit returns an L1 txid queryable via getrawtransaction', async () => {
     const index = 54000 + Math.floor(Math.random() * 10000);
-    const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+    const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
     const vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: identity.userKeyDescriptor,
@@ -127,7 +130,7 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
 
     const nudge = async (): Promise<void> => {
       const kickIndex = 60000 + Math.floor(Math.random() * 20000);
-      const kickId = deriveIdentity(ALICE_MNEMONIC, 'regtest', kickIndex);
+      const kickId = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, kickIndex);
       await fetch('https://faucet.tachibtc.com/api/faucet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,7 +138,7 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
         signal: AbortSignal.timeout(8000),
       }).catch(() => undefined);
       const kickVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 1008,
         userKeyDescriptor: kickId.userKeyDescriptor,
@@ -163,7 +166,7 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
     const result = await executeExit({
       vault: funded,
       identity,
-      signer: makeSigner(ALICE_MNEMONIC, 'regtest', index),
+      signer: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, index),
       destAddress: identity.l1Address,
       baseUrl: DAEMON,
     });

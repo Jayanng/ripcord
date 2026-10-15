@@ -3,8 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/@ripcord/core?logo=npm&label=%40ripcord%2Fcore)](https://www.npmjs.com/package/@ripcord/core)
 [![Release](https://img.shields.io/badge/release-v0.2.1-blue)](https://github.com/Jayanng/ripcord/tree/v0.2.1)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Network](https://img.shields.io/badge/network-Tachi%20regtest-orange)](https://tachibtc.com/)
-[![Status](https://img.shields.io/badge/status-live%20on%20regtest-green)](https://github.com/Jayanng/ripcord)
+[![Network](https://img.shields.io/badge/network-Tachi%20regtest%20%2B%20signet-orange)](https://tachibtc.com/)
+[![Status](https://img.shields.io/badge/status-live%20on%20regtest%20%2B%20signet-green)](https://github.com/Jayanng/ripcord)
 
 > **Proof before promise.**
 
@@ -14,16 +14,17 @@ RIPCORD targets **OP_FREEDOM Bounty #1: TAURUS-based Non-Custodial Wallet / Cust
 
 ## Current status
 
-RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest**. It is not production custody software and must not be used with funds that matter.
+RIPCORD is a fully functional self-custodial vault wallet, live on **Tachi regtest** and **Tachi signet**. It is not production custody software and must not be used with funds that matter.
 
 - `@ripcord/core@0.2.1` is published on npm.
 - Git tag `v0.2.1` is available.
 - Core wallet mechanics and the responsive wallet application have been exercised against the live Tachi regtest environment.
 - Browser-wipe recovery has been manually exercised from a mnemonic against live regtest data.
-- The project has no signet or mainnet support.
+- **Signet support is live** (added 2026-10-15): network choice at wallet creation, with the full money path (faucet, deposit, mint, registration, off-chain transfers with HAT proofs, sovereign exit) verified hop by hop on Tachi signet. See [docs/SIGNET-SUPPORT.md](docs/SIGNET-SUPPORT.md) for the evidence. Mainnet is not supported.
 
 ## Highlights
 
+- Network choice before any key material: Tachi regtest or Tachi Signet, stamped on every wallet
 - Self-custodial BIP-39 mnemonic-based key derivation
 - Per-vault BIP-84 receive-key indexes for atomic vaults
 - Deterministic 5-of-7 Tachi vault construction
@@ -310,7 +311,7 @@ What the bounty asked for and where it lives:
 | Requirement | Where it lives | Evidence |
 |---|---|---|
 | Demo Video | YouTube walkthrough of the live wallet | <https://youtu.be/87bD1p2t4rc> |
-| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; 492 tests measured live against the regtest daemon (484 passing, 6 gated on environment or faucet conditions, 2 sensitive to live faucet/epoch state) |
+| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; the full suite runs live against both Tachi networks (2026-10-15: regtest 490 passed / 8 skipped / 0 failed, signet 450 passed / 48 skipped / 0 failed, all skips named with reasons in the run output) |
 | Create TAURUS/Tachi vaults | Create and Recover flows (Wallet tab) | Deterministic construction with the live 5-of-7 regtest quorum; fixture-address checks in the vault tests |
 | Onboard BTC into a vault | Two-step funding: L1 deposit then register (Wallet tab) | `deposit.test.ts`, `register.test.ts`, `lifecycle-*.test.ts`; exact funding-script proof-of-reserves binding |
 | Manage VTXOs | VTXO inventory card with spendable / locked / spent views | `coinselect.test.ts`, `indexer.test.ts`; live balance and ownership checks |
@@ -398,14 +399,14 @@ waits for the engine rather than faking one.
 
 ## Mainnet and environment scope
 
-The bounty description does **not** require Bitcoin mainnet, signet, real BTC, or production deployment. RIPCORD therefore uses the official Tachi regtest environment for safe, live verification without risking real funds.
+The bounty description does **not** require Bitcoin mainnet, real BTC, or production deployment. RIPCORD therefore uses the official Tachi test environments for safe, live verification without risking real funds. (The Tachi team later invited signet support for hackathon entries; RIPCORD added it 2026-10-15, see [docs/SIGNET-SUPPORT.md](docs/SIGNET-SUPPORT.md).)
 
 The accurate scope is:
 
 ```text
-Fully functional Tachi regtest wallet, live-verified against the public network
+Fully functional Tachi regtest AND Tachi signet wallet, live-verified against both public networks
 Responsive mobile and desktop browser web application
-No mainnet or signet support
+No mainnet support
 No production custody claim
 ```
 
@@ -415,7 +416,7 @@ Regtest is a deliberate safety and verification boundary, not a substitute claim
 
 RIPCORD is not production-ready. The honest list:
 
-- Regtest only. There is no signet or mainnet support.
+- Regtest and signet, both live-verified. No mainnet support.
 - L1 confirmations run at the regtest cadence (about 10 minutes on mainnet-like timing; regtest blocks advance with network activity).
 - Epoch L1 settlement is not implemented daemon-side yet: payment receipts are daemon-attested, and the UI says exactly that.
 - The Tachi explorer indexes Tachi-native objects (transfers, VTXOs, epochs, vaults) but not Bitcoin L1 transaction IDs (deposits, exits, faucet sends). L1 ids are click-to-copy rather than linkable.
@@ -444,13 +445,13 @@ Start with:
 
 ## Project tags
 
-`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custody` `non-custodial` `typescript` `react` `vite` `web-app` `regtest` `wallet` `bitcoin-wallet` `proof-of-reserves`
+`bitcoin` `tachi` `taurus` `vtxo` `taproot` `self-custodial` `non-custodial` `typescript` `react` `vite` `web-app` `regtest` `signet` `wallet` `bitcoin-wallet` `proof-of-reserves`
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-RIPCORD runs on Tachi regtest. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
+RIPCORD runs on Tachi regtest and Tachi signet. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
 
 ---
 

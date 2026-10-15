@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { networkLabel } from '../lib/network-state';
 import { readExitRecord } from '../lib/exitRecord';
 import { loadSpendLog } from '../lib/conscience';
 import { vaultRecordKey } from '../context/WalletContext';
@@ -10,6 +11,7 @@ import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
 import { Skeleton } from './Skeleton';
+import { explorerBase } from './ui';
 
 type ActivityFilter = 'all' | 'transfers' | 'deposits' | 'blocks';
 
@@ -199,14 +201,14 @@ export function ActivityFeed() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <a
             className="explorer-link"
-            href="https://regtest.tachibtcscan.com"
+            href={explorerBase()}
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: '11px' }}
           >
-            Regtest Explorer ↗
+            {networkLabel()} Explorer ↗
           </a>
-          <span className={`connection ${indexerStatus.state}`}>Indexer {indexerStatus.state}</span>
+          <span className={`connection ${indexerStatus.state}`}>{indexerStatus.state === 'closed' ? 'Live updates: polling' : `Indexer ${indexerStatus.state}`}</span>
         </div>
       </div>
       <div className="activity-toolbar" role="search">

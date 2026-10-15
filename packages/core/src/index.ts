@@ -1,6 +1,9 @@
 export const CORE_VERSION = '0.2.1';
 
 export * from './types.js';
+// networks.js: config map + helpers (the TachiNetwork TYPE re-exports via types.js).
+export { NETWORKS, DEFAULT_NETWORK, networkConfig, networkOf } from './networks.js';
+export type { TachiNetworkConfig } from './networks.js';
 export * from './bytes.js';
 export * from './errors.js';
 export * from './net.js';

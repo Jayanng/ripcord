@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { searchChain, type ChainSearchResult } from '../src/search.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
 /**
  * Live protocol search against the regtest daemon (Rule 1: live-is-truth).
@@ -18,7 +18,8 @@ describe('searchChain (live daemon)', { timeout: 60_000 }, () => {
     expect(result.hash).toMatch(/^[0-9a-fA-F]{64}$/);
   });
 
-  it('finds a vtxo by id and decodes the Go byte-array ID to hex', async () => {
+  // Regtest chain state: the vtxo-id fixture lives on the regtest daemon.
+  it.skipIf(TEST_NETWORK !== 'regtest')('finds a vtxo by id and decodes the Go byte-array ID to hex', async () => {
     const result = await withTransportRetry(() =>
       searchChain(DAEMON, 'fe9286778eecfd8a75c8d0b10f885b4b6bb220e42f9778cf61951e0994984b90'),
     );

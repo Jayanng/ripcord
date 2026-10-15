@@ -1,7 +1,7 @@
 {
   "name": "Ripcord Regtest Wallet",
   "short_name": "Ripcord",
-  "description": "A verification-first self-custodial wallet for Tachi regtest.",
+  "description": "A verification-first self-custodial wallet for the Tachi network.",
   "start_url": "/app",
   "scope": "/app",
   "display": "standalone",

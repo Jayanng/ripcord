@@ -1,4 +1,5 @@
 import type { IndexerEvent } from '@ripcord/core/indexer';
+import { networkLabel } from '../lib/network-state';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import {
   formatSats,
@@ -85,7 +86,7 @@ export function ActivityRow({
             href={explorerTxUrl(item.txHash)}
             target="_blank"
             rel="noreferrer"
-            title={`View payment transaction ${item.txHash} on regtest explorer`}
+            title={`View payment transaction ${item.txHash} on the ${networkLabel()} explorer`}
           >
             {truncate(item.txHash, 14, 10)} ↗
           </a>
@@ -211,7 +212,7 @@ export function ActivityRow({
             href={explorerBlockUrl(item.height)}
             target="_blank"
             rel="noreferrer"
-            title={`View block #${item.height} on regtest explorer`}
+            title={`View block #${item.height} on the ${networkLabel()} explorer`}
           >
             Block #{item.height} ↗
           </a>
@@ -251,7 +252,7 @@ export function ActivityRow({
               href={explorerVtxoUrl(item.id)}
               target="_blank"
               rel="noreferrer"
-              title={`View spent VTXO ${item.id} on regtest explorer`}
+              title={`View spent VTXO ${item.id} on the ${networkLabel()} explorer`}
             >
               {truncate(txHash, 14, 10)} ↗
             </a>
@@ -334,7 +335,7 @@ export function ActivityRow({
           href={explorerTxUrl(txEvent.txHash)}
           target="_blank"
           rel="noreferrer"
-          title={`View transaction ${txEvent.txHash} on regtest explorer`}
+          title={`View transaction ${txEvent.txHash} on the ${networkLabel()} explorer`}
         >
           {truncate(txEvent.txHash, 14, 10)} ↗
         </a>

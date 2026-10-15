@@ -9,10 +9,10 @@ import {
   adoptVaultOnCode17,
   type VaultRecord,
 } from '../src/index.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, withTransportRetry, withScanBusyRetry } from './live-fixtures.js';
 import { deriveVaultIdFromOutpoint } from '../src/register.js';
 
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const VIRGIN_MNEMONIC =
@@ -37,12 +37,12 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   let aliceVault: VaultRecord;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 0);
-    virginIdentity = deriveIdentity(VIRGIN_MNEMONIC, 'regtest', 0);
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 0);
+    virginIdentity = deriveIdentity(VIRGIN_MNEMONIC, TEST_NETWORK, 0);
     quorum = await withTransportRetry(() => getQuorum(DAEMON_URL));
 
     aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -51,7 +51,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Live: real listVaults queries against the live daemon (Rule 1)', () => {
-    it('queries listVaults with compressed key and succeeds on live daemon', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('queries listVaults with compressed key and succeeds on live daemon', async () => {
       const result = await withTransportRetry(() =>
         queryListVaults(aliceIdentity.userKeyDescriptor.publicKey, {
           baseUrl: DAEMON_URL,
@@ -68,7 +71,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
       expect(found!.fundingTxid).toBe('8326c9aef63b07555de77812d886ff3ed8886be375435bfa1f63ca9fb5c1225a');
     });
 
-    it('queries listVaults with X-ONLY key (64 chars) and avoids parity/prefix issues', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('queries listVaults with X-ONLY key (64 chars) and avoids parity/prefix issues', async () => {
       const result = await withTransportRetry(() =>
         queryListVaults(aliceIdentity.xOnly, {
           baseUrl: DAEMON_URL,
@@ -261,7 +267,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Regression: happy path still adopts and reports exactly as today', () => {
-    it('recovers registered vault state from live daemon when daemon is healthy', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('recovers registered vault state from live daemon when daemon is healthy', async () => {
       const localVaultWithFunding: VaultRecord = {
         ...aliceVault,
         funding: {
@@ -324,7 +333,10 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Non-blocking progression & state re-synchronization', () => {
-    it('re-syncs registration state when a later lookup succeeds after an initial failure', async () => {
+    // Regtest chain state: the seed proof fixtures / Alice's registered vaults
+    // live on the regtest daemon. The signet equivalents are evidenced in
+    // docs/SIGNET-SUPPORT.md.
+    it.skipIf(TEST_NETWORK !== 'regtest')('re-syncs registration state when a later lookup succeeds after an initial failure', async () => {
       const localVaultWithFunding: VaultRecord = {
         ...aliceVault,
         funding: {
@@ -394,12 +406,13 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
   });
 
   describe('Register-only mode (0 sats) never broadcasts', () => {
-    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
+    // Pure error-contract test (virgin vault, no chain state): runs on any network.
+    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', { timeout: 240_000 }, async () => {
       // Virgin identity vault: never funded on-chain. Register-only mode must
       // refuse to broadcast and say why (this is the direct-to-vault deposit
       // registration path used by the Receive screen).
       const virginVault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: virginIdentity.userKeyDescriptor,
@@ -408,16 +421,20 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
       expect(virginVault.funding).toBeUndefined();
       expect(virginVault.vaultIdHex).toBeFalsy();
 
-      await expect(
-        fundVaultLifecycle({
-          vault: virginVault,
-          mnemonic: VIRGIN_MNEMONIC,
-          bitcoinRpcBaseUrl: `${DAEMON_URL}/`,
-          daemonBaseUrl: DAEMON_URL,
-          amountSats: 0n,
-          timeoutMs: 20_000,
-        }),
-      ).rejects.toThrow(/register-only mode/i);
+      // Round 8A-1: the guard's unfunded check runs a scantxoutset; ride out
+      // external scanners ('-8: Scan already in progress') instead of flaking.
+      await withScanBusyRetry(async () => {
+        await expect(
+          fundVaultLifecycle({
+            vault: virginVault,
+            mnemonic: VIRGIN_MNEMONIC,
+            bitcoinRpcBaseUrl: `${DAEMON_URL}/`,
+            daemonBaseUrl: DAEMON_URL,
+            amountSats: 0n,
+            timeoutMs: 20_000,
+          }),
+        ).rejects.toThrow(/register-only mode/i);
+      });
     });
   });
 

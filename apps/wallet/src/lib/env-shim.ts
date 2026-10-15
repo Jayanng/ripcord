@@ -11,5 +11,6 @@ const g = globalThis as { process?: { env: Record<string, string | undefined> } 
 g.process ??= { env: {} };
 g.process.env ??= {};
 g.process.env.TAURUS_REGTEST_EXPLORER ??= 'https://regtest.tachibtcscan.com';
+g.process.env.TAURUS_SIGNET_EXPLORER ??= 'https://signet.tachibtcscan.com';
 
 export {};

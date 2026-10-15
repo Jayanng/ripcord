@@ -76,15 +76,17 @@ export function removeSavedAddress(address: string): void {
   persistList(SAVED_KEY, loadList(SAVED_KEY).filter(item => item.address !== address));
 }
 
+import { getActiveNetwork } from './network-state';
+
 export interface AddressClassification {
-  /** 'match' when the address belongs to this app's regtest network. */
-  network: 'regtest' | 'testnet' | 'mainnet' | 'unknown';
+  /** 'match' when the address belongs to the wallet's active network. */
+  network: 'regtest' | 'signet' | 'testnet' | 'mainnet' | 'unknown';
   networkMatches: boolean;
   addressType: 'Taproot (bech32m)' | 'SegWit v0 (bech32)' | 'Legacy' | 'Unknown';
 }
 
 /** Classify a recipient address for the pre-send safety card. */
-export function classifyAddress(address: string): AddressClassification {
+export function classifyAddress(address: string, activeNetwork: string = getActiveNetwork()): AddressClassification {
   const raw = address.trim();
   const value = raw.toLowerCase();
   // Base58 is case-sensitive: validate the raw form against the real
@@ -93,7 +95,7 @@ export function classifyAddress(address: string): AddressClassification {
   const network: AddressClassification['network'] = value.startsWith('bcrt1')
     ? 'regtest'
     : value.startsWith('tb1')
-      ? 'testnet'
+      ? 'signet'
       : value.startsWith('bc1')
         ? 'mainnet'
         : isBase58 && /^[mn2]/.test(value)
@@ -108,7 +110,7 @@ export function classifyAddress(address: string): AddressClassification {
       : isBase58
         ? 'Legacy'
         : 'Unknown';
-  return { network, networkMatches: network === 'regtest', addressType };
+  return { network, networkMatches: network === activeNetwork, addressType };
 }
 
 const ONES = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];

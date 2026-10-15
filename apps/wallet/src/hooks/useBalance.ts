@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useWallet, vaultRecordKey } from '../context/WalletContext';
 import { reconcileSpendableSats } from '@ripcord/core/lifecycle';
 import { deriveVtxoProvenance } from '../lib/provenance';
+import { bitcoinRpcUrl } from '../lib/network-state';
 
 /**
  * L1 backing probe (audit fix 2026-10-02).
@@ -23,7 +24,7 @@ function fundingIsSpent(funding: { txid: string; vout: number }, key: string): P
   if (running) return running;
   const run = (async () => {
     try {
-      const response = await fetch('/rpc', {
+      const response = await fetch(bitcoinRpcUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'gettxout', params: [funding.txid, funding.vout, true] }),
@@ -50,7 +51,7 @@ function fundingIsSpent(funding: { txid: string; vout: number }, key: string): P
 }
 
 export function useBalance() {
-  const { vaults, liveVtxos, pendingIncomingSats, lockedVtxos, exitReadiness, activeVault, receipts, identity } = useWallet();
+  const { vaults, liveVtxos, pendingIncomingSats, lockedVtxos, exitReadiness, activeVault, receipts, identity, networkResolved } = useWallet();
   const [spentKeys, setSpentKeys] = useState<ReadonlySet<string>>(
     () => new Set(Array.from(spentCache.entries()).filter(([, s]) => s).map(([k]) => k)),
   );
@@ -64,6 +65,7 @@ export function useBalance() {
   );
 
   useEffect(() => {
+    if (!networkResolved) return; // independence gate: no RPC before the network is known
     let cancelled = false;
     const check = async () => {
       const results = await Promise.all(

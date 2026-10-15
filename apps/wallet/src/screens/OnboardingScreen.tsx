@@ -4,6 +4,9 @@ import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
 import { truncate, L1Txid } from '../components/ui';
+import { NetworkSelect } from '../components/NetworkSelect';
+import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-state';
+import type { TachiNetwork } from '@ripcord/core';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
 
@@ -11,6 +14,9 @@ type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 're
 
 export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void }) {
   const wallet = useWallet();
+  // Step 0 (user-mandated): the network is chosen BEFORE any key material
+  // exists and is stamped on the identity + vault at creation.
+  const [network, setNetwork] = useState<TachiNetwork | null>(null);
   const [mnemonic, setMnemonic] = useState('');
   const [index, setIndex] = useState(0);
   const [csv, setCsv] = useState(2);
@@ -67,12 +73,12 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         import('@ripcord/core/vault'),
         import('@ripcord/core/lifecycle'),
       ]);
-      const identity = deriveIdentity(mnemonic.trim(), 'regtest', index);
+      const identity = deriveIdentity(mnemonic.trim(), network ?? 'regtest', index);
       const quorum = await getQuorum(wallet.daemonUrl, {
         allowInsecureHttp: wallet.daemonUrl.startsWith('http://127.0.0.1:') || wallet.daemonUrl.startsWith('http://localhost:'),
       });
       const derived = await createVault({
-        network: 'regtest',
+        network: network ?? 'regtest',
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: csv,
         userKeyDescriptor: identity.userKeyDescriptor,
@@ -148,6 +154,23 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     }
   };
 
+  // Auto-continue the funding pipeline the moment confirmed L1 funds sit at the
+  // settlement address (user request 2026-10-15: "since we manually funded on
+  // l1, step 1 to 3 should be automatically filled immediately funds land and
+  // continue the process automatically"). One-shot ref guard; the pipeline's
+  // persisted deposit-txid + claimed-outpoints adoption keep re-entry
+  // idempotent, so no duplicate mints from auto-resume.
+  const autoFundingStarted = useRef(false);
+  useEffect(() => {
+    if (autoFundingStarted.current) return;
+    if (busy || vaultReady || flow === 'complete' || flow === 'depositing') return;
+    if (!wallet.identity || !wallet.activeVault) return;
+    if ((wallet.l1BalanceSats ?? 0n) <= 0n) return;
+    autoFundingStarted.current = true;
+    void completeFunding();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, flow, vaultReady, wallet.l1BalanceSats, wallet.identity, wallet.activeVault]);
+
   useEffect(() => {
     if (!wallet.identity || !wallet.activeVault || busy || flow !== 'ready') return;
     if (wallet.activeVault.vaultIdHex && (wallet.activeVault.registered || wallet.activeVault.funding)) {
@@ -168,7 +191,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           return;
         }
         if (savedFaucet && /^[0-9a-f]{64}$/i.test(savedFaucet)) {
-          const response = await fetch('/rpc', {
+          const response = await fetch(bitcoinRpcUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'getrawtransaction', params: [savedFaucet, true] }),
@@ -184,7 +207,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
             const targetAddr = wallet.identity?.l1Address;
             if (!targetAddr) return;
             const { addressToScriptPubKeyHex } = await import('@ripcord/core/deposit');
-            const expectedScript = addressToScriptPubKeyHex(targetAddr, 'regtest').toLowerCase();
+            const expectedScript = addressToScriptPubKeyHex(targetAddr, getActiveNetwork()).toLowerCase();
             const match = payload.result.vout?.find(
               v => v.scriptPubKey.hex.toLowerCase() === expectedScript || v.scriptPubKey.address === targetAddr
             );
@@ -224,7 +247,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     : flow === 'depositing'
     ? 'Preparing and broadcasting your vault deposit…'
     : flow === 'confirming-deposit'
-    ? `Your vault deposit is broadcast with ${depositConfirmations} of 1 confirmations. Mining takes ~10 min on regtest (~5 min avg); funding and deposit confirm in the same block.`
+    ? `Your vault deposit is waiting for its block: ${depositConfirmations} of 1 confirmations so far. Mining takes ~5 to 10 min on ${networkLabel()}; the deposit and its faucet input confirm in the same block.`
     : flow === 'minting'
     ? 'Your deposit is confirmed. Creating your first spendable VTXO on Tachi.'
     : flow === 'registering'
@@ -240,13 +263,15 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
   const fundingSteps = [
     { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
     { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
-    { label: 'Faucet confirmed on L1', done: isDepositConfirmed },
+    { label: 'Faucet confirmed on L1 (same block as the deposit)', done: isDepositConfirmed },
     { label: 'Deposit confirmed on L1', done: isDepositConfirmed },
     { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
   ];
 
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
+
+  if (!network) return <NetworkSelect onChoose={(n) => { wallet.setNetwork(n); setNetwork(n); }} />;
 
   return <section className="flow-screen create-wallet-screen">
     <div className="flow-heading">
@@ -406,7 +431,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           <span>CSV timelock in blocks (advanced)</span>
           <input type="number" min="1" step="1" inputMode="numeric" value={csv} onChange={event => setCsv(Math.max(1, Math.floor(Number(event.target.value) || 2)))} />
         </label>
-        <small className="form-help">The CSV timelock sets how many blocks your unilateral exit must mature. Leave at 2 on regtest unless you know you need otherwise.</small>
+        <small className="form-help">The CSV timelock sets how many blocks your unilateral exit must mature. Leave at 2 unless you know you need otherwise.</small>
         <button className="test-pull" disabled={busy || (challenge.length > 0 && !challengePassed)}>
           {busy
             ? 'Deriving and reading quorum…'

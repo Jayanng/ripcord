@@ -6,6 +6,8 @@ import {
   asVaultAddress,
   ExplicitSpendableInput,
 } from './types.js';
+import { DEFAULT_NETWORK, networkConfig, networkOf, type TachiNetwork } from './networks.js';
+
 import { RipcordError, RipcordCode } from './errors.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
@@ -16,11 +18,13 @@ import { Transaction } from 'bitcoinjs-lib';
 export type { ExplicitSpendableInput };
 
 /**
- * Convert an address to its scriptPubKey hex string on regtest or mainnet.
+ * Convert an address to its scriptPubKey hex string for a Tachi network (or
+ * 'bitcoin' mainnet, kept for callers that match mainnet outputs).
  * Used for matching L1 settlement outputs in 0-conf chaining without leaking @tachibtc imports into apps/.
+ * REGTEST INVARIANCE: default network is regtest (same output as before).
  */
-export function addressToScriptPubKeyHex(address: string, network: 'regtest' | 'bitcoin' = 'regtest'): string {
-  const net = network === 'regtest' ? btc.networks.regtest : btc.networks.bitcoin;
+export function addressToScriptPubKeyHex(address: string, network: TachiNetwork | 'bitcoin' = DEFAULT_NETWORK): string {
+  const net = network === 'bitcoin' ? btc.networks.bitcoin : networkConfig(network).bitcoinjsNetwork;
   return Buffer.from(btc.address.toOutputScript(address, net)).toString('hex');
 }
 
@@ -66,7 +70,7 @@ export async function depositToVault(
   }
 
   const address = vault.address;
-  if (!isVaultAddress(address)) {
+  if (!isVaultAddress(address, networkOf(vault))) {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Invalid vault address: ${address}`,
@@ -97,7 +101,7 @@ export async function depositToVault(
       );
     }
 
-    const expectedL1ScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    const expectedL1ScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, networkOf(vault)).toLowerCase();
     if (explicitInput.scriptPubKey.toLowerCase() !== expectedL1ScriptHex) {
       throw new RipcordError(
         RipcordCode.INVALID_FORMAT,
@@ -209,7 +213,7 @@ export async function depositToVault(
 
   // 3. Change correctness: change output must return to user L1 settlement address
   if (dep.changeSats > 0n) {
-    const expectedChangeScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, 'regtest').toLowerCase();
+    const expectedChangeScriptHex = addressToScriptPubKeyHex(vault.userKeyDescriptor.address, networkOf(vault)).toLowerCase();
     const changeVout = decodedTx.outs.findIndex(
       (out, idx) => idx !== vout && Buffer.from(out.script).toString('hex').toLowerCase() === expectedChangeScriptHex
     );
@@ -229,7 +233,7 @@ export async function depositToVault(
     feeSats: dep.feeSats,
     amountSats: dep.amountSats,
     changeSats: dep.changeSats,
-    vaultAddress: asVaultAddress(dep.vaultAddress),
+    vaultAddress: asVaultAddress(dep.vaultAddress, networkOf(vault)),
     inputs: dep.inputs,
   };
 }
@@ -311,21 +315,41 @@ export interface DepositFromMnemonicParams {
  * time, so redirecting it routes every SDK network call through the caller's
  * proxy-aware base URL (see docs/DEPLOYMENT.md same-origin proxy contract).
  */
-export function useProxyAwareTaurusRpc(baseUrl: string): void {
-  const rpc = (agg.REGTEST as unknown as { rpc: { jsonRpc: string; rest: string } }).rpc;
-  rpc.jsonRpc = baseUrl;
-  rpc.rest = baseUrl;
+export function useProxyAwareTaurusRpc(baseUrl: string, network: TachiNetwork = DEFAULT_NETWORK): void {
+  // Mutate the ACTIVE network's exported, unfrozen config (fields are read at
+  // call time). REGTEST INVARIANCE: default network keeps the regtest object
+  // mutation exactly as before.
+  // Exhaustive by type: a new TachiNetwork cannot silently fall back to REGTEST.
+  const aggNetworks: Record<TachiNetwork, unknown> = {
+    regtest: agg.REGTEST,
+    signet: agg.SIGNET,
+  };
+  const target = aggNetworks[network] as {
+    rpc: { jsonRpc: string; rest: string; esplora?: string };
+  };
+  target.rpc.jsonRpc = baseUrl;
+  target.rpc.rest = baseUrl;
+  // Clear the esplora preference (root-caused live 2026-10-15 on signet): the
+  // aggregator's broadcastTx/getUtxos read network.rpc.esplora FIRST and POST
+  // the raw tx to the ABSOLUTE esplora URL (btc-signet.xverse.app/tx) — a
+  // cross-origin POST browsers CORS-block with "Failed to fetch" (it is not an
+  // EsploraTransportError, so the jsonRpc fallback never runs). REGTEST has no
+  // esplora field at all (dist REGTEST rpc = {jsonRpc, rest, explorer}), so
+  // regtest always used the jsonRpc path — clearing it makes signet behave
+  // exactly as regtest always did, through the same-origin proxy.
+  target.rpc.esplora = '';
 }
 
 export async function depositFromMnemonic(params: DepositFromMnemonicParams): Promise<DepositResult> {
   // The aggregator stores the supplied fetch function and invokes it later as
   // a plain callback. Chromium requires Window.fetch to retain its receiver,
   // otherwise it throws "Illegal invocation" before any RPC request is sent.
-  useProxyAwareTaurusRpc(params.rpc.baseUrl);
+  const network = networkOf(params.vault);
+  useProxyAwareTaurusRpc(params.rpc.baseUrl, network);
   const boundFetch = globalThis.fetch.bind(globalThis);
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: params.rpc.baseUrl, fetchImpl: boundFetch });
   const aggregator = await agg.WalletAggregator.fromMnemonic(params.mnemonic, {
-    network: 'regtest',
+    network,
     rpc: rpcClient,
   });
   const userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });

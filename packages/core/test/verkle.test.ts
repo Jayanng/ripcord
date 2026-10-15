@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import {
   fetchHat,
   fetchRip,
@@ -11,9 +11,9 @@ import {
 import { MemoryStore } from '../src/store.js';
 import type { XOnlyHex } from '../src/types.js';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
-import { getLiveProofFixtures, withTransportRetry, type ProofFixture } from './live-fixtures.js';
+import { TEST_DAEMON, getLiveProofFixtures, withTransportRetry, FixtureUnavailableError, type ProofFixture } from './live-fixtures.js';
 
 const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
 const BOB_XONLY = '028e9de3ffe2238b2cbf8a60f1c99c076d6e89749018915f2f5af8c8da791c80';
@@ -29,19 +29,37 @@ describe('verkle.test.ts Task 8.2: HAT-in-RIP linker (live daemon)', { timeout: 
   let ripB0: RipProof;
   let ripC0: RipProof;
 
-  beforeAll(async () => {
-    const fixtures = await getLiveProofFixtures(3, 50, DAEMON);
-    HIST_A = fixtures[0];
-    HIST_B = fixtures[1];
-    HIST_C = fixtures[2];
+  // Round 7A-1/7A-3: fixture unavailability degrades every case to an honest
+  // SKIP with the reason in the run output - never a beforeAll hard red and
+  // never an ungated spend.
+  let fixtureSkipReason: string | null = null;
 
-    hatA = await withTransportRetry(() => fetchHat(HIST_A.hash, { baseUrl: DAEMON }));
-    hatB = await withTransportRetry(() => fetchHat(HIST_B.hash, { baseUrl: DAEMON }));
-    hatC = await withTransportRetry(() => fetchHat(HIST_C.hash, { baseUrl: DAEMON }));
-    ripA0 = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
-    ripB0 = await withTransportRetry(() => fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 0 }));
-    ripC0 = await withTransportRetry(() => fetchRip(HIST_C.hash, HIST_C.epoch, { baseUrl: DAEMON, window: 0 }));
+  beforeAll(async () => {
+    try {
+      const fixtures = await getLiveProofFixtures(3, 50, DAEMON);
+      HIST_A = fixtures[0];
+      HIST_B = fixtures[1];
+      HIST_C = fixtures[2];
+
+      hatA = await withTransportRetry(() => fetchHat(HIST_A.hash, { baseUrl: DAEMON }));
+      hatB = await withTransportRetry(() => fetchHat(HIST_B.hash, { baseUrl: DAEMON }));
+      hatC = await withTransportRetry(() => fetchHat(HIST_C.hash, { baseUrl: DAEMON }));
+      ripA0 = await withTransportRetry(() => fetchRip(HIST_A.hash, HIST_A.epoch, { baseUrl: DAEMON, window: 0 }));
+      ripB0 = await withTransportRetry(() => fetchRip(HIST_B.hash, HIST_B.epoch, { baseUrl: DAEMON, window: 0 }));
+      ripC0 = await withTransportRetry(() => fetchRip(HIST_C.hash, HIST_C.epoch, { baseUrl: DAEMON, window: 0 }));
+    } catch (err) {
+      if (err instanceof FixtureUnavailableError) {
+        fixtureSkipReason = err.message;
+        console.warn(`[fixture] verkle.test: ${err.message} - every case skips honestly`);
+        return;
+      }
+      throw err;
+    }
   }, 180000);
+
+  beforeEach(ctx => {
+    if (fixtureSkipReason) ctx.skip();
+  });
 
   it('returns verified for a real matched pair after 0x/case normalization', () => {
     const link = verifyHatInRip(hatA, ripA0);

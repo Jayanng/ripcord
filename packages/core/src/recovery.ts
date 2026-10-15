@@ -7,6 +7,8 @@ import {
   asCompressedHex,
   asVaultAddress,
 } from './types.js';
+import { networkOf } from './networks.js';
+
 import { QuorumInfo, computeFingerprint } from './quorum.js';
 import { toUserKeyDescriptor } from './keys.js';
 import { toDisplayTxid } from './bytes.js';
@@ -185,11 +187,12 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   const { identity, quorum, baseUrl, startIndex, gapLimit, maxIndex } = params;
   const bitcoinRpcBaseUrl = params.bitcoinRpcBaseUrl ?? baseUrl;
 
-  if (identity.network !== 'regtest') {
+  const network = networkOf(identity);
+  if (identity.network !== 'regtest' && identity.network !== 'signet') {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
-      `Unsupported network: ${identity.network}`,
-      { hint: 'Recovery currently supports regtest only' }
+      `Unsupported network: ${String(identity.network)}`,
+      { hint: 'Recovery supports Tachi regtest and signet' }
     );
   }
 
@@ -240,10 +243,10 @@ export async function recoverVaults(params: RecoverVaultsParams): Promise<VaultR
   // mnemonic, so a wiped client rebuilds the exact keys the vaults were
   // registered under. No wallet sync, discovery only derives keys and reads
   // daemon state; it never touches wallet UTXOs.
-  useProxyAwareTaurusRpc(bitcoinRpcBaseUrl);
+  useProxyAwareTaurusRpc(bitcoinRpcBaseUrl, networkOf(identity));
   const rpcClient = new agg.BitcoinCoreRpcClient({ url: bitcoinRpcBaseUrl });
   const aggregator = await agg.WalletAggregator.fromMnemonic(identity.mnemonic, {
-    network: 'regtest',
+    network: networkOf(identity),
     rpc: rpcClient,
   });
   const wallet = aggregator.addAccount({ addressType: 'p2wpkh' });
@@ -278,7 +281,7 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
   for (const csvBlocks of csvCandidates) {
     const discovered = await retryDaemonQuery(() =>
       vc.discoverVaults({
-        network: 'regtest',
+        network,
         userWallet: wallet,
         nodePubkeys: quorum.nodePubkeys,
         threshold: quorum.threshold,
@@ -337,10 +340,11 @@ async function retryDaemonQuery<T>(fn: () => Promise<T>, attempts = 4, delayMs =
 
       const record: VaultRecord = {
         vaultIdHex: d.summary.vaultId,
-        address: asVaultAddress(d.vault.p2tr.address),
+        network,
+        address: asVaultAddress(d.vault.p2tr.address, network),
         csvBlocks: resolvedCsv,
         userKeyIndex: d.userKeyIndex,
-        userKeyDescriptor: toUserKeyDescriptor(descriptor),
+        userKeyDescriptor: toUserKeyDescriptor(descriptor, network),
         nodePubkeys: recordNodePubkeys,
         quorumThreshold: quorum.threshold,
         quorumFingerprint,

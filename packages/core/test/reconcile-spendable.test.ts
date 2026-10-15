@@ -8,9 +8,10 @@
  * (AGENTS.md Rule 2).
  */
 import { describe, expect, it } from 'vitest';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { alignSpentVtxoTimes, dedupeActivityByHash, findAdoptableMintNote, reconcileSpendableSats, shouldShowResumeDepositRow } from '../src/lifecycle.js';
 
-const BASE = process.env.RIPCORD_TEST_DAEMON ?? 'https://rpc-regtest.tachibtc.com/';
+const BASE = process.env.RIPCORD_TEST_DAEMON ?? `${TEST_DAEMON}/`;
 const DEMO_MNEMONIC = 'flight group arrange hybrid wrong image advice crisp discover glue erupt cousin';
 const DEMO_FUNDING = 'b1b83036e08d76535ce1a85c5f87bb334bb8b72c1c85d82b83f70fcca8890403';
 
@@ -133,7 +134,9 @@ describe('resume-deposit row is legitimate only before funding is known', () => 
 });
 
 describe('reconciliation against real daemon state (live, read-only)', () => {
-  it('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async () => {
+  // Round 7A-7: this is REGTEST chain history (the demo funding outpoint); on
+  // signet the outpoint never existed and the stated reason would be false.
+  it.skipIf(TEST_NETWORK !== 'regtest')('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async (ctx) => {
     // 1. L1 truth: the funding outpoint was spent by the sovereign exit.
     const txoutRes = await fetch(BASE, {
       method: 'POST',
@@ -142,13 +145,16 @@ describe('reconciliation against real daemon state (live, read-only)', () => {
     });
     const txout = (await txoutRes.json()) as { result?: unknown };
     if (txout.result !== null && txout.result !== undefined) {
-      // Chain fixture no longer in the spent state (regtest reset): nothing to assert.
+      // Honest skip (round 6A-6): the chain fixture is no longer in the spent
+      // state (regtest reset). A bare return here would report a PASS with zero
+      // assertions.
+      ctx.skip();
       return;
     }
 
     // 2. Daemon truth: the notes it still credits for the demo identity.
     const { deriveIdentity } = await import('../src/keys.js');
-    const identity = deriveIdentity(DEMO_MNEMONIC, 'regtest', 0);
+    const identity = deriveIdentity(DEMO_MNEMONIC, TEST_NETWORK, 0);
     const owner = identity.xOnly;
     const vtxosRes = await fetch(`${BASE}tachi_addressVtxos?address=${owner}&include_spent=true`, {
       headers: { Accept: 'application/json' },

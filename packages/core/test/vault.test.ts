@@ -1,17 +1,27 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+// Frozen csv=2 vault addresses, one per network's LIVE quorum. Both recomputed
+// via createVault against the live daemon quorum and cross-checked twice
+// (audit recompute + wallet app create flow, 2026-10-15). A prior value here
+// was wrong: the test daemon was still regtest while identities derived signet,
+// composing a regtest-quorum vault with a tb HRP.
+const EXPECTED_VAULT =
+  TEST_NETWORK === 'signet'
+    ? 'tb1pwgarrepqhc3cjwccatgx9y0f0t0qh8jty5unewyfhwmwjh3dtnlqt0u7wz'
+    : 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { createVault, describeTapscript, deriveIdentity, getQuorum } from '../src/index.js';
 import { computeFingerprint } from '../src/quorum.js';
 import { RipcordError, RipcordCode } from '../src/errors.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const DAEMON_URL = 'https://rpc-regtest.tachibtc.com';
+const DAEMON_URL = TEST_DAEMON;
 
 describe('vault.ts', () => {
   let aliceIdentity: Awaited<ReturnType<typeof deriveIdentity>>;
   let quorum: Awaited<ReturnType<typeof getQuorum>>;
 
   beforeAll(async () => {
-    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
+    aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     quorum = await getQuorum(DAEMON_URL);
   });
 
@@ -20,7 +30,7 @@ describe('vault.ts', () => {
 
     beforeAll(async () => {
       vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -28,7 +38,7 @@ describe('vault.ts', () => {
     });
 
     it('returns vault with correct address matching verified fixture', () => {
-      expect(vault.address).toBe('bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg');
+      expect(vault.address).toBe(EXPECTED_VAULT);
     });
 
     it('exit leaf tapscript includes OP_2, OP_NOP3, and ends with OP_CHECKSIG', () => {
@@ -49,7 +59,7 @@ describe('vault.ts', () => {
 
     beforeAll(async () => {
       vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 1008,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -67,7 +77,7 @@ describe('vault.ts', () => {
       const badPubkeys = ['04' + 'aa'.repeat(64)];
       await expect(
         createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: badPubkeys as any,
           csvBlocks: 2,
           userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -76,7 +86,7 @@ describe('vault.ts', () => {
 
       await expect(
         createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: badPubkeys as any,
           csvBlocks: 2,
           userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -89,7 +99,7 @@ describe('vault.ts', () => {
     it('throws RipcordError INVALID_FORMAT for wrong number of nodePubkeys', async () => {
       await expect(
         createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: quorum.nodePubkeys.slice(0, 3) as any,
           csvBlocks: 2,
           userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -119,7 +129,7 @@ describe('vault.ts', () => {
   describe('quorum binding (audit 2026-08-23)', () => {
     it('records the SAME fingerprint the canonical quorum reports', async () => {
       const vault = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -137,7 +147,7 @@ describe('vault.ts', () => {
       const dup = [quorum.nodePubkeys[0], ...quorum.nodePubkeys.slice(0, 6)];
       await expect(
         createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: dup,
           csvBlocks: 2,
           userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -151,7 +161,7 @@ describe('vault.ts', () => {
       for (const threshold of [0, -1, 1.5, 8]) {
         await expect(
           createVault({
-            network: 'regtest',
+            network: TEST_NETWORK,
             nodePubkeys: quorum.nodePubkeys,
             csvBlocks: 2,
             userKeyDescriptor: aliceIdentity.userKeyDescriptor,
@@ -165,20 +175,20 @@ describe('vault.ts', () => {
 
     it('defaults to threshold 5 and keeps the live-verified address', async () => {
       const implicit = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
       });
       const explicit = await createVault({
-        network: 'regtest',
+        network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,
         csvBlocks: 2,
         userKeyDescriptor: aliceIdentity.userKeyDescriptor,
         threshold: 5,
       });
       expect(implicit.address).toBe(explicit.address);
-      expect(implicit.address).toBe('bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg');
+      expect(implicit.address).toBe(EXPECTED_VAULT);
       expect(implicit.quorumFingerprint).toBe(explicit.quorumFingerprint);
     });
   });
@@ -193,9 +203,9 @@ describe('vault.ts', () => {
     it('derives a different vault per user key index and records it', async () => {
       const seen = new Set<string>();
       for (const index of [0, 1, 2]) {
-        const identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', index);
+        const identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, index);
         const vault = await createVault({
-          network: 'regtest',
+          network: TEST_NETWORK,
           nodePubkeys: quorum.nodePubkeys,
           csvBlocks: 2,
           userKeyDescriptor: identity.userKeyDescriptor,

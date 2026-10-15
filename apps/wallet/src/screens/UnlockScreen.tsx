@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { networkOf } from '@ripcord/core';
 import { useWallet } from '../context/WalletContext';
 import { identityForVault } from '../context/WalletContext';
 import { wipeAllAppData } from '../lib/selfHeal';
@@ -42,7 +43,7 @@ export function UnlockScreen() {
       const vaults = wallet.vaults;
       let matched: ReturnType<typeof deriveIdentity> | null = null;
       for (const v of vaults) {
-        const id = deriveIdentity(trimmed, 'regtest', v.userKeyIndex);
+        const id = deriveIdentity(trimmed, networkOf(v), v.userKeyIndex);
         const vaultKey = String(v.userKeyDescriptor?.publicKey ?? '').replace(/^0x/, '').toLowerCase().slice(-64);
         if (vaultKey && id.xOnly.toLowerCase() === vaultKey) {
           matched = id;
@@ -53,7 +54,7 @@ export function UnlockScreen() {
         setError('This phrase does not match the wallet stored on this device. Check each word, or use "Recover wallet" on the previous screen.');
         return;
       }
-      wallet.setIdentity(matched ?? deriveIdentity(trimmed, 'regtest', 0));
+      wallet.setIdentity(matched ?? deriveIdentity(trimmed, networkOf(wallet.vaults[0]), 0));
     } catch (e) {
       setError('Could not unlock: ' + (e instanceof Error ? e.message : String(e)));
     } finally {

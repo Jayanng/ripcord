@@ -27,13 +27,17 @@ import {
   type IndexerStatus,
 } from '@ripcord/core/indexer';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
+import { networkConfig, networkOf, type TachiNetwork } from '@ripcord/core';
+import { setActiveNetwork, daemonBaseFor, bitcoinRpcBaseFor } from '../lib/network-state';
 
 // Browser calls use the same-origin dev proxy because the public daemon does
 // not opt into CORS. Production should provide an equivalent backend proxy.
+// NETWORK-AWARE (Phase 2 signet): the bases derive from the wallet's chosen
+// network. Regtest keeps the exact root-path shape of the deployed app (byte-
+// identical URLs); signet rides the /signet prefix mirrored by the dev proxy
+// and vercel rewrites (all SDK join paths are prefix-safe — live-probed
+// 2026-10-14). VITE_DAEMON_URL / VITE_BITCOIN_RPC_URL dev overrides still win.
 const LOCAL_DAEMON = window.location.origin;
-const DEFAULT_DAEMON = import.meta.env.VITE_DAEMON_URL ?? LOCAL_DAEMON;
-const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL
-  ?? joinDaemonUrl(window.location.origin, 'rpc');
 
 type BootState = 'checking' | 'ready' | 'degraded' | 'unreachable';
 
@@ -43,6 +47,9 @@ export type { VtxoRecordItem };
 interface WalletContextValue {
   baseUrl: string;
   daemonUrl: string;
+  /** Network chosen at creation (stamped on identity + records); regtest for legacy wallets. */
+  network: TachiNetwork;
+  setNetwork: (network: TachiNetwork) => void;
   bootState: BootState;
   health: PreflightResult | null;
   identity: Identity | null;
@@ -72,6 +79,9 @@ interface WalletContextValue {
   setDisplayUnit: (unit: DisplayUnit) => void;
   /** False until the first VTXO snapshot lands (Phase 9, #22 skeleton gate). */
   vtxoSnapshotLoaded: boolean;
+  /** True once the wallet's network is resolved (records loaded or choice made);
+   *  network-dependent consumers must not fire before this (independence gate). */
+  networkResolved: boolean;
   /**
    * Funding outpoints (`txid:vout`) claimed by OTHER records at the same
    * address. Funding scans must exclude them (audit fix: sibling funding
@@ -123,7 +133,7 @@ export function vaultRecordKey(vault: VaultRecord): string {
 export function identityForVault(identity: Identity | null, vault: VaultRecord | null): Identity | null {
   if (!identity || !vault) return identity;
   if (identity.userKeyDescriptor.index === vault.userKeyIndex) return identity;
-  return deriveIdentity(identity.mnemonic, 'regtest', vault.userKeyIndex);
+  return deriveIdentity(identity.mnemonic, networkOf(identity), vault.userKeyIndex);
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -142,6 +152,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<PreflightResult | null>(null);
   const [bootState, setBootState] = useState<BootState>('checking');
   const [identity, setIdentity] = useState<Identity | null>(null);
+  // Network is chosen BEFORE creation (onboarding step 0) and stamped on the
+  // identity + every vault record; restored wallets re-sync it from records
+  // (legacy records without a network field are regtest — networkOf).
+  const [network, setNetworkState] = useState<TachiNetwork>('regtest');
+  // Independence gate (user rule: once a network is chosen, signet must never
+  // touch regtest by any means): NO network-dependent effect may fire until the
+  // network is resolved from stored records or explicitly chosen. Without this,
+  // boot-time effects run in the pre-sync window against the regtest default
+  // (caught by a request-stream capture: 4x /rpc/ + root /health and /tachi_*
+  // hits during a pure signet journey, 2026-10-15).
+  const [networkResolved, setNetworkResolved] = useState(false);
+  const setNetwork = (next: TachiNetwork) => {
+    setActiveNetwork(next);
+    setNetworkState(next);
+    setNetworkResolved(true);
+  };
+  const DEFAULT_DAEMON = import.meta.env.VITE_DAEMON_URL ?? daemonBaseFor(network, LOCAL_DAEMON);
+  const BITCOIN_RPC_BASE = import.meta.env.VITE_BITCOIN_RPC_URL ?? bitcoinRpcBaseFor(network, LOCAL_DAEMON);
   const [storedVaults, setStoredVaults] = useState<VaultRecord[]>([]);
   const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [liveVtxos, setLiveVtxos] = useState<VtxoRecordItem[]>([]);
@@ -168,7 +196,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const stateGen = useRef(0);
   const indexerStatusRef = useRef(indexerStatus);
   const indexerWaiters = useRef<Array<{ resolve: () => void; reject: (error: Error) => void; timer: number }>>([]);
+  // Ref-read mirror of networkResolved for the preflight (review 5B/merge: the
+  // network probes must not fire before resolution, but the STORE READ below
+  // must always run - gating the whole preflight deadlocks returning wallets,
+  // whose stored records are what resolve the network in the first place).
+  const networkResolvedRef = useRef(false);
   useEffect(() => { indexerStatusRef.current = indexerStatus; if (indexerStatus.state === 'connected') { for (const waiter of indexerWaiters.current) { window.clearTimeout(waiter.timer); waiter.resolve(); } indexerWaiters.current = []; } }, [indexerStatus]);
+  useEffect(() => { networkResolvedRef.current = networkResolved; }, [networkResolved]);
 
   useEffect(() => {
     if (!store && typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
@@ -194,6 +228,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [pendingCredits]);
 
   const vaults = useMemo(() => (identity ? vaultsForIdentity(storedVaults, identity) : storedVaults), [identity, storedVaults]);
+  // Sync the active network from restored records (must run AFTER `vaults`
+  // exists — the dependency array reads it during render).
+  useEffect(() => {
+    if (identity) setNetwork(identity.network);
+    else if (vaults.length > 0) setNetwork(networkOf(vaults[0]));
+    // Empty device: stay unresolved until the user's explicit choice. No
+    // network chosen means no network calls at all (the independence rule).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, vaults]);
   const hasVault = vaults.length > 0;
   // Explicit vault selection (Phase 5 multi-vault): the user's pick wins, the
   // scored heuristic stays as the default when nothing is selected. Vault
@@ -232,7 +275,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const runPreflight = useCallback(async (quiet = false) => {
-    if (!quiet && !hasLoadedOnce.current) setBootState('checking');
+    // 6B-2 fix (round 6): NEVER set 'checking' from here. The state starts as
+    // 'checking'; re-setting it mid-session swaps in the whole-UI skeleton,
+    // unmounting the create flow (the user bounced back to the network
+    // selection with all step state lost). Re-runs after resolution only
+    // update the boot state from real probe results below.
     try {
       // Capture the state generation BEFORE the store reads begin; if a
       // mutation lands while the reads are in flight, its handler already
@@ -290,8 +337,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Independence gate: no NETWORK call before the network is resolved by
+      // either a stored identity/vault or the user's step-0 choice. The store
+      // read above always ran. An empty device boots straight to the setup
+      // gate (ready, no probes); a device with records keeps 'checking' only
+      // until the resolution effect stamps the network and the re-fired
+      // preflight runs the probes.
+      if (!networkResolvedRef.current) {
+        // Boot state stays 'checking' here on purpose: the App's 8s watchdog
+        // renders the setup gate via its normal degraded path. (Setting 'ready'
+        // on an empty device routes into the shell and breaks the create flow.)
+        hasLoadedOnce.current = true;
+        return;
+      }
+
       const [nextHealth, wtStatus, wtReceipts] = await Promise.all([
         import('@ripcord/core/health').then(({ preflight }) => preflight(DEFAULT_DAEMON, {
+          network,
           allowInsecureHttp: !import.meta.env.VITE_DAEMON_URL,
           bitcoinRpcBaseUrl: BITCOIN_RPC_BASE,
         })),
@@ -339,7 +401,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!quiet) setBootState('unreachable');
       setLastRefreshedAt(Date.now());
     }
-  }, [store, activeVault?.vaultIdHex, identity, liveVtxos]);
+  }, [store, activeVault?.vaultIdHex, identity, liveVtxos, network]);
 
   const refresh = useCallback(() => runPreflight(false), [runPreflight]);
 
@@ -348,7 +410,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // skeleton) on every data update, which the user saw as constant flicker.
   const runPreflightRef = useRef(runPreflight);
   runPreflightRef.current = runPreflight;
-  useEffect(() => { void runPreflightRef.current(false); }, []);
+  // 6B-1 fix (round 6): the caller must NOT gate on networkResolved - the
+  // store read inside runPreflight is what populates the records that resolve
+  // the network in the first place. Gating here deadlocked returning wallets
+  // (setup gate over existing records). The internal networkResolvedRef gate
+  // suppresses only the NETWORK probes; run on mount and re-run on resolution.
+  useEffect(() => { void runPreflightRef.current(false); }, [networkResolved]);
 
   // Exit visibility (2026-10-02, user-reported): exit maturity must be known
   // on every screen, not only the Exit tab, or a cold start on the wallet
@@ -357,6 +424,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // vault list on its first run and would skip. Watches the active funded
   // vault and re-checks every 30s.
   useEffect(() => {
+    if (!networkResolved) return;
     const vault = activeVault;
     if (!vault?.funding) return;
     let cancelled = false;
@@ -375,7 +443,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
+  }, [activeVault?.address, activeVault?.funding?.txid, activeVault?.funding?.vout, network, networkResolved]);
 
   // L1 settlement visibility (2026-10-02, user-reported): show the real
   // Bitcoin balance at the settlement address (deposit change + exit
@@ -384,6 +452,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // a funding output can be spent only once), so Activity can show the exit
   // even for exits that predate any local record.
   useEffect(() => {
+    if (!networkResolved) return;
     const address = identity?.l1Address;
     if (!address) {
       setL1BalanceSats(null);
@@ -421,12 +490,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [identity?.l1Address, activeVault?.funding?.txid, activeVault?.funding?.vout]);
+  }, [identity?.l1Address, activeVault?.funding?.txid, activeVault?.funding?.vout, network, networkResolved]);
 
   useEffect(() => {
+    if (!networkResolved) return;
     const timer = window.setInterval(() => void runPreflight(true), 30_000);
     return () => window.clearInterval(timer);
-  }, [runPreflight]);
+  }, [runPreflight, networkResolved]);
 
   // Boot watchdog: if any part of the boot chain hangs (stuck storage,
   // stalled network), never leave the user staring at the skeleton. After
@@ -524,13 +594,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!networkResolved) return;
     if (!identity) { setLiveVtxos([]); setSpentVtxos([]); setLockedVtxos([]); setIndexerStatus({ state: 'closed', reason: 'No wallet address loaded' }); return; }
     let indexer: import('@ripcord/core/indexer').VaultIndexer | undefined;
     let cancelled = false;
     void import('@ripcord/core/indexer').then(({ VaultIndexer }) => {
       if (cancelled) return;
       const configured = import.meta.env.VITE_INDEXER_URL as string | undefined;
-      const url = configured ?? 'wss://rpc-regtest.tachibtc.com/tachi_ws';
+      const url = configured ?? networkConfig(network).daemonWs;
       indexer = new VaultIndexer({
         url,
         address: identity.xOnly,
@@ -636,10 +707,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       indexer.start();
     }).catch(error => { if (!cancelled) setIndexerStatus({ state: 'closed', reason: describeDaemonFailure(error) }); });
     return () => { cancelled = true; indexer?.close(); };
-  }, [identity, saveReceipt, activeVault?.address, activeVault?.vaultIdHex]);
+  }, [identity, saveReceipt, activeVault?.address, activeVault?.vaultIdHex, network, networkResolved]);
 
   // VTXO visibility loader: full history via include_spent=true and locked VTXOs (Deliverable 4)
   useEffect(() => {
+    if (!networkResolved) return;
     if (!identity) return;
     let cancelled = false;
     const load = async () => {
@@ -684,15 +756,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setVtxoSnapshotLoaded(true);
     });
     const timer = setInterval(() => void load(), 5000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [identity, activeVault?.address]);
+    // Mobile tab-switch freshness: a backgrounded tab throttles timers, so a
+    // tab returning to the foreground loads immediately instead of waiting.
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [identity, activeVault?.address, network, networkResolved]);
 
   const value = useMemo<WalletContextValue>(() => ({
-    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, bootState, health, identity, vaults, activeVault, hasVault, receipts,
-    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, claimedOutpointsFor,
+    baseUrl: BITCOIN_RPC_BASE, daemonUrl: DEFAULT_DAEMON, network, setNetwork, bootState, health, identity, vaults, activeVault, hasVault, receipts,
+    liveVtxos, spentVtxos, lockedVtxos, pendingIncomingSats, balanceCrossCheck, watchtowerStatus, vaultBreachReceipts, sentinelAlert, dismissSentinel, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, networkResolved, claimedOutpointsFor,
     activity, indexerStatus, exitReadiness, store, txQueue: walletTxQueue, selectVault: setSelectedVaultKey, refresh, setIdentity, setExitReadiness, waitForIndexerReady,
     addVault, updateVault, saveReceipt, recordActivity, setIndexerStatus,
-  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded,
+  }), [activeVault, activity, addVault, balanceCrossCheck, bootState, claimedOutpointsFor, dismissSentinel, exitReadiness, hasVault, health, identity, indexerStatus, lastRefreshedAt, storeReadFailed, l1BalanceSats, displayUnit, setDisplayUnit, vtxoSnapshotLoaded, network, networkResolved,
       liveVtxos, lockedVtxos, pendingIncomingSats, receipts, refresh, saveReceipt, sentinelAlert, setExitReadiness, spentVtxos,
       store, vaults, vaultBreachReceipts, waitForIndexerReady, watchtowerStatus]);
 

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { getActiveNetwork, addressPrefix, networkLabel } from '../lib/network-state';
 import { useWallet } from '../context/WalletContext';
 import { useBalance } from '../hooks/useBalance';
-import { formatSats, truncate, Icon } from './ui';
+import { formatSats, truncate, Icon, explorerTxUrl } from './ui';
 import { describeDaemonFailure, joinDaemonUrl } from '@ripcord/core/net';
 import { evaluateSpend, hasActiveRules, type ConscienceCheck, type ConscienceSettings as ConscienceSettingsType } from '@ripcord/core/spend-conscience';
 import { parseAddressHighlight, findSuspiciousVariant } from '@ripcord/core/address-safety';
@@ -334,7 +335,7 @@ function SendReviewModal({
             <span>Network fee</span>
             <strong>{feeLabel}</strong>
             <span style={{ gridColumn: '1 / -1', color: 'var(--text-lo)', fontSize: '11.5px', textAlign: 'right' }}>
-              Estimate: next block on regtest (blocks advance with network activity).
+              Estimate: next block on {networkLabel()} (blocks advance with network activity).
             </span>
             <span>Total</span>
             <strong>{formatSats(totalSats)}</strong>
@@ -348,8 +349,11 @@ function SendReviewModal({
               <span>Network</span>
               <strong className={safety.networkMatches ? 'safety-ok' : 'safety-warn'}>
                 {safety.networkMatches
-                  ? 'Regtest · matches this wallet'
-                  : `${safety.network === 'unknown' ? 'Unrecognized' : safety.network} · not this wallet's network`}
+                  ? `${networkLabel()} · matches this wallet`
+                  // Round 7B-3: in a signet session the word 'regtest' must not
+                  // render anywhere (the user's hard rule), even to name the
+                  // foreign network of a pasted address. Neutral label there.
+                  : `${safety.network === 'unknown' ? 'Unrecognized' : (getActiveNetwork() === 'signet' && safety.network === 'regtest' ? 'Another network' : safety.network)} · not this wallet's network`}
               </strong>
               <span>Address type</span>
               <strong>{safety.addressType}</strong>
@@ -358,7 +362,7 @@ function SendReviewModal({
             </div>
             {!safety.networkMatches && (
               <p className="inline-error" role="alert" style={{ marginTop: '10px' }}>
-                This address is not a regtest address. Sending will fail or reach a different network. Go back and check
+                This address is not on the {networkLabel()} network. Sending will fail or reach a different network. Go back and check
                 the address.
               </p>
             )}
@@ -513,8 +517,8 @@ export function SendForm() {
   const validateRecipientOnBlur = () => {
     const trimmed = recipient.trim();
     if (!trimmed) return;
-    if (!isUserAddress(trimmed)) {
-      setError({ field: 'recipient', message: 'Enter a valid regtest SegWit or Taproot address (bcrt1...)' });
+    if (!isUserAddress(trimmed, getActiveNetwork())) {
+      setError({ field: 'recipient', message: `Enter a valid SegWit or Taproot address (${addressPrefix()}...)` });
       return;
     }
     if (wallet.vaults.some(item => String(item.address) === trimmed)) {
@@ -550,7 +554,7 @@ export function SendForm() {
       return fail('form', unregisteredVaultMessage());
     }
     const trimmed = recipient.trim();
-    if (!isUserAddress(trimmed)) return fail('recipient', 'Enter a valid regtest SegWit address');
+    if (!isUserAddress(trimmed, getActiveNetwork())) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
     if (wallet.vaults.some(item => String(item.address) === trimmed)) {
       return fail(
         'recipient',
@@ -615,7 +619,7 @@ export function SendForm() {
               import('@ripcord/core/keys'),
               import('@ripcord/core/payment'),
             ]);
-            if (!checkUserAddr(recipient)) return fail('recipient', 'Enter a valid regtest SegWit address');
+            if (!checkUserAddr(recipient, getActiveNetwork())) return fail('recipient', `Enter a valid SegWit address (${addressPrefix()}...)`);
             if (wallet.vaults.some(item => String(item.address) === String(recipient))) {
               return fail('recipient', 'This is a known vault address. Use the recipient wallet’s user receive address.');
             }
@@ -623,18 +627,18 @@ export function SendForm() {
               vault: toSdkVault(vault),
               senderXOnly: identity.xOnly,
               recipientAddress: recipient,
-              network: 'regtest',
+              network: getActiveNetwork(),
               amountSats: BigInt(sats),
               feeSats: sendFee,
               baseUrl: wallet.daemonUrl,
-              userSigner: makeSigner(identity.mnemonic, 'regtest', vault.userKeyIndex),
+              userSigner: makeSigner(identity.mnemonic, getActiveNetwork(), vault.userKeyIndex),
               queue: wallet.txQueue,
             });
             setResult(`Committed ${committed.txHash} at epoch ${committed.epoch}. Fetching proof…`);
             let proofNote = 'proof saved';
             try {
               const { buildPaymentReceipt, xOnlyFromAddress } = await import('@ripcord/core');
-              const recipientXOnly = xOnlyFromAddress(recipient, 'regtest').toString('hex') as import('@ripcord/core/types').XOnlyHex;
+              const recipientXOnly = xOnlyFromAddress(recipient, getActiveNetwork()).toString('hex') as import('@ripcord/core/types').XOnlyHex;
               const receiptParams = {
                 txHash: committed.txHash,
                 epoch: committed.epoch,
@@ -692,7 +696,7 @@ export function SendForm() {
               pushToast({
                 title: 'Send committed',
                 body: `${formatSats(BigInt(sats))} to ${truncate(recipient, 8, 6)} committed at epoch ${committed.epoch}.`,
-                href: `https://regtest.tachibtcscan.com/tx/${committed.txHash}`,
+                href: explorerTxUrl(committed.txHash),
                 hrefLabel: 'View transaction ↗',
                 tone: 'success',
               }),
@@ -745,7 +749,7 @@ export function SendForm() {
               if (error?.field === 'recipient') setError(null);
             }}
             onBlur={validateRecipientOnBlur}
-            placeholder="bcrt1p…"
+            placeholder={`${addressPrefix()}p…`}
             required
             aria-invalid={error?.field === 'recipient'}
             aria-describedby={error?.field === 'recipient' ? 'send-recipient-error' : undefined}
@@ -769,7 +773,7 @@ export function SendForm() {
             Camera QR scanning requires browser BarcodeDetector support (e.g. Chrome/Chromium).
           </small>
         )}
-        <small className="form-help">Enter a regtest SegWit or Taproot user receive address.</small>
+        <small className="form-help">Enter a {networkLabel()} SegWit or Taproot user receive address.</small>
         {recipient.trim().length > 12 && (() => {
           const parts = parseAddressHighlight(recipient);
           return (
@@ -865,7 +869,7 @@ export function SendForm() {
           <button
             type="button"
             className="secondary-action-compact"
-            disabled={!isUserAddress(recipient.trim())}
+            disabled={!isUserAddress(recipient.trim(), getActiveNetwork())}
             onClick={() => {
               saveAddress(recipient.trim(), saveLabel);
               setSaved(loadSavedAddresses());
@@ -963,7 +967,7 @@ export function SendForm() {
             />
           </div>
           <small style={{ display: 'block', marginTop: '8px', color: 'var(--text-lo)', fontSize: '12px' }}>
-            Estimate: next block on regtest (blocks advance with network activity). The fee you pick is the fee the send uses.
+            {`Estimate: next block on ${networkLabel()} (blocks advance with network activity). The fee you pick is the fee the send uses.`}
           </small>
         </div>
         <div className="send-summary" aria-label={`Network fee: ${feeDisplay}`}>

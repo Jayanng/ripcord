@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as vc from '@tachibtc/taurus-vault-core';
 import { deriveIdentity, getQuorum, createVault, makeSigner, sendTransfer, TxQueue, toSdkVault } from '../src/index.js';
-import { withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, FIXTURE_FAUCET_NOTE, withTransportRetry } from './live-fixtures.js';
 
 const ALICE_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 
 // Live-verified fixtures (2026-08-22, from getAddressVtxos on the live daemon):
 // Alice index-0 x-only key and her 4 unspent VTXOs (3999, 12000, 32998, 39999).
@@ -22,27 +22,27 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
   let aliceUserAddr: string;
 
   beforeAll(async () => {
-    const aliceIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-    const bobIdentity = deriveIdentity(BOB_MNEMONIC, 'regtest');
+    const aliceIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+    const bobIdentity = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
     quorum = await withTransportRetry(() => getQuorum(DAEMON));
 
     // Both vaults at index 0: these are the live-verified deterministic fixtures.
     aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: aliceIdentity.userKeyDescriptor,
     });
     bobVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: bobIdentity.userKeyDescriptor,
     });
     bobUserAddr = bobIdentity.userAddress;
     aliceUserAddr = aliceIdentity.userAddress;
-    aliceSigner = makeSigner(ALICE_MNEMONIC, 'regtest', 0);
-    bobSigner = makeSigner(BOB_MNEMONIC, 'regtest', 0);
+    aliceSigner = makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0);
+    bobSigner = makeSigner(BOB_MNEMONIC, TEST_NETWORK, 0);
   }, 180000);
 
   it('rejects a vault-address recipient (sendTransfer guard)', async () => {
@@ -53,7 +53,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient cannot be the sender\'s vault address');
   });
@@ -66,7 +66,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toThrow('Recipient must be a user P2TR address');
   });
@@ -79,12 +79,12 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: DAEMON,
-      network: 'regtest' as const,
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     };
     await expect(sendTransfer({ ...base, senderXOnly: 'zz' })).rejects.toThrow('senderXOnly must be');
     await expect(sendTransfer({ ...base, senderXOnly: '00'.repeat(32) })).rejects.toThrow('does not match vault');
-    await expect(sendTransfer({ ...base, network: 'signet' as 'regtest' })).rejects.toThrow('Unsupported network');
+    await expect(sendTransfer({ ...base, network: 'mainnet' as import('../src/networks.js').TachiNetwork })).rejects.toThrow('Unsupported network');
   });
 
   it('maps a query error instead of leaking the SDK error class', async () => {
@@ -95,12 +95,32 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       amountSats: 1000n,
       feeSats: 1n,
       baseUrl: 'https://rpc-regtest-does-not-exist.tachibtc.invalid',
-      network: 'regtest',
+      network: TEST_NETWORK,
       userSigner: aliceSigner,
     })).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
 
-  it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async () => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
+    // Fixture economics gate (same pattern as deposit.test/exit.test): Alice's
+    // VTXO balance is a historical, spendable fixture that ratchets down with
+    // every run. A starved fixture is STATE, not regression — degrade to an
+    // honest skip instead of a red suite (the L1->deposit->mint refill lives in
+    // the deposit flow tests; top-ups need the faucet, which is browser-only).
+    const aliceVtxos = await withTransportRetry(() =>
+      vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }),
+    );
+    const aliceTotal = aliceVtxos.vtxos
+      .filter(v => !v.spent && !v.locked)
+      .reduce((acc, v) => acc + v.amountSats, 0n);
+    if (aliceTotal < 5001n) {
+      console.warn(
+        `[fixture] payment.test skipped: ${aliceTotal} sats in Alice's VTXOs, need 5001. ` +
+        'Refill via the deposit->mint flow and re-run.',
+      );
+      ctx.skip(); // rules-allow(skip): conditional on live fixture economics
+      return;
+    }
+
     const result = await withTransportRetry(() =>
       sendTransfer({
         vault: toSdkVault(aliceVault),
@@ -109,7 +129,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats: 5000n,
         feeSats: 1n,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: aliceSigner,
       }),
     );
@@ -136,7 +156,19 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(ownedChange.length).toBeGreaterThan(0);
   });
 
-  it('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async () => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
+    const bobGateVtxos = await withTransportRetry(() =>
+      vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }),
+    );
+    const bobGateTotal = bobGateVtxos.vtxos
+      .filter(v => !v.spent && !v.locked)
+      .reduce((acc, v) => acc + v.amountSats, 0n);
+    if (bobGateTotal < 2001n) {
+      console.warn(`[fixture] skipped: ${bobGateTotal} sats in Bob's VTXOs, need 2001 - downstream of the fixture-funded first transfer (${FIXTURE_FAUCET_NOTE})`);
+      ctx.skip();
+      return;
+    }
+
     const result = await withTransportRetry(() =>
       sendTransfer({
         vault: toSdkVault(bobVault),
@@ -145,7 +177,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats: 2000n,
         feeSats: 1n,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: bobSigner,
       }),
     );
@@ -163,7 +195,21 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(received!.owner).toBe(ALICE_XONLY);
   });
 
-  it('multi-input send: Alice spends two VTXOs together; commit code=0; fee conservation & change ownership hold', async () => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('multi-input send: Alice spends two VTXOs together; commit code=0; fee conservation & change ownership hold', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
+    const aliceGateVtxos = await withTransportRetry(() =>
+      vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }),
+    );
+    const aliceGateUnspent = aliceGateVtxos.vtxos.filter(v => !v.spent && !v.locked);
+    const aliceGateCount = aliceGateUnspent.length;
+    const aliceGateTotal = aliceGateUnspent.reduce((acc, v) => acc + v.amountSats, 0n);
+    const aliceGateLargest = aliceGateUnspent.reduce((a, v) => (v.amountSats > a ? v.amountSats : a), 0n);
+    // Mirror the test's target: largest + 500 payment + 1 fee, two inputs minimum.
+    if (aliceGateCount < 2 || aliceGateTotal < aliceGateLargest + 501n) {
+      console.warn(`[fixture] skipped: ${aliceGateCount} unspent VTXOs totalling ${aliceGateTotal} sats (largest ${aliceGateLargest}), need 2 inputs covering largest+501 - downstream of the fixture-funded transfers (${FIXTURE_FAUCET_NOTE})`);
+      ctx.skip();
+      return;
+    }
+
     const aliceBefore = await withTransportRetry(() => vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }));
     const unspent = aliceBefore.vtxos.filter(v => !v.spent && !v.locked).sort((a, b) => (b.amountSats > a.amountSats ? 1 : -1));
     expect(unspent.length).toBeGreaterThanOrEqual(2);
@@ -181,7 +227,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
         amountSats,
         feeSats,
         baseUrl: DAEMON,
-        network: 'regtest',
+        network: TEST_NETWORK,
         userSigner: aliceSigner,
         onInputsSelected: ids => { selectedInputIds = ids; },
       }),
@@ -210,12 +256,18 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(BigInt(changeOutput!.amount)).toBe(totalInputSats - amountSats - feeSats);
   });
 
-  it('two queued transfers serialize without code=5 double-spend', async () => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('two queued transfers serialize without code=5 double-spend', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     // Use two of Bob's remaining received VTXOs (each 5000) for two sends.
     const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     const unspent = bobVtxos.vtxos.filter(v => !v.spent && !v.locked);
-    if (unspent.length < 2) {
-      console.log('SKIP: Bob has fewer than 2 unspent VTXOs for the concurrency proof');
+    // Round 6A-7: the test spends two serialized sends of 1000+1 fee each, so
+    // the requirement is 2002 sats of VALUE (a single large VTXO covers both
+    // via serialized change), not a count of 2 (which hid a passing test when
+    // one large VTXO existed, and admitted 2 dust VTXOs that would fail).
+    const bobUnspentTotal = unspent.reduce((acc, v) => acc + v.amountSats, 0n);
+    if (bobUnspentTotal < 2002n) {
+      console.warn(`[fixture] skipped: Bob has ${unspent.length} unspent VTXOs totalling ${bobUnspentTotal} sats, need 2002 (two sends of 1000+1) - ${FIXTURE_FAUCET_NOTE}`);
+      ctx.skip(); // a bare return would report a fake PASS
       return;
     }
 
@@ -234,7 +286,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
           amountSats: amount,
           feeSats: 1n,
           baseUrl: DAEMON,
-          network: 'regtest',
+          network: TEST_NETWORK,
           userSigner: bobSigner,
           queue,
           onInputsSelected: ids => { selectedIds.push(...ids); },

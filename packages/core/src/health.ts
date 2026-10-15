@@ -1,6 +1,7 @@
 import { fetchConsensusQuorum, getFeeEstimate } from '@tachibtc/taurus-vault-core';
 import { RipcordCode, RipcordError } from './errors.js';
 import { describeDaemonFailure, joinDaemonUrl } from './net.js';
+import { DEFAULT_NETWORK, networkConfig, type TachiNetwork } from './networks.js';
 import type {
   WatchtowerStatus,
   WatchtowerBreachReceipt,
@@ -41,6 +42,12 @@ export interface ProbeFailure {
 export interface PreflightOptions {
   readonly allowInsecureHttp?: boolean;
   readonly bitcoinRpcBaseUrl?: string;
+  /**
+   * Tachi network this preflight targets. The chain guard refuses daemons on
+   * any other chain ("so a signet app cannot silently talk to a regtest node").
+   * Defaults to regtest — identical behavior to the pre-signet build.
+   */
+  readonly network?: TachiNetwork;
   readonly balanceCheck?: {
     readonly ownerXOnly: string;
     readonly snapshotSats: bigint;
@@ -155,7 +162,7 @@ export async function preflight(baseUrl: string, options: PreflightOptions = {})
   // including the Bitcoin RPC proxy) before being rejected. Assert as soon as
   // the chain id is known so a signet or mainnet URL fails fast and no further
   // requests are sent to a daemon we are about to refuse.
-  assertExpectedChain(chainId);
+  assertExpectedChain(chainId, options.network);
 
   try {
     const liveValidatorsResponse = await daemonGetJson<LiveValidatorsProbe>(baseUrl, 'tachi_validators/live');
@@ -418,11 +425,12 @@ export async function fetchWatchtowerReceipts(
  * means `getNodeInfo` failed, which is reported through `probeFailures` rather
  * than treated as a mismatch.
  */
-function assertExpectedChain(chainId: string): void {
-  if (chainId && chainId !== 'tachi-regtest-1') {
+function assertExpectedChain(chainId: string, network: TachiNetwork = DEFAULT_NETWORK): void {
+  const expected = networkConfig(network).chainId;
+  if (chainId && chainId !== expected) {
     throw new RipcordError(
       RipcordCode.INVALID_CHAIN,
-      `Expected chain "tachi-regtest-1", got "${chainId}"`,
+      `Expected chain "${expected}", got "${chainId}"`,
       { hint: 'Daemon is running on a different chain than expected.' }
     );
   }

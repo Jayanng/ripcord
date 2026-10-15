@@ -30,6 +30,19 @@ const SERVICE_PROXY: Record<string, ProxyOptions> = {
     changeOrigin: true,
     rewrite: path => path.replace(/^\/rpc/, ''),
   },
+  // SIGNET channel (Phase 2): same shape as the regtest rules above, mounted
+  // under /signet. First-match wins, so /signet/rpc must precede /signet.
+  // Mirrored rule-for-rule in vercel.json.
+  '/signet/rpc': {
+    target: 'https://rpc-signet.tachibtc.com',
+    changeOrigin: true,
+    rewrite: path => path.replace(/^\/signet\/rpc/, '') || '/',
+  },
+  '/signet': {
+    target: 'https://rpc-signet.tachibtc.com',
+    changeOrigin: true,
+    rewrite: path => path.replace(/^\/signet/, '') || '/',
+  },
   '/faucet': {
     target: 'https://faucet.tachibtc.com',
     changeOrigin: true,

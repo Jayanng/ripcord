@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { TEST_NETWORK, TEST_DAEMON, withScanBusyRetry } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -18,7 +19,7 @@ import {
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 
-const DAEMON = 'https://rpc-regtest.tachibtc.com';
+const DAEMON = TEST_DAEMON;
 const ALICE_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -33,10 +34,10 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
   let userWallet: agg.Wallet;
 
   beforeAll(async () => {
-    identity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 0);
+    identity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 0);
     quorum = await getQuorum(DAEMON);
     vault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 1008,
       userKeyDescriptor: identity.userKeyDescriptor,
@@ -44,7 +45,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
 
     const rpcClient = new agg.BitcoinCoreRpcClient({ url: `${DAEMON}/` });
     const aggregator = await agg.WalletAggregator.fromMnemonic(ALICE_MNEMONIC, {
-      network: 'regtest',
+      network: TEST_NETWORK,
       rpc: rpcClient,
     });
     userWallet = aggregator.addAccount({ addressType: 'p2wpkh' });
@@ -52,7 +53,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
 
   describe('addressToScriptPubKeyHex', () => {
     it('correctly converts P2WPKH regtest address to scriptPubKey hex', () => {
-      const scriptHex = addressToScriptPubKeyHex(identity.l1Address, 'regtest');
+      const scriptHex = addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK);
       expect(scriptHex).toMatch(/^0014[0-9a-f]{40}$/);
     });
   });
@@ -63,7 +64,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
         txid: 'not-a-valid-hex-txid',
         vout: 0,
         amountSats: 50_000_000n,
-        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, 'regtest'),
+        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK),
       };
 
       await expect(
@@ -95,7 +96,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
         txid: REAL_CAPTURED_TXID,
         vout: -1,
         amountSats: 50_000_000n,
-        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, 'regtest'),
+        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK),
       };
 
       await expect(
@@ -127,7 +128,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
         txid: REAL_CAPTURED_TXID,
         vout: 0,
         amountSats: 0n,
-        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, 'regtest'),
+        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK),
       };
 
       await expect(
@@ -156,8 +157,8 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
 
     it('rejects scriptPubKey mismatch when input does not pay to the user L1 address', async () => {
       // Bob at index 1 has a different L1 address and different scriptPubKey
-      const otherIdentity = deriveIdentity(ALICE_MNEMONIC, 'regtest', 1);
-      const wrongScriptHex = addressToScriptPubKeyHex(otherIdentity.l1Address, 'regtest');
+      const otherIdentity = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK, 1);
+      const wrongScriptHex = addressToScriptPubKeyHex(otherIdentity.l1Address, TEST_NETWORK);
 
       const badInput: ExplicitSpendableInput = {
         txid: REAL_CAPTURED_TXID,
@@ -190,13 +191,27 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
       }
     });
 
-    it('refuses to overspend when explicit input cannot cover deposit amount plus fee', async () => {
-      // Input value of only 1,000 sats cannot cover 40,000 sats deposit
+    // Round 6A-1: pinned refusal class + signet-safe timeout. An explicit input
+    // of 1,000 sats cannot cover a 40,000-sat deposit, so the call must be
+    // REFUSED along the money path and must never succeed. Two guards can fire
+    // and both are correct refusals: the SDK's pre-spend funding scan ('already
+    // funded', when this deterministic vault address carries chain funds) or
+    // the wrapper's post-build overspend guard ('Overspend detected'). An
+    // infrastructure error (network/daemon failure) or a successful deposit
+    // MUST fail this test - that is what the pinned class proves, where the
+    // previous bare .rejects.toThrow() passed for any reason at all.
+    // The funding scan takes ~15s on signet (large UTXO set). Round 8A-1: the
+    // shared bitcoind runs ONE scantxoutset at a time node-wide, so external
+    // scanners surface '-8: Scan already in progress' through the guard; the
+    // whole assertion retries on that one condition (120s budget) so the run is
+    // not red just because someone else's scan held the node.
+    it('refuses the deposit when the explicit input cannot cover amount plus fee', { timeout: 180_000 }, async () => {
+      await withScanBusyRetry(async () => {
       const smallInput: ExplicitSpendableInput = {
         txid: REAL_CAPTURED_TXID,
         vout: 0,
         amountSats: 1_000n,
-        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, 'regtest'),
+        scriptPubKey: addressToScriptPubKeyHex(identity.l1Address, TEST_NETWORK),
       };
 
       await expect(
@@ -207,7 +222,8 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
           amountSats: 40_000n,
           explicitInput: smallInput,
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow(/already funded|Overspend detected|cannot cover|insufficient/i);
+      });
     });
   });
 

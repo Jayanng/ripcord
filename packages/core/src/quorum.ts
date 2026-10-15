@@ -100,7 +100,7 @@ async function fetchAndValidateQuorum(baseUrl: string): Promise<QuorumInfo> {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Expected threshold 5, got ${q.threshold}`,
-      { hint: 'Quorum threshold must be exactly 5 for regtest' }
+      { hint: 'Quorum threshold must be exactly 5 (5-of-7 quorum)' }
     );
   }
 
@@ -108,7 +108,7 @@ async function fetchAndValidateQuorum(baseUrl: string): Promise<QuorumInfo> {
     throw new RipcordError(
       RipcordCode.INVALID_FORMAT,
       `Expected 7 node pubkeys, got ${q.nodePubkeys?.length ?? 'undefined'}`,
-      { hint: 'Quorum must have exactly 7 node pubkeys for regtest' }
+      { hint: 'Quorum must have exactly 7 node pubkeys (5-of-7 quorum)' }
     );
   }
 
@@ -144,8 +144,8 @@ async function fetchAndValidateQuorumWithOptions(baseUrl: string, options: GetQu
     baseUrl,
     ...(options.allowInsecureHttp ? { allowInsecureHttp: true } : {}),
   });
-  if (q.threshold !== 5) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected threshold 5, got ${q.threshold}`, { hint: 'Quorum threshold must be exactly 5 for regtest' });
-  if (!Array.isArray(q.nodePubkeys) || q.nodePubkeys.length !== 7) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected 7 node pubkeys, got ${q.nodePubkeys?.length ?? 'undefined'}`, { hint: 'Quorum must have exactly 7 node pubkeys for regtest' });
+  if (q.threshold !== 5) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected threshold 5, got ${q.threshold}`, { hint: 'Quorum threshold must be exactly 5 (5-of-7 quorum)' });
+  if (!Array.isArray(q.nodePubkeys) || q.nodePubkeys.length !== 7) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Expected 7 node pubkeys, got ${q.nodePubkeys?.length ?? 'undefined'}`, { hint: 'Quorum must have exactly 7 node pubkeys (5-of-7 quorum)' });
   const validatedPubkeys: CompressedHex[] = [];
   for (const pk of q.nodePubkeys) {
     if (!isCompressedHex(pk)) throw new RipcordError(RipcordCode.INVALID_FORMAT, `Invalid compressed pubkey: ${pk}`, { hint: 'Node pubkeys must be 66-char hex starting with 02 or 03' });

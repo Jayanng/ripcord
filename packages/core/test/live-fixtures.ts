@@ -1,4 +1,5 @@
 import { fetchHat, fetchRip, verifyHatInRip } from '../src/proofs.js';
+import { NETWORKS, type TachiNetwork } from '../src/networks.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -8,12 +9,42 @@ import {
   toSdkVault,
 } from '../src/index.js';
 
+/** Thrown when live fixtures cannot be produced without spending scarce funds
+ *  the test is not opted in to spend, or without balance the wallet lacks.
+ *  Callers must degrade to an honest SKIP (round 7A-1/7A-3), never a hard red
+ *  and never a silent spend. */
+export class FixtureUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FixtureUnavailableError';
+  }
+}
+
 export interface ProofFixture {
   hash: string;
   epoch: number;
 }
 
-const DEFAULT_DAEMON = 'https://rpc-regtest.tachibtc.com';
+/**
+ * Parameterized live tests (plan phase 5): TACHI_TEST_NETWORK selects the
+ * network for the live suite (default 'regtest', byte-identical to the previous
+ * fixed-daemon behavior). Signet facts: the faucet requires human GitHub/X
+ * sign-in, so money fixtures cannot self-heal from Node and starved-fixture
+ * tests skip honestly; regtest-verified constant fixtures are scoped per test.
+ */
+export const TEST_NETWORK: TachiNetwork =
+  process.env.TACHI_TEST_NETWORK === 'signet' ? 'signet' : 'regtest';
+const DEFAULT_DAEMON = NETWORKS[TEST_NETWORK].daemonRest;
+export const TEST_DAEMON = DEFAULT_DAEMON;
+export const TEST_WSS = NETWORKS[TEST_NETWORK].daemonWs;
+export const TEST_FAUCET_URL =
+  TEST_NETWORK === 'signet'
+    ? 'https://faucet.tachibtc.com/api/signet/faucet'
+    : 'https://faucet.tachibtc.com/api/regtest/faucet';
+export const FIXTURE_FAUCET_NOTE =
+  TEST_NETWORK === 'signet'
+    ? 'the signet faucet requires human GitHub/X sign-in (0.005 BTC/account/day), so Node fixtures cannot self-heal'
+    : 'refill via the deposit->mint flow and re-run';
 
 /**
  * Seed fixtures known to have closed epochs and verified HAT+RIP proofs.
@@ -51,6 +82,27 @@ let cachedFixtures: ProofFixture[] | null = null;
  * - Assertion failures (AssertionError) and application logic errors FAIL IMMEDIATELY (never retried).
  * - Zero mocks, no unconditional skips.
  */
+
+export async function withScanBusyRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= 40; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      // Round 8A: inspect the error AND its actual/expected payload. Vitest's
+      // expect(...).rejects.toThrow(regex) TRUNCATES the received error in the
+      // AssertionError message ('could not verify the vault is unfunde...'),
+      // so matching only err.message missed the 'Scan already in progress'
+      // text sitting in err.actual and rethrew instead of retrying.
+      const raw = err as { message?: unknown; actual?: unknown; expected?: unknown; stack?: unknown };
+      const msg = [raw?.message, raw?.actual, raw?.expected, raw?.stack]
+        .map(part => (part instanceof Error ? `${part.name}: ${part.message}` : String(part ?? '')))
+        .join(' ');
+      if (!/already in progress/i.test(msg)) throw err;
+      await new Promise(resolve => setTimeout(resolve, 3_000));
+    }
+  }
+  throw new Error('scantxoutset busy for too long');
+}
 
 export function isTransportError(err: unknown): boolean {
   if (!err) return false;
@@ -141,13 +193,15 @@ export async function syncWalletWithScan(
   },
   bitcoinRpcUrl: string,
 ): Promise<void> {
-  await userWallet.sync();
+  // The node serves ONE scantxoutset at a time; parallel test files collide
+  // with -8 "Scan already in progress". Same busy-retry the app uses.
+  await withScanBusyRetry(() => userWallet.sync());
   const targets = [userWallet.receiveAddress, userWallet.changeAddress].filter(
     (a): a is string => typeof a === 'string' && a.length > 0,
   );
   const found: Record<string, unknown>[] = [];
   for (const address of targets) {
-    const resp = await withTransportRetry(async () => {
+    const resp = await withScanBusyRetry(() => withTransportRetry(async () => {
       const res = await fetch(bitcoinRpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -160,9 +214,9 @@ export async function syncWalletWithScan(
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as {
-        result?: { unspents?: Array<{ txid: string; vout: number; amount: number; scriptPubKey: string }> };
+      result?: { unspents?: Array<{ txid: string; vout: number; amount: number; scriptPubKey: string }> };
       };
-    });
+      }));
     for (const u of resp.result?.unspents ?? []) {
       found.push({
         txid: u.txid,
@@ -232,7 +286,11 @@ export async function ensureFixtureFunds(
   }, 0n);
   if (visibleSats >= neededSats) return { visibleSats, topUpAttempted: false };
 
-  const faucetUrl = options.faucetUrl ?? 'https://faucet.tachibtc.com/api/faucet';
+  // Verified live 2026-10-14 (faucet.tachibtc.com JS bundle + API probes): the
+  // faucet's claim endpoint is POST /api/{regtest|signet}/faucet with body
+  // {address, amountBtc}. The old /api/faucet path now answers
+  // "unknown or unconfigured chain" and silently starved the fixture.
+  const faucetUrl = options.faucetUrl ?? TEST_FAUCET_URL;
   const target = userWallet.receiveAddress ?? userWallet.changeAddress;
   if (!target) return { visibleSats, topUpAttempted: false, faucetMessage: 'no faucet target address' };
 
@@ -356,27 +414,49 @@ export async function getLiveProofFixtures(
   const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
   const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
 
+  // Round 7A-1: this fallback SPENDS REAL FUNDS. On signet that requires the
+  // documented opt-in (the faucet needs human sign-in); without it, degrade to
+  // an honest skip instead of spending outside the money policy.
+  if (TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1') {
+    throw new FixtureUnavailableError(
+      'proof fixtures not in chain history; self-heal spends real funds and needs TACHI_SIGNET_FUNDED=1 on signet',
+    );
+  }
+
   while (validFixtures.length < count) {
-    const alice = deriveIdentity(ALICE_MNEMONIC, 'regtest');
-    const bob = deriveIdentity(BOB_MNEMONIC, 'regtest');
+    const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
+    const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
     const quorum = await withTransportRetry(() => getQuorum(baseUrl));
     const aliceVault = await createVault({
-      network: 'regtest',
+      network: TEST_NETWORK,
       nodePubkeys: quorum.nodePubkeys,
       csvBlocks: 2,
       userKeyDescriptor: alice.userKeyDescriptor,
     });
 
-    const result = await withTransportRetry(() => sendTransfer({
-      vault: toSdkVault(aliceVault),
-      senderXOnly: ALICE_XONLY,
-      recipientAddress: bob.userAddress,
-      amountSats: 1000n,
-      feeSats: 1n,
-      baseUrl,
-      network: 'regtest',
-      userSigner: makeSigner(ALICE_MNEMONIC, 'regtest', 0),
-    }));
+    let result: Awaited<ReturnType<typeof sendTransfer>>;
+    try {
+      result = await withTransportRetry(() => sendTransfer({
+        vault: toSdkVault(aliceVault),
+        senderXOnly: ALICE_XONLY,
+        recipientAddress: bob.userAddress,
+        amountSats: 1000n,
+        feeSats: 1n,
+        baseUrl,
+        network: TEST_NETWORK,
+        userSigner: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0),
+      }));
+    } catch (err) {
+      // Round 7A-3: starved fixtures degrade to an honest skip (the fixture
+      // economics convention), not a beforeAll hard red.
+      const msg = String((err as Error)?.message ?? err);
+      if (/insufficient/i.test(msg)) {
+        throw new FixtureUnavailableError(
+          `fixture self-heal cannot fund a transfer (1000 + 1 fee): ${msg}`,
+        );
+      }
+      throw err;
+    }
 
     const hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl }));
     const rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl, window: 0 }));
