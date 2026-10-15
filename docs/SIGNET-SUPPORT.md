@@ -38,9 +38,14 @@ Regtest invariance (the hard constraint) is proven, not promised:
 - The production deployment `ripcord-wallet.vercel.app` keeps serving the
   regtest default untouched; signet ships as a separate deployment variant.
 - The full core suite passes green in every round (485-491 passed, 0 failed).
-- The strict "signet is permanent" sweep passes on every screen at phone width:
-  after the network selection, no `regtest`/`bcrt1` string appears anywhere in
-  text, placeholders, tooltips, links, metadata, or the tab title.
+- The strict "signet is permanent" rule is enforced by two automated gates in
+  `scripts/dom-sweep.mjs`: (1) a DOM sweep (text, placeholders, tooltips, links,
+  metadata, tab title) that fails on any `regtest`/`bcrt1` string after the
+  network selection, and (2) a request-stream audit that fails on any
+  regtest-targeted request in a signet journey and refuses hollow passes. The
+  request-stream half is deterministic; the DOM-walk half needs a fresh browser
+  profile per run (shared profiles carry locked-wallet state that stalls the
+  scripted journey).
 
 ## Faucet
 
@@ -67,11 +72,13 @@ The app hands off to the official faucet, it does not wrap it:
   `/signet/tachi_*`, `/faucet/*` behave identically in dev and production).
   Unused edge shapes (some trailing-slash variants) differ between the Vite
   and Vercel matchers and are documented as drift, not relied on.
-- **Instant push is not available on static hosting.** Vercel rewrites do not
-  proxy WebSocket upgrades, so the live indexer socket cannot connect on the
-  deployed build. The wallet's own 5-second poller is the live channel there
-  (verified: 12 daemon fetches per 16-second window) and the UI copy says
-  "refreshing every few seconds" instead of alarming "paused" text.
+- **Instant push rides the daemon's own WebSocket, and it wobbles.** The
+  indexer socket connects directly (cross-origin) to the daemon's
+  `/tachi_ws` endpoint - static hosting does not block it - and streams when
+  the daemon's WebSocket is up. When it is not (observed both ways in live
+  probes), the wallet's own 5-second poller is the guaranteed channel. The UI
+  copy reflects the live state: "connected" when the socket is up,
+  "polling every few seconds" when it is not - never alarming "paused" text.
 - **Not production custody software** on either network. Do not use with funds
   that matter.
 
@@ -106,5 +113,8 @@ numbers supersede any earlier count in older docs.
 - Signet-capable build (network selection at create): `https://ripcord-signet.vercel.app`
 - Regtest production (untouched): `https://ripcord-wallet.vercel.app`
 
-Both serve the same codebase; the difference is which network the user picks
-(or the legacy default for records created before selection existed).
+The signet deployment serves the network-selection build; the regtest
+production deployment is deliberately PINNED to the pre-signet build and keeps
+serving its regtest-only experience untouched. (If production ever auto-tracks
+main, it must stay pinned to the pre-signet build until the user decides
+otherwise.)

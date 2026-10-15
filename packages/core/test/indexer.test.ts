@@ -720,7 +720,7 @@ describe('VaultIndexer (live daemon)', () => {
     }
   });
 
-  it('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async ctx => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('emits tx:pending then tx:committed for a live transfer, pending within ~2s of broadcast', { timeout: 180_000 }, async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     // Fixture-economics gate: this live transfer spends a real Alice VTXO.
     const gate = await withTransportRetry(() => vc.getAddressVtxos('e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319', { baseUrl: DAEMON }));
     const gateUnspent = gate.vtxos.filter(v => !v.spent && !v.locked);

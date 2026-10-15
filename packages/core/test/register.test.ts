@@ -100,8 +100,7 @@ describe('register.ts', { timeout: 60000 }, () => {
       ['amount', { amount: 0n }],
       ['vout', { fundingVout: -1 }],
     ] as const) {
-      await expect(registerVault({ ...good, ...patch })).rejects.toThrow(RipcordError);
-      expect(label).toBeTypeOf('string');
+      await expect(registerVault({ ...good, ...patch }), `validation case: ${label}`).rejects.toThrow(RipcordError);
     }
   });
 
@@ -156,13 +155,26 @@ describe('register.ts', { timeout: 60000 }, () => {
       const gateVtxos = await withTransportRetry(() =>
         vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }),
       );
-      const gateTotal = gateVtxos.vtxos
-        .filter(v => !v.spent && !v.locked)
-        .reduce((acc, v) => acc + v.amountSats, 0n);
-      if (gateTotal < 2001n) {
-        console.warn(`[fixture] skipped: ${gateTotal} sats in fixture wallet, need 2001 - ${FIXTURE_FAUCET_NOTE}`);
-        ctx.skip();
-        return;
+      // Round 6A-5: the gate mirrors the test's real spend paths (a flat 2001
+      // over-skipped: the observed 1919-sat fixture would have passed).
+      // Path A: one unspent VTXO >= 1000. Path B: self-heal needs >= 1001 total
+      // (send 1000 + 1 fee). Path C: Bob's fallback needs Bob >= 2001.
+      const gateUnspent = gateVtxos.vtxos.filter(v => !v.spent && !v.locked);
+      const gateTotal = gateUnspent.reduce((acc, v) => acc + v.amountSats, 0n);
+      const gateLargest = gateUnspent.reduce((acc, v) => (v.amountSats > acc ? v.amountSats : acc), 0n);
+      if (gateLargest < 1000n && gateTotal < 1001n) {
+        const bobGateIdentity = deriveIdentity('zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong', TEST_NETWORK);
+        const bobGateVtxos = await withTransportRetry(() =>
+          vc.getAddressVtxos(bobGateIdentity.xOnly, { baseUrl: DAEMON_URL }),
+        );
+        const bobGateTotal = bobGateVtxos.vtxos
+          .filter(v => !v.spent && !v.locked)
+          .reduce((acc, v) => acc + v.amountSats, 0n);
+        if (bobGateTotal < 2001n) {
+          console.warn(`[fixture] skipped: Alice ${gateTotal} sats (largest ${gateLargest}), Bob ${bobGateTotal} sats - need one >=1000 VTXO, >=1001 for self-heal, or Bob >=2001 - ${FIXTURE_FAUCET_NOTE}`);
+          ctx.skip();
+          return;
+        }
       }
       // 1. Find an unspent VTXO owned by Alice to construct the live registration transaction
       let vtxoRes = await withTransportRetry(() => vc.getAddressVtxos(aliceIdentity.xOnly, { baseUrl: DAEMON_URL }));

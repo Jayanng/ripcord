@@ -76,8 +76,9 @@ The package exports the root API and focused subpaths for `types`, `bytes`, `net
 
 ## Limitations
 
-- No mainnet or signet support.
-- Live behavior depends on the public Tachi regtest daemon.
+- No mainnet support. Tachi regtest and Tachi signet are both supported
+  (network-parameterized; see `src/networks.ts`).
+- Live behavior depends on the public Tachi daemons (regtest and signet).
 - HAT/RIP and Verkle data are daemon-attested where local recomputation is unavailable.
 - Unilateral-exit maturity depends on live Bitcoin confirmation state.
 - Protocol dependencies are pinned and should not be upgraded without re-probing the live daemon.

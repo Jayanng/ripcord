@@ -4,12 +4,13 @@
  * never with mocked HTTP. Every call is a read (gettxout / getrawtransaction /
  * getblockchaininfo): nothing here broadcasts or mutates state.
  *
- * Chain fixtures self-heal: when the regtest chain no longer carries a
- * historical outpoint, the case degrades to a structural assertion and says so,
- * instead of failing on chain history the test does not control.
+ * These fixtures are REGTEST chain history, so the cases scope to the regtest
+ * run like every other chain-state test in the suite (round 6A-4). When the
+ * chain no longer carries a historical outpoint the case reports an honest
+ * SKIP in the run output (never a bare-passing return): round 6A-2.
  */
 import { describe, expect, it } from 'vitest';
-import { TEST_DAEMON } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';
 import { buildSweepEvidence, findFundingSpender, inspectExitMaturity } from '../src/exit.js';
 import type { VaultRecord } from '../src/types.js';
 
@@ -54,9 +55,12 @@ async function fundingExists(txid: string): Promise<boolean> {
 
 for (const fixture of HISTORICAL) {
   describe(`findFundingSpender live: ${fixture.name}`, () => {
-    it('discovers the real spender and produces verified sovereign evidence', { timeout: 240_000 }, async () => {
+    it.skipIf(TEST_NETWORK !== 'regtest')('discovers the real spender and produces verified sovereign evidence', { timeout: 240_000 }, async () => {
       if (!(await fundingExists(fixture.funding.txid))) {
-        // Chain no longer carries this fixture: structural check only.
+        // Chain no longer carries this fixture: structural check only, and the
+        // run output SAYS so (the old header claimed this; the code only had a
+        // comment - round 6A-4).
+        console.log(`[fixture] ${fixture.name}: funding txid absent from chain; structural null-check only`);
         expect(await findFundingSpender(BASE, fixture.funding)).toBeNull();
         return;
       }
@@ -77,10 +81,25 @@ for (const fixture of HISTORICAL) {
       expect(sweep.blockHash).toBeTruthy();
       expect(sweep.exitRawHex.length).toBeGreaterThan(0);
       expect(sweep.explorerUrl).toBe('');
-    });
+      // Populated-branch coverage (round 6B nit): with an explorer base the
+      // export carries a real top-level link.
+      const linked = buildSweepEvidence({
+        funding: fixture.funding,
+        spender: spender!,
+        destination: fixture.destination,
+        explorerTxBase: 'https://explorer.example/tx-base',
+      });
+      expect(linked.explorerUrl).toBe(`https://explorer.example/tx-base/tx/${spender!.txid}`);
+      });
 
-    it('inspectExitMaturity reports spent with the spender bound to the destination', { timeout: 240_000 }, async () => {
-      if (!(await fundingExists(fixture.funding.txid))) return;
+    it.skipIf(TEST_NETWORK !== 'regtest')('inspectExitMaturity reports spent with the spender bound to the destination', { timeout: 240_000 }, async (ctx) => {
+      if (!(await fundingExists(fixture.funding.txid))) {
+        // Honest skip (round 6A-2): a bare return here was a fake PASS with
+        // zero assertions executed.
+        console.log(`[fixture] ${fixture.name}: funding txid absent from chain; skipping live maturity check`);
+        ctx.skip();
+        return;
+      }
       // Warm the cache first: inspectExitMaturity deliberately races the lookup
       // against a 1.5s budget so the maturity poller never stalls, so spentBy is
       // populated from the cache-hit path (one refresh call), not a cold scan.

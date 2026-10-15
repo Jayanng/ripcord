@@ -282,7 +282,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
   });
 
   describe('6. finalizeRefund and live quorum cosignature on registered vault', () => {
-    it('live registered vault: cosignRefund -> finalizeRefund succeeds with 5 partials and code 0', async () => {
+    it('live registered vault: cosignRefund -> finalizeRefund succeeds with 5 partials and code 0', async (ctx) => {
       // Find an open registered vault for Alice on the live daemon with retry
       let listData: { vaults?: Array<{ funding_txid: string; funding_vout: number; state: string }> } = {};
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -314,7 +314,10 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       } | null;
 
       if (!txout || typeof txout.value !== 'number') {
+        // Honest skip (round 6A-3): the cosign needs live unspent funding; a
+        // bare return here would report a PASS with zero assertions.
         console.log(`Funding ${displayTxid}:${candidate.funding_vout} already spent on L1 — skipping live cosign`);
+        ctx.skip();
         return;
       }
 
@@ -411,10 +414,17 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
     // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
     // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
     it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async (ctx) => {
-      const fixtureTotal = (userWallet.utxos ?? []).reduce(
+      const fixtureUtxos = (userWallet.utxos ?? []) as Array<{ valueSats?: bigint }>;
+      const fixtureTotal = fixtureUtxos.reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
-      if (fixtureTotal < 40_001n) {
-        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need 40001 - ${FIXTURE_FAUCET_NOTE}`);
+      // Round 6A-10: the true requirement is the 40,000-sat deposit PLUS the
+      // first-attempt fee at 15 sat/vB (the ladder only retries on fee rejects,
+      // never on insufficient funds). Estimate the deposit tx at 120 vB base +
+      // ~40 vB per input; the old flat 40001 admitted fixtures that then failed.
+      const estimatedFeeSats = 15n * (120n + 40n * BigInt(fixtureUtxos.length || 1));
+      const neededSats = 40_000n + estimatedFeeSats;
+      if (fixtureTotal < neededSats) {
+        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${neededSats} (40000 + ~${estimatedFeeSats} fee at 15 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
         ctx.skip();
         return;
       }

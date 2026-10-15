@@ -112,7 +112,6 @@ describe('recovery.ts', { timeout: 300000 }, () => {
       ] as const) {
         await expect(recoverVaults({ identity: aliceIdentity, quorum, baseUrl: DAEMON_URL, ...options }))
           .rejects.toThrowError(expect.objectContaining({ code: 'INVALID_FORMAT' }));
-        expect(label).toBeTypeOf('string');
       }
     });
 

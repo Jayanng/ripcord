@@ -43,10 +43,10 @@ listed in `SIGNET-SUPPORT.md` and reproducible from the public signet chain.
   previous release and the regtest production deployment keeps serving as
   before.
 - **Proof before promise.** Exit certificates carry the raw transaction, the
-  spent outpoint, the destination, amounts, fees, the block hash, an explorer
-  link, and the exit-leaf/control-block evidence at the top level, and the UI
-  labels demo parameters (CSV = 2 blocks vs the production default of 1008) as
-  demo-only.
+  spent outpoint, the destination, amounts, fees, the block hash, and an
+  explorer link at the top level, with the exit-leaf/control-block evidence in
+  the certificate's evidence block, and the UI labels demo parameters (CSV = 2
+  blocks vs the production default of 1008) as demo-only.
 
 ## Try it
 

@@ -84,29 +84,46 @@ const sweepAfter = async (label) => {
   }
 };
 
+// Retry-resilient click: waits for the target button to appear (fresh-profile
+// boots render the shell first) and refuses hidden duplicate matches.
+const clickWhen = async (findExpr, label, tries = 25) => {
+  for (let i = 0; i < tries; i++) {
+    const res = await evaluate(`(() => { ${findExpr} })()`);
+    if (typeof res === 'string' && res.startsWith('clicked')) return true;
+    await sleep(1000);
+  }
+  console.log(`WARN: ${label} never clicked`);
+  return false;
+};
+
 // selection screen legitimately describes BOTH networks - sweep starts after
-// the choice. Wait for the screen and retry the click (flaky-load resilient).
-let chosen = false;
-for (let i = 0; i < 30 && !chosen; i++) {
-  chosen = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Use Tachi Signet' && !b.disabled); if (!b) return false; b.click(); return true; })()`);
-  if (!chosen) await sleep(1000);
-}
+// the choice. Visible, last-match button only.
+const chosen = await clickWhen(
+  `const bs = [...document.querySelectorAll('button')].filter(b => b.textContent.trim() === 'Use Tachi Signet' && !b.disabled && b.offsetParent !== null); if (bs.length === 0) return 'no'; bs[bs.length - 1].click(); return 'clicked';`,
+  'network selection', 30,
+);
 if (!chosen) { failures++; console.log('FAIL: network selection did not start'); }
 await sleep(1500);
 await sweepAfter('post-selection');
 
 // create a signet wallet (generate -> backup check -> create)
-await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(b => /generate a new recovery phrase/i.test(b.textContent)); if (b) b.click(); return 'ok'; })()`);
+const genOk = await clickWhen(
+  `const b = [...document.querySelectorAll('button')].find(b => /generate a new recovery phrase/i.test(b.textContent) && !b.disabled && b.offsetParent !== null); if (!b) return 'no'; b.click(); return 'clicked';`,
+  'generate phrase', 25,
+);
+if (!genOk) {
+  console.log('BUTTONS AT GENERATE FAIL:', await evaluate(`JSON.stringify([...document.querySelectorAll('button')].map(b => b.textContent.trim().slice(0, 40) + (b.offsetParent ? '' : ' [hidden]') + (b.disabled ? ' [disabled]' : '')))`));
+}
 await sleep(1200);
 await evaluate(`(() => {
   const txt = document.body.innerText;
   const words = {};
-  const re = /\\\\b(0[1-9]|1[0-2])\\\\n([a-z]+)/g;
+  const re = /\b(0[1-9]|1[0-2])\n([a-z]+)/g;
   let m;
   while ((m = re.exec(txt)) !== null) words[parseInt(m[1], 10)] = m[2];
   for (const el of document.querySelectorAll('input')) {
     const label = (el.closest('label')?.innerText || el.getAttribute('aria-label') || '').trim();
-    const m2 = label.match(/^WORD #(\\\\d+)$/i);
+    const m2 = label.match(/^WORD #(\d+)$/i);
     if (!m2) continue;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
     setter.call(el, words[parseInt(m2[1], 10)]);
@@ -116,7 +133,17 @@ await evaluate(`(() => {
   return 'ok';
 })()`);
 await sleep(600);
-await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Create identity') && !b.disabled); if (b) b.click(); return 'ok'; })()`);
+const fillStatus = await evaluate(`(() => {
+  const txt = document.body.innerText;
+  const re2 = /\\b(0[1-9]|1[0-2])\\n([a-z]+)/g;
+  const found = (txt.match(re2) || []).length;
+  return 'phrase-tokens:' + found;
+})()`).catch(() => 'phrase-tokens:?');
+console.log('backup fill:', fillStatus);
+await clickWhen(
+  `const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Create identity') && !b.disabled && b.offsetParent !== null); if (!b) return 'no'; b.click(); return 'clicked';`,
+  'create identity', 25,
+);
 let reachedFunding = false;
 for (let i = 0; i < 75; i++) { await sleep(2000); const b = await evaluate('document.body.innerText'); if (/tb1[qpx]/i.test(b)) { reachedFunding = true; break; } }
 await sweepAfter('funding screen');

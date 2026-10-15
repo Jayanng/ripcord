@@ -100,7 +100,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     })).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
 
-  it('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async ctx => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('Alice sends 5000 sats to Bob via sendTransfer; commit code=0; change is user-owned', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     // Fixture economics gate (same pattern as deposit.test/exit.test): Alice's
     // VTXO balance is a historical, spendable fixture that ratchets down with
     // every run. A starved fixture is STATE, not regression — degrade to an
@@ -156,7 +156,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(ownedChange.length).toBeGreaterThan(0);
   });
 
-  it('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async ctx => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('Bob re-spends 2000 sats back to Alice; commit code=0 (re-spend proven)', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     const bobGateVtxos = await withTransportRetry(() =>
       vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }),
     );
@@ -195,7 +195,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(received!.owner).toBe(ALICE_XONLY);
   });
 
-  it('multi-input send: Alice spends two VTXOs together; commit code=0; fee conservation & change ownership hold', async ctx => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('multi-input send: Alice spends two VTXOs together; commit code=0; fee conservation & change ownership hold', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     const aliceGateVtxos = await withTransportRetry(() =>
       vc.getAddressVtxos(ALICE_XONLY, { baseUrl: DAEMON }),
     );
@@ -256,12 +256,17 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     expect(BigInt(changeOutput!.amount)).toBe(totalInputSats - amountSats - feeSats);
   });
 
-  it('two queued transfers serialize without code=5 double-spend', async ctx => {
+  it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('two queued transfers serialize without code=5 double-spend', async ctx => {  // live-money spender on signet: opt-in only (round 6A-9)
     // Use two of Bob's remaining received VTXOs (each 5000) for two sends.
     const bobVtxos = await withTransportRetry(() => vc.getAddressVtxos(BOB_XONLY, { baseUrl: DAEMON }));
     const unspent = bobVtxos.vtxos.filter(v => !v.spent && !v.locked);
-    if (unspent.length < 2) {
-      console.warn(`[fixture] skipped: Bob has ${unspent.length} unspent VTXOs, need 2 for the concurrency proof - ${FIXTURE_FAUCET_NOTE}`);
+    // Round 6A-7: the test spends two serialized sends of 1000+1 fee each, so
+    // the requirement is 2002 sats of VALUE (a single large VTXO covers both
+    // via serialized change), not a count of 2 (which hid a passing test when
+    // one large VTXO existed, and admitted 2 dust VTXOs that would fail).
+    const bobUnspentTotal = unspent.reduce((acc, v) => acc + v.amountSats, 0n);
+    if (bobUnspentTotal < 2002n) {
+      console.warn(`[fixture] skipped: Bob has ${unspent.length} unspent VTXOs totalling ${bobUnspentTotal} sats, need 2002 (two sends of 1000+1) - ${FIXTURE_FAUCET_NOTE}`);
       ctx.skip(); // a bare return would report a fake PASS
       return;
     }

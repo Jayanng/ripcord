@@ -134,7 +134,7 @@ describe('resume-deposit row is legitimate only before funding is known', () => 
 });
 
 describe('reconciliation against real daemon state (live, read-only)', () => {
-  it('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async () => {
+  it('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async (ctx) => {
     // 1. L1 truth: the funding outpoint was spent by the sovereign exit.
     const txoutRes = await fetch(BASE, {
       method: 'POST',
@@ -143,7 +143,10 @@ describe('reconciliation against real daemon state (live, read-only)', () => {
     });
     const txout = (await txoutRes.json()) as { result?: unknown };
     if (txout.result !== null && txout.result !== undefined) {
-      // Chain fixture no longer in the spent state (regtest reset): nothing to assert.
+      // Honest skip (round 6A-6): the chain fixture is no longer in the spent
+      // state (regtest reset). A bare return here would report a PASS with zero
+      // assertions.
+      ctx.skip();
       return;
     }
 

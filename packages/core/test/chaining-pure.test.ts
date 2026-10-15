@@ -191,8 +191,17 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
       }
     });
 
-    it('refuses to overspend when explicit input cannot cover deposit amount plus fee', async () => {
-      // Input value of only 1,000 sats cannot cover 40,000 sats deposit
+    // Round 6A-1: pinned refusal class + signet-safe timeout. An explicit input
+    // of 1,000 sats cannot cover a 40,000-sat deposit, so the call must be
+    // REFUSED along the money path and must never succeed. Two guards can fire
+    // and both are correct refusals: the SDK's pre-spend funding scan ('already
+    // funded', when this deterministic vault address carries chain funds) or
+    // the wrapper's post-build overspend guard ('Overspend detected'). An
+    // infrastructure error (network/daemon failure) or a successful deposit
+    // MUST fail this test - that is what the pinned class proves, where the
+    // previous bare .rejects.toThrow() passed for any reason at all.
+    // The funding scan takes ~15s on signet (large UTXO set), hence the timeout.
+    it('refuses the deposit when the explicit input cannot cover amount plus fee', { timeout: 60_000 }, async () => {
       const smallInput: ExplicitSpendableInput = {
         txid: REAL_CAPTURED_TXID,
         vout: 0,
@@ -208,7 +217,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
           amountSats: 40_000n,
           explicitInput: smallInput,
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow(/already funded|Overspend detected|cannot cover|insufficient/i);
     });
   });
 

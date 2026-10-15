@@ -451,7 +451,7 @@ Start with:
 
 MIT. See [LICENSE](LICENSE).
 
-RIPCORD runs on Tachi regtest. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
+RIPCORD runs on Tachi regtest and Tachi signet. Verify live behavior and review the current evidence before relying on any protocol or custody claim.
 
 ---
 

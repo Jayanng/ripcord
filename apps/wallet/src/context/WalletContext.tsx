@@ -275,7 +275,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const runPreflight = useCallback(async (quiet = false) => {
-    if (!quiet && !hasLoadedOnce.current) setBootState('checking');
+    // 6B-2 fix (round 6): NEVER set 'checking' from here. The state starts as
+    // 'checking'; re-setting it mid-session swaps in the whole-UI skeleton,
+    // unmounting the create flow (the user bounced back to the network
+    // selection with all step state lost). Re-runs after resolution only
+    // update the boot state from real probe results below.
     try {
       // Capture the state generation BEFORE the store reads begin; if a
       // mutation lands while the reads are in flight, its handler already
@@ -343,6 +347,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // Boot state stays 'checking' here on purpose: the App's 8s watchdog
         // renders the setup gate via its normal degraded path. (Setting 'ready'
         // on an empty device routes into the shell and breaks the create flow.)
+        hasLoadedOnce.current = true;
         return;
       }
 
@@ -405,7 +410,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // skeleton) on every data update, which the user saw as constant flicker.
   const runPreflightRef = useRef(runPreflight);
   runPreflightRef.current = runPreflight;
-  useEffect(() => { if (!networkResolved) return; void runPreflightRef.current(false); }, [networkResolved]);
+  // 6B-1 fix (round 6): the caller must NOT gate on networkResolved - the
+  // store read inside runPreflight is what populates the records that resolve
+  // the network in the first place. Gating here deadlocked returning wallets
+  // (setup gate over existing records). The internal networkResolvedRef gate
+  // suppresses only the NETWORK probes; run on mount and re-run on resolution.
+  useEffect(() => { void runPreflightRef.current(false); }, [networkResolved]);
 
   // Exit visibility (2026-10-02, user-reported): exit maturity must be known
   // on every screen, not only the Exit tab, or a cold start on the wallet
