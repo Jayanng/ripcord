@@ -9,6 +9,7 @@ import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-st
 import type { TachiNetwork } from '@ripcord/core';
 import { describeDaemonFailure } from '@ripcord/core/net';
 import { composeFlowErrorMessage, isDaemonSlowError } from '@ripcord/core/lifecycle';
+import { DEFAULT_VAULT_DEPOSIT_SATS } from '@ripcord/core/deposit';
 
 type FlowState = 'ready' | 'depositing' | 'confirming-deposit' | 'minting' | 'registering' | 'complete' | 'error';
 
@@ -123,7 +124,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         mnemonic: wallet.identity.mnemonic,
         bitcoinRpcBaseUrl: wallet.baseUrl,
         daemonBaseUrl: wallet.daemonUrl,
-        amountSats: 40_000n,
+        amountSats: DEFAULT_VAULT_DEPOSIT_SATS,
         feeRateSatVb: 2,
         explicitInput,
         existingDepositTxid: savedDeposit ?? undefined,

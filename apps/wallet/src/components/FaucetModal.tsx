@@ -268,9 +268,10 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
           ) : (
             <>
           <p>
-            The faucet sends 0.5 regtest BTC to your L1 settlement address. Ripcord immediately chains your 40,000 sat vault
-            deposit without waiting for an intermediate confirmation, cutting funding to a single block wait (~10 min worst
-            case, ~5 min average). Both transactions confirm together in the same block.
+            The faucet sends 0.5 regtest BTC to your L1 settlement address. Ripcord immediately chains your vault deposit
+            (10,000 sats, or whatever fits your balance after the network fee) without waiting for an intermediate
+            confirmation, cutting funding to a single block wait (~10 min worst case, ~5 min average). Both transactions
+            confirm together in the same block.
           </p>
           <p className="flow-note">
             The test network produces Bitcoin blocks automatically about every 10 minutes. You can close this panel and return

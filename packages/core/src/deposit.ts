@@ -18,6 +18,45 @@ import { Transaction } from 'bitcoinjs-lib';
 export type { ExplicitSpendableInput };
 
 /**
+ * Comfortable funding bar (2026-10-16): the wallet's default vault deposit is
+ * 10,000 sats, not 40,000 - and a wallet that cannot cover target + fee still
+ * opens a vault with whatever fits above the floor. The whole deposited amount
+ * lands in the vault (change goes to the user's own L1 key), so a smaller
+ * target costs nothing structurally: mint and registration amounts derive
+ * from the actual deposit, and refund/exit paths only need the value to clear
+ * dust plus the fee lines.
+ */
+export const DEFAULT_VAULT_DEPOSIT_SATS = 10_000n;
+
+/**
+ * Floor for the fit-down. Above the SDK's SAFE_DUST_THRESHOLD_SATS (1,000),
+ * the daemon's to_local floor (330), and the mint + registration fee lines,
+ * so a fitted vault still mints and registers cleanly.
+ */
+export const MIN_VAULT_DEPOSIT_SATS = 2_000n;
+
+/**
+ * Fit a failed deposit to what the wallet can actually cover. The SDK throws
+ * InsufficientFundsError(available, required) where required = requested +
+ * feeEstimate, so the fitted deposit is available - feeEstimate (a zero-change
+ * spend). Returns null when nothing honest fits: no fee line to subtract,
+ * malformed requirement, fitted at/above the request (nothing to fit), or
+ * fitted below MIN_VAULT_DEPOSIT_SATS. Caller retries once with the result.
+ */
+export function fitDepositToAvailable(
+  availableSats: bigint,
+  requestedSats: bigint,
+  requiredSats: bigint,
+): bigint | null {
+  const feeSats = requiredSats - requestedSats;
+  if (feeSats <= 0n) return null;
+  const fitted = availableSats - feeSats;
+  if (fitted < MIN_VAULT_DEPOSIT_SATS) return null;
+  if (fitted >= requestedSats) return null;
+  return fitted;
+}
+
+/**
  * Convert an address to its scriptPubKey hex string for a Tachi network (or
  * 'bitcoin' mainnet, kept for callers that match mainnet outputs).
  * Used for matching L1 settlement outputs in 0-conf chaining without leaking @tachibtc imports into apps/.
@@ -299,6 +338,33 @@ export interface DepositFromMnemonicParams {
   explicitInput?: ExplicitSpendableInput;
 }
 
+/**
+ * Read the SDK's InsufficientFundsError through the wrapper's cause chain.
+ * Shape check is strict on purpose (message AND numeric fields, following the
+ * fail-closed classifier rule): a node must say "insufficient funds" and carry
+ * bigint/number `available` + `required` fields. The wrapper rethrows SDK
+ * errors as RipcordError with `cause`, and broadcasting errors nest one level
+ * deeper via `originalError`, so walk a short bounded chain.
+ */
+export function readInsufficientFunds(err: unknown): { available: bigint; required: bigint } | null {
+  let node: unknown = err;
+  for (let depth = 0; node && depth < 4; depth += 1) {
+    if (node instanceof Error) {
+      const fields = node as Error & { available?: unknown; required?: unknown };
+      const numeric = (v: unknown): bigint | null =>
+        typeof v === 'bigint' ? v : typeof v === 'number' && Number.isFinite(v) ? BigInt(v) : null;
+      const available = numeric(fields.available);
+      const required = numeric(fields.required);
+      if (/insufficient funds/i.test(node.message) && available !== null && required !== null) {
+        return { available, required };
+      }
+    }
+    node = (node as { cause?: unknown; originalError?: unknown }).cause
+      ?? (node as { originalError?: unknown }).originalError;
+  }
+  return null;
+}
+
 /** Build the SDK wallet inside core, sync it against live Bitcoin RPC, then deposit. */
 /**
  * Point the SDK's built-in regtest network endpoints at OUR rpc base URL.
@@ -356,13 +422,28 @@ export async function depositFromMnemonic(params: DepositFromMnemonicParams): Pr
   if (!params.explicitInput) {
     await userWallet.sync();
   }
-  return depositToVault({
-    vault: params.vault,
-    userWallet,
-    rpc: params.rpc,
-    amountSats: params.amountSats,
-    feeRateSatVb: params.feeRateSatVb,
-    explicitInput: params.explicitInput,
-  });
+  const attempt = (amountSats: bigint) =>
+    depositToVault({
+      vault: params.vault,
+      userWallet,
+      rpc: params.rpc,
+      amountSats,
+      feeRateSatVb: params.feeRateSatVb,
+      explicitInput: params.explicitInput,
+    });
+  try {
+    return await attempt(params.amountSats);
+  } catch (err) {
+    // Comfortable bar fit-down: an exactly-target-funded wallet misses by the
+    // fee line (the 40,000/40,282 live failure this replaces). Retry ONCE with
+    // available - feeEstimate; anything else rethrows the original error
+    // untouched (fail closed - no retry on broadcast or daemon failures).
+    const funds = readInsufficientFunds(err);
+    const fitted = funds
+      ? fitDepositToAvailable(funds.available, params.amountSats, funds.required)
+      : null;
+    if (fitted === null) throw err;
+    return attempt(fitted);
+  }
 }
 

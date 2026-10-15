@@ -6,6 +6,7 @@ import { vaultRecordKey } from '../context/WalletContext';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
 import { alignSpentVtxoTimes, buildCreditedVtxoRows, dedupeActivityByHash, shouldShowResumeDepositRow } from '@ripcord/core/lifecycle';
+import { DEFAULT_VAULT_DEPOSIT_SATS } from '@ripcord/core/deposit';
 import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type VtxoCreditedActivity, type ExitActivity, type ConscienceActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
@@ -72,7 +73,7 @@ export function ActivityFeed() {
       onChainItems.push({
         kind: 'tx:deposit',
         txHash: savedDeposit,
-        amountSats: 40_000n,
+        amountSats: DEFAULT_VAULT_DEPOSIT_SATS,
         vout: 0,
         vaultAddress: activeVault.address,
         committed: false,
