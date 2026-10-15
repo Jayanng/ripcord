@@ -20,12 +20,15 @@
   signet variant ripcord-signet.vercel.app -> `ripcord-wallet-egppjjkkr` (build
   `vmv9p2u8p-3vrk3f`, /docs stripped, preview target). Matrix re-verified:
   prod /docs 200, signet /docs 404, /rpc `chain: regtest`, /signet/health ok.
-- **Deploy flow note:** the cloud build broke on a stale registry copy of
-  `@ripcord/core` ("no exported member networkConfig" etc.); local
-  `vercel pull && vercel build` passed, so the verified local output shipped
-  with `--prebuilt` (per vercel-deploy skill). The docs-stripped signet variant
-  is a separate preview-target build (production-target output cannot deploy as
-  preview — known --prebuilt mismatch).
+- **Deploy flow note:** the cloud build failed with `npm error ENOTFOUND
+  mirrors.tencentyun.com` — one `resolved` URL in package-lock.json pointed at
+  a Tencent npm mirror unreachable from Vercel runners (the downstream
+  symptom was tsc seeing a stale `@ripcord/core`); local builds passed because
+  the mirror resolves here. Fixed: the lockfile URL now points at
+  registry.npmjs.org (versions unchanged). The verified local output shipped
+  via `--prebuilt` in the meantime (per vercel-deploy skill). The docs-stripped
+  signet variant is a separate preview-target build (production-target output
+  cannot deploy as preview — known --prebuilt mismatch).
 - Rollback (production): `vercel alias set ripcord-wallet-3kq25n8cw-jayanngs-projects.vercel.app ripcord-wallet.vercel.app`
   (previous build `vmv9dvqv6-7yauy9`, the cutover build).
 
