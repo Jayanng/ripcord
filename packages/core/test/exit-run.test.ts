@@ -136,7 +136,7 @@ describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: kickId.l1Address, amountBtc: 0.5 }),
         signal: AbortSignal.timeout(8000),
-      }).catch(() => undefined);
+      }).catch(() => undefined); // silent-ok: best-effort faucet kick; the fixture gates report unfunded state honestly
       const kickVault = await createVault({
         network: TEST_NETWORK,
         nodePubkeys: quorum.nodePubkeys,

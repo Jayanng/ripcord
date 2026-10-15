@@ -98,7 +98,7 @@ for (const fixture of HISTORICAL) {
         // Honest skip (round 6A-2): a bare return here was a fake PASS with
         // zero assertions executed.
         console.log(`[fixture] ${fixture.name}: funding txid absent from chain; skipping live maturity check`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): regtest chain fixture absent from chain history
         return;
       }
       // Warm the cache first: inspectExitMaturity deliberately races the lookup

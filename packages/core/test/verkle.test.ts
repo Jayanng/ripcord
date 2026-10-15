@@ -58,7 +58,7 @@ describe('verkle.test.ts Task 8.2: HAT-in-RIP linker (live daemon)', { timeout: 
   }, 180000);
 
   beforeEach(ctx => {
-    if (fixtureSkipReason) ctx.skip();
+    if (fixtureSkipReason) ctx.skip(); // rules-allow(skip): proof fixtures unavailable (FixtureUnavailableError reason printed in run output)
   });
 
   it('returns verified for a real matched pair after 0x/case normalization', () => {

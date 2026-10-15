@@ -175,7 +175,7 @@ describe('register.ts', { timeout: 60000 }, () => {
           .reduce((acc, v) => acc + v.amountSats, 0n);
         if (bobGateTotal < 2001n) {
           console.warn(`[fixture] skipped: Alice ${gateTotal} sats (largest ${gateLargest}), Bob ${bobGateTotal} sats - need one >=1000 VTXO, >=1001 for self-heal, or Bob >=2001 - ${FIXTURE_FAUCET_NOTE}`);
-          ctx.skip();
+          ctx.skip(); // rules-allow(skip): Alice and Bob below the registration spend paths (>=1000 VTXO / 1001 self-heal / Bob 2001)
           return;
         }
       }

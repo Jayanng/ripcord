@@ -165,7 +165,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
       .reduce((acc, v) => acc + v.amountSats, 0n);
     if (bobGateTotal < 2001n) {
       console.warn(`[fixture] skipped: ${bobGateTotal} sats in Bob's VTXOs, need 2001 - downstream of the fixture-funded first transfer (${FIXTURE_FAUCET_NOTE})`);
-      ctx.skip();
+      ctx.skip(); // rules-allow(skip): fixture economics below the 5000+1 send need
       return;
     }
 
@@ -206,7 +206,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     // Mirror the test's target: largest + 500 payment + 1 fee, two inputs minimum.
     if (aliceGateCount < 2 || aliceGateTotal < aliceGateLargest + 501n) {
       console.warn(`[fixture] skipped: ${aliceGateCount} unspent VTXOs totalling ${aliceGateTotal} sats (largest ${aliceGateLargest}), need 2 inputs covering largest+501 - downstream of the fixture-funded transfers (${FIXTURE_FAUCET_NOTE})`);
-      ctx.skip();
+      ctx.skip(); // rules-allow(skip): fixture economics below the multi-input spend need
       return;
     }
 
@@ -267,7 +267,7 @@ describe('payment.ts: live end-to-end transfer (library sendTransfer)', { timeou
     const bobUnspentTotal = unspent.reduce((acc, v) => acc + v.amountSats, 0n);
     if (bobUnspentTotal < 2002n) {
       console.warn(`[fixture] skipped: Bob has ${unspent.length} unspent VTXOs totalling ${bobUnspentTotal} sats, need 2002 (two sends of 1000+1) - ${FIXTURE_FAUCET_NOTE}`);
-      ctx.skip(); // a bare return would report a fake PASS
+      ctx.skip(); // a bare return would report a fake PASS // rules-allow(skip): Bob below the 2002-sat two-send need
       return;
     }
 

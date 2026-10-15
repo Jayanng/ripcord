@@ -20,7 +20,8 @@
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "check:rules": "bash scripts/check-architecture-rules.sh",
+    "check:rules": "bash scripts/check-architecture-rules.sh && node scripts/check-silent-failures.mjs",
+    "check:silent-failures": "node scripts/check-silent-failures.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

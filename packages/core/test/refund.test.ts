@@ -317,7 +317,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
         // Honest skip (round 6A-3): the cosign needs live unspent funding; a
         // bare return here would report a PASS with zero assertions.
         console.log(`Funding ${displayTxid}:${candidate.funding_vout} already spent on L1 — skipping live cosign`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): live funding outpoint already spent on L1; the cosign needs unspent funding
         return;
       }
 
@@ -426,7 +426,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       const neededSats = 40_000n + estimatedFeeSats;
       if (fixtureTotal < neededSats) {
         console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${neededSats} (40000 + ~${estimatedFeeSats} fee at 15 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): fixture economics below the 40000 + first-attempt-fee need
         return;
       }
 
@@ -486,7 +486,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
         // no such fixture; an honest skip beats verifying the wrong chain.
         if (TEST_NETWORK !== 'regtest') {
           console.warn('[fixture] skipped: deposit unavailable and the fallback fixture is regtest chain history');
-          ctx.skip();
+          ctx.skip(); // rules-allow(skip): deposit unavailable and the fallback fixture is regtest chain history
           return;
         }
         // Fallback to Alice confirmed unspent funded vault on L1

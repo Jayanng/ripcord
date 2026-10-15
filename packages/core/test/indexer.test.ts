@@ -728,7 +728,7 @@ describe('VaultIndexer (live daemon)', () => {
     // The test spends the LARGEST unspent as one input: 500 payment + 1 fee.
     if (gateLargest < 501n) {
       console.warn(`[fixture] skipped: largest unspent VTXO is ${gateLargest} sats, need 501 - ${FIXTURE_FAUCET_NOTE}`);
-      ctx.skip();
+      ctx.skip(); // rules-allow(skip): fixture economics below the live-transfer spend need
       return;
     }
     const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);

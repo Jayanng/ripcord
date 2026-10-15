@@ -148,7 +148,7 @@ describe('reconciliation against real daemon state (live, read-only)', () => {
       // Honest skip (round 6A-6): the chain fixture is no longer in the spent
       // state (regtest reset). A bare return here would report a PASS with zero
       // assertions.
-      ctx.skip();
+      ctx.skip(); // rules-allow(skip): regtest chain fixture no longer in the spent state (chain reset)
       return;
     }
 

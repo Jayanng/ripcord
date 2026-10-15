@@ -59,7 +59,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
   }, 180000);
 
   beforeEach(ctx => {
-    if (fixtureSkipReason) ctx.skip();
+    if (fixtureSkipReason) ctx.skip(); // rules-allow(skip): proof fixtures unavailable (FixtureUnavailableError reason printed in run output)
   });
 
   describe('fetchHat', () => {
@@ -216,7 +216,7 @@ describe('proofs.ts Task 8.1: live HAT / RIP fetchers (daemon v0.39.0)', { timeo
         .reduce((acc, v) => acc + v.amountSats, 0n);
       if (aliceTotal < 1001n) {
         console.warn(`[fixture] skipped: Alice has ${aliceTotal} sats unspent, need 1001 (1000 + 1 fee) for the fresh-transfer proof`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): Alice below the 1001-sat fresh-transfer need
         return;
       }
       const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);

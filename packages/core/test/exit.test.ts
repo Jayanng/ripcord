@@ -107,7 +107,7 @@ describe('exit.ts Task 9.1: assessExit dry-run (live Bitcoin RPC)', { timeout: 1
       const needSats = 40_000n + 10n * (85n + 68n * BigInt(depFixtureUtxos.length || 1));
       if (fixtureTotal < needSats) {
         console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${needSats} (40000 + first-attempt fee at 10 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
-        ctx.skip();
+        ctx.skip(); // rules-allow(skip): fixture economics below the 40000 + first-attempt-fee need
         return;
       }
 

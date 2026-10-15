@@ -58,7 +58,7 @@ await send('Network.enable');
 // Deterministic empty device: clear the origin's storage (IndexedDB included)
 // BEFORE the journey so the gate never depends on surviving a lock screen.
 const origin = new URL(BASE).origin;
-await send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }).catch(() => {});
+await send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' }).catch(() => {}); // silent-ok: best-effort storage clear; a locked DB must not kill the gate
 const loaded = onEvent('Page.loadEventFired');
 await send('Page.navigate', { url: `${BASE}/app.html` });
 await loaded;
@@ -182,7 +182,7 @@ await sleep(5000);
 // request-stream independence
 const flagged = requests.filter((u) => {
   let path = u; let host = '';
-  try { const parsed = new URL(u); path = parsed.pathname + parsed.search; host = parsed.host; } catch {}
+  try { const parsed = new URL(u); path = parsed.pathname + parsed.search; host = parsed.host; } catch {} // silent-ok: unparseable URL stays raw and is matched as-is below
   return /regtest|bcrt1/i.test(u) || host.includes('rpc-regtest')
     || path === '/rpc' || path.startsWith('/rpc?') || path.startsWith('/rpc/')
     || path === '/health' || path.startsWith('/health?') || path.startsWith('/tachi_');
