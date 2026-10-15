@@ -202,12 +202,17 @@ the mnemonic against regtest.
 The verified environment is:
 
 ```text
-Network:      tachi-regtest-1
-Daemon:       https://rpc-regtest.tachibtc.com
-WebSocket:    wss://rpc-regtest.tachibtc.com/tachi_ws
-Faucet:       https://faucet.tachibtc.com
-Explorer:     https://regtest.tachibtcscan.com
-Quorum:       5 of 7 validators
+Regtest:      Network tachi-regtest-1
+              Daemon https://rpc-regtest.tachibtc.com
+              WebSocket wss://rpc-regtest.tachibtc.com/tachi_ws
+              Faucet https://faucet.tachibtc.com/regtest (anonymous, 0.5 BTC per address per rolling 24h)
+              Explorer https://regtest.tachibtcscan.com
+Signet:       Network tachi-signet-1
+              Daemon https://rpc-signet.tachibtc.com
+              WebSocket wss://rpc-signet.tachibtc.com/tachi_ws
+              Faucet https://faucet.tachibtc.com/signet (GitHub or X sign-in, 0.005 BTC per account per day)
+              Explorer https://signet.tachibtcscan.com
+Quorum:       5 of 7 validators (verified live on both networks)
 ```
 
 Pinned protocol dependencies:
