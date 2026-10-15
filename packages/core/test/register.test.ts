@@ -105,9 +105,12 @@ describe('register.ts', { timeout: 60000 }, () => {
   });
 
   // Env-gated live test – requires manual setup.
+  // Round 8A-2: this manual opt-in spends a live VTXO - on signet that
+  // additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
   const hasLiveFunds =
     process.env.RIPCORD_LIVE === '1' &&
-    Boolean(process.env.LIVE_FUNDING_TXID && process.env.LIVE_VTXO_ID);
+    Boolean(process.env.LIVE_FUNDING_TXID && process.env.LIVE_VTXO_ID) &&
+    (TEST_NETWORK !== 'signet' || process.env.TACHI_SIGNET_FUNDED === '1');
 
   it.skipIf(!hasLiveFunds)(
     'registers vault on live daemon when live funds are provided',

@@ -20,7 +20,7 @@ This package contains the protocol boundary used by RIPCORD, including key deriv
 | `./sentinel` `./exit-certificate` `./spend-conscience` **(subpath only)** | Watch-only vault health scoring, the exportable Exit Readiness Certificate, and the pure pre-send rule engine. Import via `@ripcord/core/sentinel`, `@ripcord/core/exit-certificate`, `@ripcord/core/spend-conscience` — not re-exported from the root. |
 | `./idle-timer` `./address-safety` `./units` | Injectable idle timer, address highlight and mangled-paste checks, sats/BTC formatting |
 
-The current release is **fully functional on Tachi regtest**. It is not production custody software and must not be used with funds that matter.
+The current release is **fully functional on Tachi regtest and Tachi signet**. It is not production custody software and must not be used with funds that matter.
 
 ## Install
 

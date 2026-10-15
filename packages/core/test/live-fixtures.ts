@@ -88,7 +88,15 @@ export async function withScanBusyRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      // Round 8A: inspect the error AND its actual/expected payload. Vitest's
+      // expect(...).rejects.toThrow(regex) TRUNCATES the received error in the
+      // AssertionError message ('could not verify the vault is unfunde...'),
+      // so matching only err.message missed the 'Scan already in progress'
+      // text sitting in err.actual and rethrew instead of retrying.
+      const raw = err as { message?: unknown; actual?: unknown; expected?: unknown; stack?: unknown };
+      const msg = [raw?.message, raw?.actual, raw?.expected, raw?.stack]
+        .map(part => (part instanceof Error ? `${part.name}: ${part.message}` : String(part ?? '')))
+        .join(' ');
       if (!/already in progress/i.test(msg)) throw err;
       await new Promise(resolve => setTimeout(resolve, 3_000));
     }

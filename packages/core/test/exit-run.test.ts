@@ -67,7 +67,9 @@ async function waitForConfirmations(
 
 // Mature broadcast needs two L1 confirmations. Regtest has no scheduled miner
 // (activity-driven). Set RIPCORD_LIVE_EXIT=1 when the chain is producing blocks.
-const LIVE_EXIT = process.env.RIPCORD_LIVE_EXIT === '1';
+// Round 8A-2: this manual opt-in broadcasts real L1 transactions - on signet
+// that additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
+const LIVE_EXIT = process.env.RIPCORD_LIVE_EXIT === '1' && (TEST_NETWORK !== 'signet' || process.env.TACHI_SIGNET_FUNDED === '1');
 
 describe('exit.ts Task 9.2: executeExit broadcast (live Bitcoin L1)', { timeout: 300000 }, () => {
   let quorum: Awaited<ReturnType<typeof getQuorum>>;

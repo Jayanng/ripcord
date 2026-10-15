@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { TEST_NETWORK, TEST_DAEMON } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, withScanBusyRetry } from './live-fixtures.js';
 import {
   deriveIdentity,
   getQuorum,
@@ -200,8 +200,13 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
     // infrastructure error (network/daemon failure) or a successful deposit
     // MUST fail this test - that is what the pinned class proves, where the
     // previous bare .rejects.toThrow() passed for any reason at all.
-    // The funding scan takes ~15s on signet (large UTXO set), hence the timeout.
-    it('refuses the deposit when the explicit input cannot cover amount plus fee', { timeout: 60_000 }, async () => {
+    // The funding scan takes ~15s on signet (large UTXO set). Round 8A-1: the
+    // shared bitcoind runs ONE scantxoutset at a time node-wide, so external
+    // scanners surface '-8: Scan already in progress' through the guard; the
+    // whole assertion retries on that one condition (120s budget) so the run is
+    // not red just because someone else's scan held the node.
+    it('refuses the deposit when the explicit input cannot cover amount plus fee', { timeout: 180_000 }, async () => {
+      await withScanBusyRetry(async () => {
       const smallInput: ExplicitSpendableInput = {
         txid: REAL_CAPTURED_TXID,
         vout: 0,
@@ -218,6 +223,7 @@ describe('Faucet-chaining pure logic & deposit validation', () => {
           explicitInput: smallInput,
         })
       ).rejects.toThrow(/already funded|Overspend detected|cannot cover|insufficient/i);
+      });
     });
   });
 

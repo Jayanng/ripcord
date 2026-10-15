@@ -7,7 +7,7 @@ import {
   verifyDepositProofOfReserves,
 } from '../src/index.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
-import { TEST_NETWORK, TEST_DAEMON, syncWalletWithScan, ensureFixtureFunds, withTransportRetry , FIXTURE_FAUCET_NOTE } from './live-fixtures.js';
+import { TEST_NETWORK, TEST_DAEMON, syncWalletWithScan, ensureFixtureFunds, withTransportRetry, withScanBusyRetry, FIXTURE_FAUCET_NOTE } from './live-fixtures.js';
 import * as vc from '@tachibtc/taurus-vault-core';
 
 const ALICE_MNEMONIC =
@@ -187,10 +187,12 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     // Live call THROUGH the redirected endpoint. Node has no CORS, so this
     // proves the config channel the browser fix depends on is real: if the SDK
     // read any other URL, this call would not follow our redirect.
-    const utxos = await withTransportRetry(
+    // Round 8A-1: getUtxos runs a scantxoutset; the shared node runs one at a
+    // time, so ride out external scanners instead of flaking red.
+    const utxos = await withScanBusyRetry(() => withTransportRetry(
       () => agg.getUtxos(TEST_NETWORK === 'signet' ? agg.SIGNET : agg.REGTEST, aliceIdentity.userAddress),
       { validate: (r: unknown) => { if (!Array.isArray(r)) throw new Error('getUtxos did not return an array'); } },
-    );
+    ));
     expect(Array.isArray(utxos)).toBe(true);
     // restore the SDK default for any later tests in this process
     useProxyAwareTaurusRpc(DAEMON, TEST_NETWORK);

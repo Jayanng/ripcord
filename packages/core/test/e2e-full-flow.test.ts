@@ -90,7 +90,9 @@ async function waitForTxConfirmation(
   throw new Error(`Transaction ${txid} did not confirm within timeout`);
 }
 
-describe.skipIf(!process.env.RIPCORD_LIVE)(
+// Round 8A-2: this manual opt-in still spends real funds - on signet that
+// additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
+describe.skipIf(!process.env.RIPCORD_LIVE || (TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1'))(
   'end-to-end full flow: deposit → onboard → register → recover',
   { timeout: FULL_LIFECYCLE_TIMEOUT_MS },
   () => {

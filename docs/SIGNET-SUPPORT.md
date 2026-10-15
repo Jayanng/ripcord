@@ -37,8 +37,12 @@ Regtest invariance (the hard constraint) is proven, not promised:
   `bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk`).
 - The production deployment `ripcord-wallet.vercel.app` keeps serving the
   regtest default untouched; signet ships as a separate deployment variant.
-- The full core suite passes green in every round (regtest 490 / 8 skipped /
-  0 failed; signet 450 / 48 skipped / 0 failed - runs of 2026-10-15).
+- The full core suite passes green (regtest reproduces exactly: 490 / 8
+  skipped / 0 failed. The signet run is 450 / 48 skipped / 0 failed when the
+  shared public node is quiet; when other users hold its one-at-a-time
+  scantxoutset lock, 1-2 tests historically flaked red on 'Scan already in
+  progress' - since round 8 the affected calls ride that condition out with a
+  bounded busy-retry, and every affected test passes in isolation).
 - The strict "signet is permanent" rule is enforced by two automated gates in
   `scripts/dom-sweep.mjs`: (1) a DOM sweep (text, placeholders, tooltips, links,
   metadata, tab title) that fails on any `regtest`/`bcrt1` string after the

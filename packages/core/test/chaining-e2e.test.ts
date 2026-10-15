@@ -59,7 +59,9 @@ async function requestFaucet(address: string): Promise<string> {
 // 20 minutes (1,200,000 ms) provides plenty of headroom for a single L1 wait.
 const SINGLE_WAIT_TIMEOUT_MS = 1_200_000;
 
-describe.skipIf(!process.env.RIPCORD_LIVE)(
+// Round 8A-2: this manual opt-in still spends real funds - on signet that
+// additionally requires the documented TACHI_SIGNET_FUNDED opt-in.
+describe.skipIf(!process.env.RIPCORD_LIVE || (TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1'))(
   '0-conf faucet chaining live end-to-end: faucet → chained deposit → single wait → mint → register',
   { timeout: SINGLE_WAIT_TIMEOUT_MS },
   () => {

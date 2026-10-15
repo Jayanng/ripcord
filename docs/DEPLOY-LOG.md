@@ -3,13 +3,19 @@
 ## 2026-10-15 (later) — Signet deployment: audit-fix line (current)
 
 - **URL:** https://ripcord-signet.vercel.app (alias of project `ripcord-wallet`)
-- **Deployment:** ripcord-wallet-me6pv7z2j (build id `vmv9a3fvm-26xpoq`, 2026-10-15)
+- **Deployment:** ripcord-wallet-p4xoiyv4l (round-8 build, 2026-10-15; supersedes
+  `ripcord-wallet-me6pv7z2j` / build `vmv9a3fvm-26xpoq`)
+- **`/docs` is stripped from the signet deployment** (404 there, verified): the
+  standalone docs page is regtest-era product copy; the in-app Docs link on
+  signet hosts points at the repo README instead. Production keeps its own
+  `/docs` (200, verified) as part of the pinned pre-signet build.
 - **Source:** branch `signet-support`; the deploy built from the working tree that
   became commit `8842b91` (round-6 fixes) and the final build above from the
   round-7 fix tree (see the commit that closes this entry).
 - **Production:** ripcord-wallet.vercel.app deliberately PINNED to the pre-signet
   build (build id `vmuufiwbi-gvj2e3`, 2026-10-05; different bundle, zero signet
-  strings). Current `main` is `18e27f8` (the earlier `9c6a065048` reference in
+  UI strings - the vendored network-table identifiers in the SDK code remain,
+  as they must). Current `main` is `18e27f8` (the earlier `9c6a065048` reference in
   the phase-3 entry is an ancestor; if production ever auto-tracks main it must
   stay pinned to the pre-signet build until the user decides otherwise).
 

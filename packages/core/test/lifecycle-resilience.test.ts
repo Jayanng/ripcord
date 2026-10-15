@@ -9,7 +9,7 @@ import {
   adoptVaultOnCode17,
   type VaultRecord,
 } from '../src/index.js';
-import { TEST_DAEMON, TEST_NETWORK, withTransportRetry } from './live-fixtures.js';
+import { TEST_DAEMON, TEST_NETWORK, withTransportRetry, withScanBusyRetry } from './live-fixtures.js';
 import { deriveVaultIdFromOutpoint } from '../src/register.js';
 
 const DAEMON_URL = TEST_DAEMON;
@@ -407,7 +407,7 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
 
   describe('Register-only mode (0 sats) never broadcasts', () => {
     // Pure error-contract test (virgin vault, no chain state): runs on any network.
-    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', async () => {
+    it('rejects with a clear message for an unfunded vault instead of broadcasting a new deposit', { timeout: 240_000 }, async () => {
       // Virgin identity vault: never funded on-chain. Register-only mode must
       // refuse to broadcast and say why (this is the direct-to-vault deposit
       // registration path used by the Receive screen).
@@ -421,16 +421,20 @@ describe('lifecycle resilience & non-blocking progression', { timeout: 120_000 }
       expect(virginVault.funding).toBeUndefined();
       expect(virginVault.vaultIdHex).toBeFalsy();
 
-      await expect(
-        fundVaultLifecycle({
-          vault: virginVault,
-          mnemonic: VIRGIN_MNEMONIC,
-          bitcoinRpcBaseUrl: `${DAEMON_URL}/`,
-          daemonBaseUrl: DAEMON_URL,
-          amountSats: 0n,
-          timeoutMs: 20_000,
-        }),
-      ).rejects.toThrow(/register-only mode/i);
+      // Round 8A-1: the guard's unfunded check runs a scantxoutset; ride out
+      // external scanners ('-8: Scan already in progress') instead of flaking.
+      await withScanBusyRetry(async () => {
+        await expect(
+          fundVaultLifecycle({
+            vault: virginVault,
+            mnemonic: VIRGIN_MNEMONIC,
+            bitcoinRpcBaseUrl: `${DAEMON_URL}/`,
+            daemonBaseUrl: DAEMON_URL,
+            amountSats: 0n,
+            timeoutMs: 20_000,
+          }),
+        ).rejects.toThrow(/register-only mode/i);
+      });
     });
   });
 

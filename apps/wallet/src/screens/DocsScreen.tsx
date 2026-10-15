@@ -6,7 +6,13 @@ import { useEffect } from 'react';
  */
 export function DocsScreen() {
   useEffect(() => {
-    window.location.replace('/docs' + (window.location.hash ? window.location.hash : ''));
+    // Round 8B-5: the standalone /docs page is regtest-era product docs and is
+    // NOT served on the signet deployment (the signet deploy strips it). Point
+    // signet-build visitors at the repo README, which documents both networks.
+    const isSignetHost = window.location.host.includes('ripcord-signet');
+    window.location.replace(isSignetHost
+      ? 'https://github.com/Jayanng/ripcord#readme'
+      : '/docs' + (window.location.hash ? window.location.hash : ''));
   }, []);
 
   return (

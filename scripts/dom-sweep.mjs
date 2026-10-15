@@ -49,7 +49,7 @@ const sweep = () => evaluate(`(() => {
   const all = [document.title || ''];
   if (document.body) all.push(document.body.innerText || '');
   for (const el of document.querySelectorAll('*')) for (const a of el.attributes || []) all.push(a.value || '');
-  return all.join(' \\\\n ');
+  return all.join(String.fromCharCode(10));
 })()`);
 
 await send('Page.enable');
@@ -119,8 +119,9 @@ await sleep(1200);
 // wrong across the template-literal boundary) and the verification counts what
 // actually landed in the challenge inputs - not the displayed text (the old
 // diagnostic printed a false green while the fill was a page-level syntax
-// error). Page code contains no backslashes at all: charCode checks and
-// String.fromCharCode(10) instead of \d / \n / \b.
+// error). The extraction page code has no backslash escapes at all (charCode
+// checks and String.fromCharCode(10) instead of escaped regex classes). This
+// exact class broke rounds 5 and 6 - never reintroduce escapes here.
 const fillStatus = await evaluate(`(() => {
   const txt = document.body.innerText;
   const tokens = txt.split(String.fromCharCode(10)).join(' ').split(' ');
