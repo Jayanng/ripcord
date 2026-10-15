@@ -1,5 +1,38 @@
 # Deployment Log
 
+## 2026-10-16 (activity polish) — Restored-wallet credit rows + spender scan fix
+
+- **Journal fix:** restored wallets now journal every historical credit as a
+  neutral `vtxo:credited` row ("Credited to your key · height N", VTXO explorer
+  link), mirroring the existing `vtxo:spent` rows. Root cause: receipts are
+  device-local and the daemon indexes no tx history by address
+  (`tachi_addressVtxos`/`tachi_vtxo` carry no credit-tx link), so a clean
+  device silently lost every received transfer from the journal. Double-listing
+  guard: credits covered by live tx-event outputs or receipts (same
+  (height, amount), multiset) are suppressed. VTXO labels stop claiming
+  "Deposit #N" for off-chain credits (classify by VTXO shape, not wallet
+  history). 10 new pure tests (RED->GREEN).
+- **Suite fix (pre-existing, chain-growth regression):** `findFundingSpender`
+  capped its backward block scan at 2,000 blocks, so a real historical exit
+  read as "not found" once the chain grew past the cap (fixture spender at
+  depth 2,012; controlled isolation on stashed code proved pre-existing).
+  Scans the full funding-height..tip span now, as documented. Suite:
+  500 passed / 8 skipped (508), twice, reproducible.
+- **Deployments:** production ripcord-wallet.vercel.app = git-based cloud build
+  at `b3102f3`. Signet variant is now its own project `ripcord-signet`
+  (prj_T5jJ4dXMCTMw77aaBnUzePlbebd8, static deploy of the docs-stripped build,
+  ssoProtection off) at ripcord-signet.vercel.app — replaces the alias-onto-
+  preview-deployment topology (which fought `vercel build`'s output-directory
+  resolution; the repo-root settings assume root-scoped builds). Matrix
+  re-verified: prod /docs 200 + /rpc regtest; signet /docs 404 + /signet/health
+  ok + /signet/rpc signet; fix marker "VTXO credited" in both bundles.
+- **Live proof (restored test wallet, clean device):** journal shows 2,454
+  credited rows including the received transfer at height 1,167,861; the same
+  credits previously rendered as nothing (and were labeled "Deposit #1").
+- Rollback (production): `vercel alias set ripcord-wallet-fro5vuhj3-jayanngs-projects.vercel.app ripcord-wallet.vercel.app`
+  is NOT valid for prod (that is a static variant build); production rollback
+  remains the cutover handle below or a git revert + redeploy.
+
 ## 2026-10-15 (faucet fallback) — 403 hand-off fix, both surfaces
 
 - **Change:** FaucetModal now falls back to the official-faucet hand-off when the
