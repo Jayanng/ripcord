@@ -1,5 +1,20 @@
 # Deployment Log
 
+## 2026-10-15 (cutover) — Production upgraded to the merged build (user-approved)
+
+- **Production:** ripcord-wallet.vercel.app -> ripcord-wallet-3kq25n8cw (build
+  `vmv9dvqv6-7yauy9`, from `main` @ merge `600032d`). The pre-signet pin is
+  released: production now serves network selection at create (both networks).
+- **ROLLBACK (one command):** `vercel alias set ripcord-wallet-iivplkwcb-jayanngs-projects.vercel.app ripcord-wallet.vercel.app`
+  (old pinned deployment, build `vmuufiwbi-gvj2e3`, Oct 5).
+- Verified after cutover: /docs 200 (docs kept on production), /rpc ->
+  `chain: regtest`, /signet/health 200, app shell 200. Legacy-wallet probe: a
+  seeded pre-selection regtest record opens the UnlockScreen immediately
+  (no setup gate, no network-choice screen) with regtest-scoped probes only —
+  existing wallets are unaffected by design (`networkOf` fail-safes records
+  without a stamp to regtest).
+- The only user-visible change: NEW wallets get the network-choice screen first.
+
 ## 2026-10-15 (later) — Signet deployment: audit-fix line (current)
 
 - **URL:** https://ripcord-signet.vercel.app (alias of project `ripcord-wallet`)
