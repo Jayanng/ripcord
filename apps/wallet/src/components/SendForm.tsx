@@ -350,7 +350,10 @@ function SendReviewModal({
               <strong className={safety.networkMatches ? 'safety-ok' : 'safety-warn'}>
                 {safety.networkMatches
                   ? `${networkLabel()} · matches this wallet`
-                  : `${safety.network === 'unknown' ? 'Unrecognized' : safety.network} · not this wallet's network`}
+                  // Round 7B-3: in a signet session the word 'regtest' must not
+                  // render anywhere (the user's hard rule), even to name the
+                  // foreign network of a pasted address. Neutral label there.
+                  : `${safety.network === 'unknown' ? 'Unrecognized' : (getActiveNetwork() === 'signet' && safety.network === 'regtest' ? 'Another network' : safety.network)} · not this wallet's network`}
               </strong>
               <span>Address type</span>
               <strong>{safety.addressType}</strong>

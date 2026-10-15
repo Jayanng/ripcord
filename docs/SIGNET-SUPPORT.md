@@ -37,7 +37,8 @@ Regtest invariance (the hard constraint) is proven, not promised:
   `bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk`).
 - The production deployment `ripcord-wallet.vercel.app` keeps serving the
   regtest default untouched; signet ships as a separate deployment variant.
-- The full core suite passes green in every round (485-491 passed, 0 failed).
+- The full core suite passes green in every round (regtest 490 / 8 skipped /
+  0 failed; signet 450 / 48 skipped / 0 failed - runs of 2026-10-15).
 - The strict "signet is permanent" rule is enforced by two automated gates in
   `scripts/dom-sweep.mjs`: (1) a DOM sweep (text, placeholders, tooltips, links,
   metadata, tab title) that fails on any `regtest`/`bcrt1` string after the
@@ -86,13 +87,14 @@ The app hands off to the official faucet, it does not wrap it:
 
 The live suite is parameterized: `TACHI_TEST_NETWORK=signet npm test` runs it
 against signet; the default run is regtest and is byte-identical to the
-previous release's suite (491 passed, 0 failed, verified after the change).
+previous release's suite (490 passed / 8 skipped / 0 failed, verified after the change).
 
-Verified runs (2026-10-15, final): the regtest suite passes **490+ / 0 failed**
-and the signet suite passes with only named, honest skips (regtest chain-state
-fixtures and sign-in-faucet money gates). Exact per-run counts vary with live
-fixture availability; every skip carries its reason in the run output. These
-numbers supersede any earlier count in older docs.
+Verified runs (2026-10-15, final): regtest **490 passed / 8 skipped / 0 failed**
+and signet **450 passed / 48 skipped / 0 failed**. Skips are named (regtest
+chain-state fixtures, sign-in-faucet money gates, fixture economics) and the
+fixture-economics skips print their reason in the run output; `skipIf` skips
+appear as counts in the summary. These numbers supersede any earlier count in
+older docs.
 
 - **Regtest run**: the full suite, including the frozen-constant tests (they
   pin the regtest invariance: fixed derivation values, fixture vault addresses,

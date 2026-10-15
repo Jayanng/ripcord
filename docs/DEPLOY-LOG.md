@@ -1,5 +1,23 @@
 # Deployment Log
 
+## 2026-10-15 (later) — Signet deployment: audit-fix line (current)
+
+- **URL:** https://ripcord-signet.vercel.app (alias of project `ripcord-wallet`)
+- **Deployment:** ripcord-wallet-me6pv7z2j (build id `vmv9a3fvm-26xpoq`, 2026-10-15)
+- **Source:** branch `signet-support`; the deploy built from the working tree that
+  became commit `8842b91` (round-6 fixes) and the final build above from the
+  round-7 fix tree (see the commit that closes this entry).
+- **Production:** ripcord-wallet.vercel.app deliberately PINNED to the pre-signet
+  build (build id `vmuufiwbi-gvj2e3`, 2026-10-05; different bundle, zero signet
+  strings). Current `main` is `18e27f8` (the earlier `9c6a065048` reference in
+  the phase-3 entry is an ancestor; if production ever auto-tracks main it must
+  stay pinned to the pre-signet build until the user decides otherwise).
+
+Shipped gate (2026-10-15, against this build): `node scripts/dom-sweep.mjs` ->
+GATE: PASS - journey exercised (12 words extracted, 3 challenge inputs filled,
+funding screen reached), every screen sweep clean (post-selection, funding,
+Wallet, Exit, Proofs, Activity, Send VTXO), zero regtest requests.
+
 ## 2026-10-15 — Phase 3: Signet deployment variant (preview)
 
 - **Variant URL:** https://ripcord-wallet-iqr0vnyo8-jayanngs-projects.vercel.app

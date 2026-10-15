@@ -9,6 +9,17 @@ import {
   toSdkVault,
 } from '../src/index.js';
 
+/** Thrown when live fixtures cannot be produced without spending scarce funds
+ *  the test is not opted in to spend, or without balance the wallet lacks.
+ *  Callers must degrade to an honest SKIP (round 7A-1/7A-3), never a hard red
+ *  and never a silent spend. */
+export class FixtureUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FixtureUnavailableError';
+  }
+}
+
 export interface ProofFixture {
   hash: string;
   epoch: number;
@@ -395,6 +406,15 @@ export async function getLiveProofFixtures(
   const ALICE_XONLY = 'e7ab2537b5d49e970309aae06e9e49f36ce1c9febbd44ec8e0d1cca0b4f9c319';
   const BOB_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
 
+  // Round 7A-1: this fallback SPENDS REAL FUNDS. On signet that requires the
+  // documented opt-in (the faucet needs human sign-in); without it, degrade to
+  // an honest skip instead of spending outside the money policy.
+  if (TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1') {
+    throw new FixtureUnavailableError(
+      'proof fixtures not in chain history; self-heal spends real funds and needs TACHI_SIGNET_FUNDED=1 on signet',
+    );
+  }
+
   while (validFixtures.length < count) {
     const alice = deriveIdentity(ALICE_MNEMONIC, TEST_NETWORK);
     const bob = deriveIdentity(BOB_MNEMONIC, TEST_NETWORK);
@@ -406,16 +426,29 @@ export async function getLiveProofFixtures(
       userKeyDescriptor: alice.userKeyDescriptor,
     });
 
-    const result = await withTransportRetry(() => sendTransfer({
-      vault: toSdkVault(aliceVault),
-      senderXOnly: ALICE_XONLY,
-      recipientAddress: bob.userAddress,
-      amountSats: 1000n,
-      feeSats: 1n,
-      baseUrl,
-      network: TEST_NETWORK,
-      userSigner: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0),
-    }));
+    let result: Awaited<ReturnType<typeof sendTransfer>>;
+    try {
+      result = await withTransportRetry(() => sendTransfer({
+        vault: toSdkVault(aliceVault),
+        senderXOnly: ALICE_XONLY,
+        recipientAddress: bob.userAddress,
+        amountSats: 1000n,
+        feeSats: 1n,
+        baseUrl,
+        network: TEST_NETWORK,
+        userSigner: makeSigner(ALICE_MNEMONIC, TEST_NETWORK, 0),
+      }));
+    } catch (err) {
+      // Round 7A-3: starved fixtures degrade to an honest skip (the fixture
+      // economics convention), not a beforeAll hard red.
+      const msg = String((err as Error)?.message ?? err);
+      if (/insufficient/i.test(msg)) {
+        throw new FixtureUnavailableError(
+          `fixture self-heal cannot fund a transfer (1000 + 1 fee): ${msg}`,
+        );
+      }
+      throw err;
+    }
 
     const hat = await withTransportRetry(() => fetchHat(result.txHash, { baseUrl }));
     const rip = await withTransportRetry(() => fetchRip(result.txHash, result.epoch, { baseUrl, window: 0 }));

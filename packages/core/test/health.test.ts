@@ -217,8 +217,10 @@ describe('observability endpoints (live daemon)', { timeout: 30000 }, () => {
   });
 
   it('getLockedVaultVtxos queries locked funds for a vault address', async () => {
-    // Real verified vault address on regtest
-    const vaultAddress = 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
+    // Real verified vault address per network (the frozen test constants)
+    const vaultAddress = TEST_NETWORK === 'signet'
+      ? 'tb1pwgarrepqhc3cjwccatgx9y0f0t0qh8jty5unewyfhwmwjh3dtnlqt0u7wz'
+      : 'bcrt1pmph2qqzxwk3a52x2ek2yj2k9qydm5kq9x795gxmpuumk2u3vcqnsjgfaqg';
     const locked = await getLockedVaultVtxos(vaultAddress, DAEMON);
     expect(Array.isArray(locked)).toBe(true);
   });

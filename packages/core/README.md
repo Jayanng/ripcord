@@ -1,6 +1,7 @@
 # @ripcord/core
 
-Verified TypeScript core library for Tachi/Taurus Bitcoin regtest wallet mechanics.
+Verified TypeScript core library for Tachi/Taurus Bitcoin wallet mechanics
+(Tachi regtest and Tachi signet; network-parameterized).
 
 ## Scope
 
@@ -69,9 +70,10 @@ The package exports the root API and focused subpaths for `types`, `bytes`, `net
 
 ## Verified environment
 
-- Network: `tachi-regtest-1`
-- Daemon: `https://rpc-regtest.tachibtc.com`
-- WebSocket indexer: `wss://rpc-regtest.tachibtc.com/tachi_ws`
+- Regtest: network `tachi-regtest-1`, daemon `https://rpc-regtest.tachibtc.com`,
+  WebSocket indexer `wss://rpc-regtest.tachibtc.com/tachi_ws`
+- Signet: network `tachi-signet-1`, daemon `https://rpc-signet.tachibtc.com`,
+  WebSocket indexer `wss://rpc-signet.tachibtc.com/tachi_ws`
 - Node.js: 22 or newer recommended
 
 ## Limitations
@@ -124,5 +126,5 @@ MIT. See the repository `LICENSE` file.
 - Issues: https://github.com/Jayanng/ripcord/issues
 - Tachi: https://tachibtc.com/
 
-RIPCORD is live on Tachi regtest. Review the repository's verified API and current test results before relying on any behavior.
+RIPCORD is live on Tachi regtest and Tachi signet. Review the repository's verified API and current test results before relying on any behavior.
 

@@ -134,7 +134,9 @@ describe('resume-deposit row is legitimate only before funding is known', () => 
 });
 
 describe('reconciliation against real daemon state (live, read-only)', () => {
-  it('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async (ctx) => {
+  // Round 7A-7: this is REGTEST chain history (the demo funding outpoint); on
+  // signet the outpoint never existed and the stated reason would be false.
+  it.skipIf(TEST_NETWORK !== 'regtest')('the demo wallet unspent note is unbacked because its funding is spent on L1', { timeout: 120_000 }, async (ctx) => {
     // 1. L1 truth: the funding outpoint was spent by the sovereign exit.
     const txoutRes = await fetch(BASE, {
       method: 'POST',

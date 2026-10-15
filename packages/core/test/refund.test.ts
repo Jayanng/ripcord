@@ -414,14 +414,15 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
     // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
     // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
     it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('assessRefund on a live deposit builds, verifies, signs, and leaves UTXO unspent', async (ctx) => {
-      const fixtureUtxos = (userWallet.utxos ?? []) as Array<{ valueSats?: bigint }>;
+      const fixtureUtxos = userWallet.utxos ?? [];
       const fixtureTotal = fixtureUtxos.reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
-      // Round 6A-10: the true requirement is the 40,000-sat deposit PLUS the
-      // first-attempt fee at 15 sat/vB (the ladder only retries on fee rejects,
-      // never on insufficient funds). Estimate the deposit tx at 120 vB base +
-      // ~40 vB per input; the old flat 40001 admitted fixtures that then failed.
-      const estimatedFeeSats = 15n * (120n + 40n * BigInt(fixtureUtxos.length || 1));
+      // Round 6A-10 / 7A-4: the true requirement is the 40,000-sat deposit PLUS
+      // the first-attempt fee at 15 sat/vB (the ladder only retries on fee
+      // rejects, never on insufficient funds). Real P2WPKH deposit tx is
+      // ~85 + 68 vB per input (round 7A-4 measured; the earlier 120+40n model
+      // under-counted inputs and admitted failing fixtures).
+      const estimatedFeeSats = 15n * (85n + 68n * BigInt(fixtureUtxos.length || 1));
       const neededSats = 40_000n + estimatedFeeSats;
       if (fixtureTotal < neededSats) {
         console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${neededSats} (40000 + ~${estimatedFeeSats} fee at 15 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
@@ -480,6 +481,14 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
           funding: { txid: dep.txid, vout: vout!.n, valueSats: dep.amountSats },
         };
       } else {
+        // Round 7A-5: this fallback is REGTEST chain history (a specific
+        // regtest outpoint and exact value asserted below). On signet there is
+        // no such fixture; an honest skip beats verifying the wrong chain.
+        if (TEST_NETWORK !== 'regtest') {
+          console.warn('[fixture] skipped: deposit unavailable and the fallback fixture is regtest chain history');
+          ctx.skip();
+          return;
+        }
         // Fallback to Alice confirmed unspent funded vault on L1
         expectedTxid = '3af5eca7259981bb3f64f134913ab331e390daa4a6e637871ba7d3d92e7ae111';
         expectedVout = 0;
@@ -507,7 +516,7 @@ describe('refund.ts: Phase 3 Cooperative Refund and to_local Recovery', { timeou
       expect(readiness.userValueSats).toBe(expectedValueSats - DEFAULT_REFUND_FEE_SATS);
       expect(readiness.feeSats).toBe(DEFAULT_REFUND_FEE_SATS);
       expect(readiness.dryRun).toBeDefined();
-      expect(readiness.dryRun!.toLocalAddress).toMatch(/^bcrt1p/);
+      expect(readiness.dryRun!.toLocalAddress).toMatch(TEST_NETWORK === 'signet' ? /^tb1p/ : /^bcrt1p/);
       expect(readiness.dryRun!.psbtBase64.length).toBeGreaterThan(0);
       expect(readiness.dryRun!.psbtHex.length).toBeGreaterThan(0);
 

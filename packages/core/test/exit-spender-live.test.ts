@@ -6,8 +6,9 @@
  *
  * These fixtures are REGTEST chain history, so the cases scope to the regtest
  * run like every other chain-state test in the suite (round 6A-4). When the
- * chain no longer carries a historical outpoint the case reports an honest
- * SKIP in the run output (never a bare-passing return): round 6A-2.
+ * chain no longer carries a historical outpoint: case 1 passes a structural
+ * null-check and SAYS SO in the run output; case 2 reports an honest SKIP.
+ * Neither is a bare-passing return (round 6A-2 / 7A-6).
  */
 import { describe, expect, it } from 'vitest';
 import { TEST_DAEMON, TEST_NETWORK } from './live-fixtures.js';

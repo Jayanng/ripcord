@@ -311,7 +311,7 @@ What the bounty asked for and where it lives:
 | Requirement | Where it lives | Evidence |
 |---|---|---|
 | Demo Video | YouTube walkthrough of the live wallet | <https://youtu.be/87bD1p2t4rc> |
-| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; 492 tests measured live against the regtest daemon (484 passing, 6 gated on environment or faucet conditions, 2 sensitive to live faucet/epoch state) |
+| TAURUS-based non-custodial wallet | The whole app, with TAURUS/Tachi mechanics behind the `@ripcord/core` boundary | `npm run check:rules`; the full suite runs live against both Tachi networks (2026-10-15: regtest 490 passed / 8 skipped / 0 failed, signet 450 passed / 48 skipped / 0 failed, all skips named with reasons in the run output) |
 | Create TAURUS/Tachi vaults | Create and Recover flows (Wallet tab) | Deterministic construction with the live 5-of-7 regtest quorum; fixture-address checks in the vault tests |
 | Onboard BTC into a vault | Two-step funding: L1 deposit then register (Wallet tab) | `deposit.test.ts`, `register.test.ts`, `lifecycle-*.test.ts`; exact funding-script proof-of-reserves binding |
 | Manage VTXOs | VTXO inventory card with spendable / locked / spent views | `coinselect.test.ts`, `indexer.test.ts`; live balance and ownership checks |

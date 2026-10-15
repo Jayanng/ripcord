@@ -33,11 +33,13 @@ listed in `SIGNET-SUPPORT.md` and reproducible from the public signet chain.
 
 - **Network selection precedes all key material.** A user opening the app picks
   Tachi regtest or Tachi Signet first; the choice is stamped on the identity and
-  every vault record. A wallet is permanently bound to its network: in a signet
-  session no regtest string, address, RPC path, or label appears anywhere in
-  the UI. Enforced by `scripts/dom-sweep.mjs`, an automated gate that sweeps
-  every screen (text, tooltips, links, metadata, tab title) and the request
-  stream of a live signet journey, and refuses hollow passes.
+  every vault record. A wallet is permanently bound to its network: after the
+  selection, no regtest string, address, RPC path, or label renders in any
+  screen the automated gate sweeps along the natural journey (text, tooltips,
+  links, metadata, tab title), and the pasted-address safety card names no
+  regtest label even for foreign addresses. Enforced by `scripts/dom-sweep.mjs`,
+  which sweeps every journey screen plus the request stream of a live signet
+  journey and refuses hollow passes.
 - **Regtest is untouched.** Signet support is a second layer on a separate
   branch and deployment; the regtest derivation output is byte-identical to the
   previous release and the regtest production deployment keeps serving as

@@ -55,10 +55,16 @@ describe('deposit.ts', { timeout: 120000 }, () => {
     // requires human GitHub/X sign-in), so it runs only with pre-funded fixtures
     // (TACHI_SIGNET_FUNDED=1). Regtest runs it as before.
     it.skipIf(TEST_NETWORK === 'signet' && process.env.TACHI_SIGNET_FUNDED !== '1')('deposits 40000 sats, returns valid txid/rawTxHex, and verifies proof of reserves', async (ctx) => {
-      const fixtureTotal = (userWallet.utxos ?? []).reduce(
+      const depFixtureUtxos = userWallet.utxos ?? [];
+      const fixtureTotal = depFixtureUtxos.reduce(
         (sum: bigint, u: { valueSats?: bigint }) => sum + BigInt(u.valueSats ?? 0), 0n);
-      if (fixtureTotal < 40_001n) {
-        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need 40001 - ${FIXTURE_FAUCET_NOTE}`);
+      // Round 7A-8: real deposit tx is ~85 + 68 vB per P2WPKH input; the first
+      // attempt runs at 10 sat/vB (the ladder retries only on fee rejects,
+      // never on insufficient funds). The old flat 40001/42000 admitted a
+      // failing window above 42000.
+      const needSats = 40_000n + 10n * (85n + 68n * BigInt(depFixtureUtxos.length || 1));
+      if (fixtureTotal < needSats) {
+        console.warn(`[fixture] skipped: ${fixtureTotal} sats in fixture wallet, need ${needSats} (40000 + first-attempt fee at 10 sat/vB) - ${FIXTURE_FAUCET_NOTE}`);
         ctx.skip();
         return;
       }
@@ -69,8 +75,8 @@ describe('deposit.ts', { timeout: 120000 }, () => {
       // short; if funds are still unavailable (24h per-address faucet limit,
       // waiting on a block) skip LOUDLY instead of failing - this test spends
       // scarce live resources (AGENTS.md skipIf rule).
-      const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, 42_000n);
-      if (funds.visibleSats < 42_000n) {
+      const funds = await ensureFixtureFunds(userWallet, `${DAEMON}/`, needSats);
+      if (funds.visibleSats < needSats) {
         console.warn(`[fixture] deposit.test skipped: ${funds.visibleSats} sats visible. ${funds.faucetMessage ?? ''} Re-run after the next block.`);
         ctx.skip(); // rules-allow(skip): conditional on live fixture funds after faucet attempt
         return;

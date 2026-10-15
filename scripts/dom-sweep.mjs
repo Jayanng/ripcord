@@ -115,31 +115,46 @@ if (!genOk) {
   console.log('BUTTONS AT GENERATE FAIL:', await evaluate(`JSON.stringify([...document.querySelectorAll('button')].map(b => b.textContent.trim().slice(0, 40) + (b.offsetParent ? '' : ' [hidden]') + (b.disabled ? ' [disabled]' : '')))`));
 }
 await sleep(1200);
-await evaluate(`(() => {
-  const txt = document.body.innerText;
-  const words = {};
-  const re = /\b(0[1-9]|1[0-2])\n([a-z]+)/g;
-  let m;
-  while ((m = re.exec(txt)) !== null) words[parseInt(m[1], 10)] = m[2];
-  for (const el of document.querySelectorAll('input')) {
-    const label = (el.closest('label')?.innerText || el.getAttribute('aria-label') || '').trim();
-    const m2 = label.match(/^WORD #(\d+)$/i);
-    if (!m2) continue;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    setter.call(el, words[parseInt(m2[1], 10)]);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-  return 'ok';
-})()`);
-await sleep(600);
+// Round 7B-1/7B-2: the extraction is REGEX-FREE (no backslash escapes to get
+// wrong across the template-literal boundary) and the verification counts what
+// actually landed in the challenge inputs - not the displayed text (the old
+// diagnostic printed a false green while the fill was a page-level syntax
+// error). Page code contains no backslashes at all: charCode checks and
+// String.fromCharCode(10) instead of \d / \n / \b.
 const fillStatus = await evaluate(`(() => {
   const txt = document.body.innerText;
-  const re2 = /\\b(0[1-9]|1[0-2])\\n([a-z]+)/g;
-  const found = (txt.match(re2) || []).length;
-  return 'phrase-tokens:' + found;
-})()`).catch(() => 'phrase-tokens:?');
+  const tokens = txt.split(String.fromCharCode(10)).join(' ').split(' ');
+  const words = {};
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const t = tokens[i].trim();
+    if (t.length === 2 && t[0] >= '0' && t[0] <= '9' && t[1] >= '0' && t[1] <= '9') {
+      const n = parseInt(t, 10);
+      const w = (tokens[i + 1] || '').trim();
+      if (n >= 1 && n <= 12 && w.length >= 3 && /^[a-z]+$/.test(w)) words[n] = w;
+    }
+  }
+  const extracted = Object.keys(words).length;
+  let filled = 0;
+  for (const el of document.querySelectorAll('input')) {
+    const label = (el.closest('label')?.innerText || el.getAttribute('aria-label') || '').trim();
+    if (label.indexOf('WORD #') !== 0) continue;
+    const n = parseInt(label.slice(6), 10);
+    if (!words[n]) continue;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(el, words[n]);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    filled++;
+  }
+  return 'extracted:' + extracted + ' filled:' + filled;
+})()`);
 console.log('backup fill:', fillStatus);
+if (typeof fillStatus !== 'string' || !/^extracted:1[0-2] filled:[1-9][0-9]*$/.test(fillStatus)) {
+  failures++;
+  console.log('FAIL: backup-word fill did not populate the challenge inputs (', fillStatus, ')');
+} else {
+  await sleep(600);
+}
 await clickWhen(
   `const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Create identity') && !b.disabled && b.offsetParent !== null); if (!b) return 'no'; b.click(); return 'clicked';`,
   'create identity', 25,
