@@ -4,6 +4,7 @@ import { makeSigner } from './keys.js';
 import { registerVault, isCode17VaultExists, adoptVaultOnCode17 } from './register.js';
 import { mapDaemonError } from './errors.js';
 import { joinDaemonUrl, describeDaemonFailure, enqueueScan, isScanBusyError } from './net.js';
+import { isOutputForXOnly } from './indexer.js';
 import type { VaultRecord } from './types.js';
 import { networkOf } from './networks.js';
 
@@ -635,12 +636,99 @@ export function alignSpentVtxoTimes<T>(items: readonly T[]): T[] {
   }
   return items.map((item, i) => {
     const row = rows[i];
-    if (row.kind !== 'vtxo:spent') return item;
+    // Both per-VTXO ledger rows (spent and credited) carry a block height but
+    // no wall clock; borrow the block's timestamp so they sort with their block.
+    if (row.kind !== 'vtxo:spent' && row.kind !== 'vtxo:credited') return item;
     const at = typeof row.height === 'number' ? timeByHeight.get(row.height) : undefined;
     return at !== undefined && row.receivedAt === undefined && row.createdAt === undefined
       ? ({ ...row, receivedAt: at } as T)
       : item;
   });
+}
+
+/** A neutral per-VTXO credit row for the activity journal. */
+export interface CreditedVtxoRow {
+  readonly kind: 'vtxo:credited';
+  readonly id: string;
+  readonly amountSats: bigint;
+  readonly height?: number;
+  readonly owner?: string;
+}
+
+/**
+ * Restored-wallet credit rows (activity polish 2026-10-16).
+ *
+ * The daemon indexes no tx history by address and exposes no VTXO->tx link
+ * (`tachi_addressVtxos`/`tachi_vtxo` return id/owner/amount/height only), so a
+ * wallet restored on a clean device cannot recover historical credit tx
+ * hashes and its journal silently lost every received transfer. The journal
+ * therefore derives neutral "VTXO credited" rows straight from VTXO history,
+ * keyed by VTXO id exactly like the existing `vtxo:spent` rows.
+ *
+ * Double-listing guard: a credit the live pipeline already journaled (a
+ * tx-event output to one of our keys, or a receipt credited to us) is
+ * suppressed by its (height, amount) — the same vtxo<->receipt link
+ * provenance.ts uses. Coverage is consumed as a MULTISET: two credits of the
+ * same amount in the same block leave exactly one row when only one is
+ * journaled. Pending events (height 0) and L1-layer rows (deposit rows carry
+ * neither epoch nor outputs) explain no history credit and are ignored.
+ */
+export function buildCreditedVtxoRows<T extends { id: string; amountSats: bigint; height?: number; owner?: string }>(
+  history: readonly T[],
+  existing: readonly {
+    kind?: string;
+    height?: number;
+    epoch?: number;
+    amountSats?: bigint;
+    fromXOnly?: string;
+    toXOnly?: string;
+    /** Credit outputs (tx events). NOTE: deposit rows use `vout` as a NUMERIC outpoint index. */
+    vout?: readonly { owner: string; amountSats: bigint }[] | number;
+  }[],
+  ownerKeys: readonly string[],
+): CreditedVtxoRow[] {
+  const keys = ownerKeys.map(key => key.toLowerCase());
+  const coverage = new Map<string, number>();
+  const addCoverage = (height: number, amount: bigint) => {
+    const key = `${height}:${amount}`;
+    coverage.set(key, (coverage.get(key) ?? 0) + 1);
+  };
+  for (const item of existing) {
+    if (Array.isArray(item.vout) && typeof item.height === 'number' && item.height > 0) {
+      for (const out of item.vout) {
+        if (keys.some(key => isOutputForXOnly(out.owner, key))) addCoverage(item.height, out.amountSats);
+      }
+      continue;
+    }
+    // Receipts: credits TO us (incoming or self) explain a history credit;
+    // receipts for sends TO OTHERS are debits and never do.
+    if (
+      typeof item.epoch === 'number' && item.epoch > 0 &&
+      typeof item.amountSats === 'bigint' &&
+      typeof item.toXOnly === 'string' &&
+      keys.some(key => item.toXOnly!.toLowerCase() === key)
+    ) {
+      addCoverage(item.epoch, item.amountSats);
+    }
+  }
+  const rows: CreditedVtxoRow[] = [];
+  for (const item of history) {
+    const height = typeof item.height === 'number' ? item.height : 0;
+    const key = `${height}:${item.amountSats}`;
+    const left = coverage.get(key) ?? 0;
+    if (left > 0) {
+      coverage.set(key, left - 1);
+      continue;
+    }
+    rows.push({
+      kind: 'vtxo:credited',
+      id: item.id,
+      amountSats: item.amountSats,
+      ...(typeof item.height === 'number' ? { height: item.height } : {}),
+      ...(item.owner ? { owner: item.owner } : {}),
+    });
+  }
+  return rows;
 }
 
 /**

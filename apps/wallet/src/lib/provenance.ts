@@ -109,16 +109,13 @@ export function deriveVtxoProvenance(
     // If an L1 anchor height is present, it is an on-chain deposit
     isDeposit = true;
   } else {
-    // Check if the VTXO was created before any incoming receipt was ever recorded
-    // or if the user has vaults but no incoming receipts
-    const hasIncomingReceipts = context.receipts.some(r => r.fromXOnly.toLowerCase() !== userXOnly);
-    if (!hasIncomingReceipts && sortedVaults.length > 0) {
-      // With no incoming receipts in wallet history, all funds descend from vault deposits
-      isDeposit = true;
-    } else {
-      // If amount looks like a typical peer transfer (e.g. 1000, 2000 sats), treat as received
-      isDeposit = false;
-    }
+    // No deposit shape and no L1 anchor: the credit came from an off-chain
+    // transfer. The pre-fix rule guessed "deposit" from wallet history ("no
+    // incoming receipts yet -> all funds descend from vault deposits"), which
+    // mislabeled every received transfer on a restored wallet, where receipts
+    // do not survive. Classify by the VTXO's own shape, not by what else the
+    // wallet has happened to see (activity polish 2026-10-16).
+    isDeposit = false;
   }
 
   if (isDeposit) {

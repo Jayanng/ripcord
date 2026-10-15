@@ -56,7 +56,21 @@ export interface VtxoSpentActivity {
   createdAt?: number;
 }
 
-export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity | ExitActivity | ConscienceActivity;
+/**
+ * Neutral per-VTXO credit row restored from history (the daemon indexes no
+ * credit txs by address, so restored wallets journal credits by VTXO id,
+ * exactly like vtxo:spent rows). Carries no sender claim and no fake tx hash.
+ */
+export interface VtxoCreditedActivity {
+  kind: 'vtxo:credited';
+  id: string;
+  amountSats: bigint;
+  height?: number;
+  owner?: string;
+  createdAt?: number;
+}
+
+export type ActivityItem = IndexerEvent | PaymentReceipt | VaultDepositActivity | FaucetActivity | VtxoSpentActivity | VtxoCreditedActivity | ExitActivity | ConscienceActivity;
 
 export function ActivityRow({
   item,
@@ -273,6 +287,41 @@ export function ActivityRow({
                 Explorer ↗
               </a>
             )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === 'vtxo:credited') {
+    return (
+      <article className="activity-row spent" style={{ opacity: 0.85 }}>
+        <div>
+          <div className="activity-title-group">
+            <strong style={{ color: 'var(--text-lo)' }}>+{formatSats(item.amountSats)}</strong>
+            <span className="activity-tag" style={{ background: '#F1F5F9', color: '#64748B' }}>VTXO credited</span>
+          </div>
+          <a
+            className="tx-link"
+            href={explorerVtxoUrl(item.id)}
+            target="_blank"
+            rel="noreferrer"
+            title={`View credited VTXO ${item.id} on the ${networkLabel()} explorer`}
+          >
+            {truncate(item.id, 14, 10)} ↗
+          </a>
+        </div>
+        <div>
+          <span>{item.height ? `Credited to your key · height ${item.height}` : 'Credited to your key'}</span>
+          <div className="activity-actions">
+            <a
+              className="explorer-btn"
+              href={explorerVtxoUrl(item.id)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Explorer ↗
+            </a>
           </div>
         </div>
       </article>

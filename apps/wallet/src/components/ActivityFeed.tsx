@@ -5,8 +5,8 @@ import { loadSpendLog } from '../lib/conscience';
 import { vaultRecordKey } from '../context/WalletContext';
 import type { PaymentReceipt } from '@ripcord/core/types';
 import { useActivity } from '../hooks/useActivity';
-import { alignSpentVtxoTimes, dedupeActivityByHash, shouldShowResumeDepositRow } from '@ripcord/core/lifecycle';
-import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type ExitActivity, type ConscienceActivity } from './ActivityRow';
+import { alignSpentVtxoTimes, buildCreditedVtxoRows, dedupeActivityByHash, shouldShowResumeDepositRow } from '@ripcord/core/lifecycle';
+import { ActivityRow, type ActivityItem, type VaultDepositActivity, type FaucetActivity, type VtxoSpentActivity, type VtxoCreditedActivity, type ExitActivity, type ConscienceActivity } from './ActivityRow';
 import { ProofSheet } from './ProofSheet';
 import { activitiesToCsv, activitiesToJson, downloadText, toExportable } from '../lib/activityExport';
 import { readSavedDepositTxid } from '../lib/depositResume';
@@ -23,7 +23,7 @@ function bucketOf(item: ActivityItem): Exclude<ActivityFilter, 'all'> {
   if ((item.kind === 'tx:pending' || item.kind === 'tx:committed') && 'type' in item) {
     return item.type === 'transfer' ? 'transfers' : 'deposits';
   }
-  return 'transfers'; // vtxo:spent and vault:breach are money movement
+  return 'transfers'; // vtxo:spent, vtxo:credited and vault:breach are money movement
 }
 
 /** Wall-clock timestamp where the item carries one; receipts carry none. */
@@ -41,7 +41,7 @@ function dayLabelOf(item: ActivityItem): string {
 }
 
 export function ActivityFeed() {
-  const { activity, receipts, indexerStatus, identity, activeVault, spentVtxos, vtxoSnapshotLoaded } = useActivity();
+  const { activity, receipts, indexerStatus, identity, activeVault, liveVtxos, spentVtxos, vtxoSnapshotLoaded } = useActivity();
   const [selected, setSelected] = useState<PaymentReceipt | null>(null);
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [search, setSearch] = useState('');
@@ -139,6 +139,18 @@ export function ActivityFeed() {
     owner: v.owner,
   }));
 
+  const ownerKeys = identity ? [identity.xOnly.toLowerCase(), identity.userKeyDescriptor.publicKey.toLowerCase()] : [];
+
+  // Restored-wallet credits (polish 2026-10-16): the daemon keeps no tx index
+  // by address, so credits that predate this device's receipts are journaled
+  // as neutral per-VTXO rows, suppressed wherever the live pipeline already
+  // journaled the same (height, amount) credit.
+  const creditedItems: VtxoCreditedActivity[] = buildCreditedVtxoRows(
+    [...(liveVtxos ?? []), ...(spentVtxos ?? [])],
+    [...activity, ...dedupedReceipts, ...dedupedOnChain],
+    ownerKeys,
+  ) as VtxoCreditedActivity[];
+
   // One hash, one row; spent VTXOs sort with their own block (activity fixes
   // 2026-10-03): pending rows collapse once committed, and spends stop
   // floating into the Undated bucket.
@@ -147,8 +159,8 @@ export function ActivityFeed() {
     ...dedupedReceipts,
     ...dedupedOnChain,
     ...spentItems,
+    ...creditedItems,
   ]) as ActivityItem[]);
-  const ownerKeys = identity ? [identity.xOnly.toLowerCase(), identity.userKeyDescriptor.publicKey.toLowerCase()] : [];
 
   // Phase 8 (#15): filter tabs + search over the evidence stream.
   const query = search.trim().toLowerCase();
@@ -261,8 +273,8 @@ export function ActivityFeed() {
               ? `receipt:${item.txHash.toLowerCase()}`
               : 'kind' in item && item.kind === 'block:new'
               ? `block:${item.height}:${item.receivedAt}`
-              : 'kind' in item && item.kind === 'vtxo:spent'
-              ? `spent:${item.id}`
+              : 'kind' in item && (item.kind === 'vtxo:spent' || item.kind === 'vtxo:credited')
+              ? `${item.kind === 'vtxo:spent' ? 'spent' : 'credited'}:${item.id}`
               : 'kind' in item && item.kind === 'vault:breach'
               ? `breach:${item.spendTxid}:${item.detectedHeight}`
               : 'kind' in item && 'txHash' in item

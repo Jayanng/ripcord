@@ -728,10 +728,15 @@ async function scanForSpender(
   // backward preference is unchanged. A wave costs ~2 round-trip latencies
   // regardless of its size (measured: 16 parallel RPCs = 314ms total vs
   // 270ms for ONE sequential RPC).
-  const maxScan = 2_000;
   const WAVE = 32;
   const heights: number[] = [];
-  for (let h = tip; h >= fundingHeight && tip - h <= maxScan; h--) heights.push(h);
+  // Full span funding-height..tip, as documented. An earlier 2,000-block cap
+  // silently truncated the window and read ancient-but-real spenders as "not
+  // found" (live suite went red on plain chain growth 2026-10-16: the user
+  // wallet fixture's spender sat 2,012 blocks down, 12 past the cap). Waves
+  // keep the deep scan cheap; callers that must not stall (the maturity
+  // poller) race their own budget and read the cache on later polls.
+  for (let h = tip; h >= fundingHeight; h--) heights.push(h);
   for (let i = 0; i < heights.length; i += WAVE) {
     const wave = heights.slice(i, i + WAVE);
     const found = await Promise.all(wave.map(async (h) => {
