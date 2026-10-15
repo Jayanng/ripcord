@@ -40,10 +40,12 @@ listed in `SIGNET-SUPPORT.md` and reproducible from the public signet chain.
   regtest label even for foreign addresses. Enforced by `scripts/dom-sweep.mjs`,
   which sweeps every journey screen plus the request stream of a live signet
   journey and refuses hollow passes.
-- **Regtest is untouched.** Signet support is a second layer on a separate
-  branch and deployment; the regtest derivation output is byte-identical to the
-  previous release and the regtest production deployment keeps serving as
-  before.
+- **Regtest is untouched.** Signet support is a second layer: the regtest
+  derivation output is byte-identical to the previous release (suite
+  invariance, verified), existing regtest wallets keep working as before
+  (records without a network stamp fail-safe to regtest), and the regtest
+  faucet/flow is unchanged. Production now serves both networks as a user
+  choice at create (2026-10-15 cutover).
 - **Proof before promise.** Exit certificates carry the raw transaction, the
   spent outpoint, the destination, amounts, fees, the block hash, and an
   explorer link at the top level, with the exit-leaf/control-block evidence in
@@ -52,7 +54,7 @@ listed in `SIGNET-SUPPORT.md` and reproducible from the public signet chain.
 
 ## Try it
 
-- Signet build: https://ripcord-signet.vercel.app
-- Regtest build (unchanged): https://ripcord-wallet.vercel.app
+- Signet-only build: https://ripcord-signet.vercel.app
+- Unified build (both networks, choice at create): https://ripcord-wallet.vercel.app
 - Faucet: https://faucet.tachibtc.com/signet (GitHub or X sign-in, 0.005 BTC
   per account per day)

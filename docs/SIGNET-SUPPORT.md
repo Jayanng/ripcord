@@ -35,8 +35,11 @@ Regtest invariance (the hard constraint) is proven, not promised:
 - Same phrase derives the same frozen regtest addresses byte-for-byte before and
   after every change (checked independently three times; the settlement value is
   `bcrt1q6rz28mcfaxtmd6v789l9rrlrusdprr9pz3cppk`).
-- The production deployment `ripcord-wallet.vercel.app` keeps serving the
-  regtest default untouched; signet ships as a separate deployment variant.
+- Since the 2026-10-15 cutover the production deployment
+  `ripcord-wallet.vercel.app` serves the network-selection build (both
+  networks; the user picks at create) and `ripcord-signet.vercel.app` remains
+  as the signet-only variant. Regtest DERIVATION and behavior are untouched
+  (byte-identical suite invariance).
 - The full core suite passes green (regtest reproduces exactly: 490 / 8
   skipped / 0 failed. The signet run is 450 / 48 skipped / 0 failed when the
   shared public node is quiet; when other users hold its one-at-a-time
@@ -117,10 +120,11 @@ older docs.
 ## Deployed variant
 
 - Signet-capable build (network selection at create): `https://ripcord-signet.vercel.app`
-- Regtest production (untouched): `https://ripcord-wallet.vercel.app`
+- Unified production (network selection at create, both networks): `https://ripcord-wallet.vercel.app`
 
-The signet deployment serves the network-selection build; the regtest
-production deployment is deliberately PINNED to the pre-signet build and keeps
-serving its regtest-only experience untouched. (If production ever auto-tracks
-main, it must stay pinned to the pre-signet build until the user decides
-otherwise.)
+Both deployments now serve the network-selection build (production cut over
+2026-10-15 on the user's approval; the signet-only variant remains for
+signet-only links). Existing wallets are unaffected by design: records without
+a network stamp fail-safe to regtest (`networkOf`), verified live with a
+seeded legacy record opening straight to the unlock screen. Rollback is one
+alias swap to the pinned pre-signet deployment (see docs/DEPLOY-LOG.md).
