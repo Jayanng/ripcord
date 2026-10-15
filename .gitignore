@@ -40,3 +40,4 @@ shipvideo-output*/
 
 # separate workstream (sats402 video), never part of ripcord
 sats402-video/
+.vercel

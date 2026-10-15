@@ -1,5 +1,34 @@
 # Deployment Log
 
+## 2026-10-15 (faucet fallback) — 403 hand-off fix, both surfaces
+
+- **Change:** FaucetModal now falls back to the official-faucet hand-off when the
+  claim POST fails. Root cause of the dead button (found by the new-user regtest
+  cycle): the claim routes through the same-origin rewrite to faucet.tachibtc.com
+  and that server-to-server hop hits the faucet's Cloudflare bot gate (403
+  "Just a moment"); a direct cross-origin page call is CORS-blocked ("Failed to
+  fetch"); a same-origin claim on the faucet site itself succeeds (verified:
+  regtest payouts `5a0ce046…` and `dec642eb…`, 0.5 BTC each). On any failed
+  request the modal shows the honest status plus Copy address and
+  "Open the {network} faucet" (`networkConfig(network).faucetUrl`).
+- **Verified live (functionally):** fresh-device journey to the modal, request
+  -> "Faucet HTTP 403" + fallback panel with
+  `https://faucet.tachibtc.com/regtest` link. Both surfaces serve the fix
+  (marker grepped in the deployed chunks).
+- **Deployments:** production ripcord-wallet.vercel.app -> deployment
+  `dpl_FtuqMHn6fYKuPGz8E91UdpoCyHYD` (build `vmv9ox7k5-bmnv2r`, with /docs);
+  signet variant ripcord-signet.vercel.app -> `ripcord-wallet-egppjjkkr` (build
+  `vmv9p2u8p-3vrk3f`, /docs stripped, preview target). Matrix re-verified:
+  prod /docs 200, signet /docs 404, /rpc `chain: regtest`, /signet/health ok.
+- **Deploy flow note:** the cloud build broke on a stale registry copy of
+  `@ripcord/core` ("no exported member networkConfig" etc.); local
+  `vercel pull && vercel build` passed, so the verified local output shipped
+  with `--prebuilt` (per vercel-deploy skill). The docs-stripped signet variant
+  is a separate preview-target build (production-target output cannot deploy as
+  preview — known --prebuilt mismatch).
+- Rollback (production): `vercel alias set ripcord-wallet-3kq25n8cw-jayanngs-projects.vercel.app ripcord-wallet.vercel.app`
+  (previous build `vmv9dvqv6-7yauy9`, the cutover build).
+
 ## 2026-10-15 (cutover) — Production upgraded to the merged build (user-approved)
 
 - **Production:** ripcord-wallet.vercel.app -> ripcord-wallet-3kq25n8cw (build

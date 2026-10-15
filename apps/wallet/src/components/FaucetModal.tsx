@@ -19,6 +19,12 @@ const keyFor = (address: string) => `ripcord:faucet:${address}`;
 // with body {address, amountBtc}; the old /api/faucet path answers 'unknown or
 // unconfigured chain'. Regtest claims are anonymous; SIGNET claims require
 // sign-in on the faucet site (Clerk), so the signet flow is a hand-off below.
+// Known limitation (verified 2026-10-15): the faucet sits behind a Cloudflare
+// bot gate, and the same-origin proxy hop (deployment rewrite -> faucet host)
+// is server-to-server, so the claim POST can be refused with 403 regardless of
+// browser. A direct cross-origin POST from the page is blocked by CORS, and a
+// same-origin claim made on the faucet site itself succeeds. On any failed
+// request the modal falls back to the official-faucet hand-off below.
 const FAUCET_URL = (import.meta.env.VITE_FAUCET_URL as string | undefined) || '/faucet/api/regtest/faucet';
 
 export function FaucetModal({ address, onClose, onConfirmed }: Props) {
@@ -282,6 +288,33 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
             <p role="status" className={state === 'error' ? 'inline-error' : state === 'confirmed' ? 'flow-note' : 'inline-note'}>
               {message}
             </p>
+          )}
+          {state === 'error' && (
+            <>
+              <p className="flow-note">
+                The direct request was refused by the faucet&apos;s web protection.
+                Claim on the official faucet site instead (anonymous on regtest):
+                send to your address below and Ripcord picks the funds up
+                automatically and continues setup.
+              </p>
+              <div className="mnemonic-actions">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => void navigator.clipboard?.writeText(address)}
+                >
+                  Copy address
+                </button>
+                <a
+                  className="test-pull"
+                  href={networkConfig(getActiveNetwork()).faucetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open the {networkLabel()} faucet ↗
+                </a>
+              </div>
+            </>
           )}
           {state === 'waiting' && (
             <button className="secondary-action" onClick={onClose}>
