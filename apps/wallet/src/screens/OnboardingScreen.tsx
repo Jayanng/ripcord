@@ -248,7 +248,7 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
     : flow === 'depositing'
     ? 'Preparing and broadcasting your vault deposit…'
     : flow === 'confirming-deposit'
-    ? `Your vault deposit is waiting for its block: ${depositConfirmations} of 1 confirmations so far. Mining takes ~5 to 10 min on ${networkLabel()}; the deposit and its faucet input confirm in the same block.`
+    ? `Your vault deposit is waiting for its block: ${depositConfirmations} of 1 confirmations so far.${getActiveNetwork() === 'signet' ? ' Signet blocks arrive irregularly; 20 to 30 minute gaps are normal. The deposit confirms in its own block.' : ` Mining takes ~5 to 10 min on ${networkLabel()}; the deposit and its faucet input confirm in the same block.`}`
     : flow === 'minting'
     ? 'Your deposit is confirmed. Creating your first spendable VTXO on Tachi.'
     : flow === 'registering'

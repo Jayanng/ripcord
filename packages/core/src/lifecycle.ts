@@ -441,13 +441,17 @@ async function findBroadcastVaultFunding(
   throw new Error('Resumed deposit lookup failed after retries');
 }
 
-async function waitForBitcoinConfirmation(
+/** Continuous "tx unknown" polls tolerated before declaring the deposit gone. */
+const MISSING_TX_POLL_LIMIT = 12;
+
+export async function waitForBitcoinConfirmation(
   baseUrl: string,
   txid: string,
   pollMs: number,
   onPoll?: (confirmations: number) => void,
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<void> {
+  let missingPolls = 0;
   for (;;) {
     try {
       const response = await fetchImpl(baseUrl, {
@@ -458,9 +462,28 @@ async function waitForBitcoinConfirmation(
       if (response.ok) {
         const payload = await response.json() as { result?: { confirmations?: number }; error?: { message?: string } };
         const confirmations = payload.result?.confirmations ?? 0;
-        onPoll?.(confirmations);
-        if (confirmations > 0) return;
-        if (payload.error && !/no such mempool|not found/i.test(payload.error.message ?? '')) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
+        const missing = Boolean(payload.error && /no such mempool|not found/i.test(payload.error.message ?? ''));
+        if (missing) {
+          // The tx is unknown to the node: briefly, that is a node blip, but a
+          // deposit still unknown after the grace window has been dropped.
+          // Waiting forever would hide that behind "0 of 1 confirmations"
+          // (live 2026-10-16: the user watched that screen for 18 minutes with
+          // no way to tell a slow block from a lost transaction). Fail honestly
+          // so the flow offers rebroadcast - findBroadcastVaultFunding treats a
+          // definitive "unknown" as safe to replace with a fresh deposit.
+          missingPolls += 1;
+          onPoll?.(0);
+          if (missingPolls >= MISSING_TX_POLL_LIMIT) {
+            throw new Error(
+              "The deposit is no longer in the node's mempool (it may have been dropped). Press Retry to rebroadcast.",
+            );
+          }
+        } else {
+          missingPolls = 0;
+          onPoll?.(confirmations);
+          if (confirmations > 0) return;
+          if (payload.error) throw new Error(payload.error.message ?? 'Bitcoin RPC lookup failed');
+        }
       } else if (![502, 503, 504, 429].includes(response.status)) {
         throw new Error(`Bitcoin RPC HTTP ${response.status}`);
       }
