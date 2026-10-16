@@ -58,6 +58,34 @@ export function isScanBusyError(message: string): boolean {
   return /already in progress/i.test(message);
 }
 
+/**
+ * Retry a call whose scantxoutset was refused by bitcoind's one-scan-at-a-time
+ * lock. The SDK's own scans throw through funding calls with
+ * "RPC scantxoutset failed: ... -8: Scan already in progress" whenever another
+ * scan holds the node (the shared public nodes serve every client, and the
+ * app's own poller scans too) — a transient refusal, never a defect.
+ *
+ * Fail closed: ONLY the busy refusal is retried; every other error rethrows on
+ * first sight. Bounded (default 24 attempts x 5s = 120s, the same budget the
+ * live-suite helper uses), then the last error is rethrown untouched.
+ */
+export async function withScanBusyRetry<T>(
+  task: () => Promise<T>,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<T> {
+  const attempts = options.attempts ?? 24;
+  const delayMs = options.delayMs ?? 5_000;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await task();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!isScanBusyError(message) || attempt >= attempts) throw err;
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export function joinDaemonUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }

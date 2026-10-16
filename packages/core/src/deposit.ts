@@ -9,6 +9,7 @@ import {
 import { DEFAULT_NETWORK, networkConfig, networkOf, type TachiNetwork } from './networks.js';
 
 import { RipcordError, RipcordCode } from './errors.js';
+import { withScanBusyRetry } from './net.js';
 import * as agg from '@tachibtc/taurus-wallet-aggregator';
 import * as vc from '@tachibtc/taurus-vault-core';
 import type { Utxo } from '@tachibtc/taurus-wallet-aggregator';
@@ -423,14 +424,16 @@ export async function depositFromMnemonic(params: DepositFromMnemonicParams): Pr
     await userWallet.sync();
   }
   const attempt = (amountSats: bigint) =>
-    depositToVault({
-      vault: params.vault,
-      userWallet,
-      rpc: params.rpc,
-      amountSats,
-      feeRateSatVb: params.feeRateSatVb,
-      explicitInput: params.explicitInput,
-    });
+    withScanBusyRetry(() =>
+      depositToVault({
+        vault: params.vault,
+        userWallet,
+        rpc: params.rpc,
+        amountSats,
+        feeRateSatVb: params.feeRateSatVb,
+        explicitInput: params.explicitInput,
+      }),
+    );
   try {
     return await attempt(params.amountSats);
   } catch (err) {

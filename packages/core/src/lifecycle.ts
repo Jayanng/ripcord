@@ -23,7 +23,14 @@ export function isDaemonSlowError(err: unknown): boolean {
  */
 const NETWORK_RETRY_NOTE = "The network didn't answer just now. Your progress is saved, try again in a moment.";
 
+const SCAN_BUSY_NOTE =
+  'The shared node is busy with another balance scan. Your progress is saved; try again in a moment.';
+
 export function composeFlowErrorMessage(err: unknown): string {
+  const rawMessage = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  if (isScanBusyError(rawMessage)) {
+    return SCAN_BUSY_NOTE;
+  }
   if (isDaemonSlowError(err)) {
     return DAEMON_SLOW_NOTE;
   }
