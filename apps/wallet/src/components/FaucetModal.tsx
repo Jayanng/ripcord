@@ -242,9 +242,12 @@ export function FaucetModal({ address, onClose, onConfirmed }: Props) {
                 below, and the funds arrive on Bitcoin signet.
               </p>
               <p className="flow-note">
-                When the payout confirms, come back and use &quot;Check and
-                register deposit&quot; to bind it to your vault. Blocks land
-                about every 10 minutes — you can close this panel and return later.
+                When the payout confirms, the app picks it up automatically and
+                runs the rest (vault deposit, mint, registration) without any
+                button press. You can close this panel and return later. If the
+                funds have confirmed but setup has not started, tap &quot;I
+                already have confirmed funds&quot;. Blocks land about every 10
+                minutes.
               </p>
               <code>{address}</code>
               <div className="mnemonic-actions">

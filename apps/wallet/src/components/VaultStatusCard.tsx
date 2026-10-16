@@ -247,7 +247,7 @@ export function VaultStatusCard() {
   const fundingSteps = [
     { label: 'Faucet funds broadcast', done: Boolean(pendingFaucetTxid) || isDepositBroadcast || flow !== 'ready' || vaultReady },
     { label: 'Vault deposit broadcast', done: isDepositBroadcast || ['confirming-deposit', 'minting', 'registering', 'complete'].includes(flow) || vaultReady },
-    { label: 'Faucet confirmed on L1 (same block as the deposit)', done: isDepositConfirmed },
+    { label: getActiveNetwork() === 'signet' ? 'Faucet confirmed on L1' : 'Faucet confirmed on L1 (same block as the deposit)', done: isDepositConfirmed },
     { label: 'Deposit confirmed on L1', done: isDepositConfirmed },
     { label: 'Spendable VTXO minted', done: ['registering', 'complete'].includes(flow) || vaultReady },
     { label: 'Vault registered', done: flow === 'complete' || vaultReady },
