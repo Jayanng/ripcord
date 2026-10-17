@@ -147,7 +147,7 @@
               <span>V0.2.1</span>
             </a>
             <span class="pocket-eyebrow-sep">·</span>
-            <span class="pocket-network-pill">TACHI REGTEST</span>
+            <span class="pocket-network-pill">TACHI REGTEST + SIGNET</span>
             <span class="pocket-eyebrow-sep">·</span>
             <a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" class="pocket-github-badge">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -751,9 +751,9 @@ const NUMS_INTERNAL_KEY = '50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfe
           <dl class="docs-facts">
             <div><dt>1. Ephemeral Signing</dt><dd>BIP-39 mnemonic seeds and private keys are never written to storage. Only public metadata is stored in IndexedDB.</dd></div>
             <div><dt>2. Change Isolation</dt><dd>Payment change always returns to the sender's own user key descriptor, never into the shared vault pool script.</dd></div>
-            <div><dt>3. Zero Mocks</dt><dd>Every balance, confirmation, proof check, and exit assessment is executed against live Tachi regtest and Bitcoin RPC outputs.</dd></div>
+            <div><dt>3. Zero Mocks</dt><dd>Every balance, confirmation, proof check, and exit assessment is executed against live Tachi regtest or Tachi signet and Bitcoin RPC outputs.</dd></div>
             <div><dt>4. Script Binding</dt><dd>Funding outputs are verified against Bitcoin RPC via exact scriptPubKey matching. No unverified deposit is reported as confirmed.</dd></div>
-            <div><dt>5. Scope Transparency</dt><dd>RIPCORD targets OP_FREEDOM Bounty #1 on Tachi regtest. There are no false claims of mainnet support; regtest is a deliberate, honest verification boundary.</dd></div>
+            <div><dt>5. Scope Transparency</dt><dd>RIPCORD targets OP_FREEDOM Bounty #1 on Tachi. Verification runs against live Tachi regtest and Tachi signet. Regtest is the default network and stays as it is; signet is fully supported and, once selected, the whole flow stays signet. There are no false claims of mainnet support.</dd></div>
           </dl>
         </article>
 
@@ -904,7 +904,7 @@ console.log('TxHash:', receipt.txHash);</code></pre>
             <div class="pocket-callout-body">
               <h4 class="pocket-callout-title">Bounty Scope &amp; Verification Boundary</h4>
               <p style="margin: 0;">
-                <strong>Live on Tachi Regtest Today:</strong> Sovereign identity derivation, deterministic 5-of-7 TAURUS vault construction, L1 funding verification, off-chain VTXO transfers, inclusion receipts, and BIP68 unilateral exits.<br>
+                <strong>Live on Tachi Today (regtest and signet):</strong> Sovereign identity derivation, deterministic 5-of-7 TAURUS vault construction, L1 funding verification, off-chain VTXO transfers, inclusion receipts, and BIP68 unilateral exits.<br>
                 <strong>Phase 2 Grant Scope:</strong> Turing-complete SatVM contract execution. <code>@ripcord/core/types</code> provides the forward-compatible TypeScript types (<code>SatVmCallParams</code>, <code>SatVmExecutionReceipt</code>) and architectural specification so downstream applications can prepare for contract state evaluation without breaking changes.
                 <br /><br />
                 <strong>Availability, verified 2026-10-02:</strong> the public Tachi regtest daemon exposes no SatVM execution endpoint (checked against the daemon RPC specification, the npm registry, the developer docs, and the Tachi GitHub organization). Nothing on this page executes against a contract engine today: RIPCORD ships the integration surface and waits for the engine rather than simulating one. Phase 2 begins when Tachi opens a SatVM testnet.
@@ -951,14 +951,14 @@ const callParams: SatVmCallParams = {
         <article class="docs-doc" id="doc-specs">
           <p class="pocket-eyebrow">VERIFIED ENVIRONMENT</p>
           <h1 class="pocket-title">Network &amp; Daemon Specifications</h1>
-          <p class="pocket-lede">Authoritative live RPC endpoints, explorers, and protocol parameters for Tachi regtest.</p>
+          <p class="pocket-lede">Authoritative live RPC endpoints, explorers, and protocol parameters for Tachi regtest and Tachi signet.</p>
           <dl class="docs-facts">
-            <div><dt>Network</dt><dd>tachi-regtest-1</dd></div>
+            <div><dt>Network</dt><dd>tachi-regtest-1 (default) · tachi-signet-1 (fully supported)</dd></div>
             <div><dt>Consensus Quorum</dt><dd>5 of 7 validator threshold</dd></div>
-            <div><dt>Daemon REST RPC</dt><dd><a href="https://rpc-regtest.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://rpc-regtest.tachibtc.com</a></dd></div>
-            <div><dt>WebSocket Indexer</dt><dd><code>wss://rpc-regtest.tachibtc.com/tachi_ws</code></dd></div>
-            <div><dt>Bitcoin Faucet</dt><dd><a href="https://faucet.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://faucet.tachibtc.com</a></dd></div>
-            <div><dt>Block Explorer</dt><dd><a href="https://regtest.tachibtcscan.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://regtest.tachibtcscan.com</a></dd></div>
+            <div><dt>Daemon REST RPC</dt><dd><a href="https://rpc-regtest.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://rpc-regtest.tachibtc.com</a> · <a href="https://rpc-signet.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://rpc-signet.tachibtc.com</a></dd></div>
+            <div><dt>WebSocket Indexer</dt><dd><code>wss://rpc-regtest.tachibtc.com/tachi_ws</code> · <code>wss://rpc-signet.tachibtc.com/tachi_ws</code></dd></div>
+            <div><dt>Bitcoin Faucet</dt><dd><a href="https://faucet.tachibtc.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://faucet.tachibtc.com</a> · <a href="https://faucet.tachibtc.com/signet" target="_blank" rel="noreferrer" style="color: var(--primary);">https://faucet.tachibtc.com/signet</a></dd></div>
+            <div><dt>Block Explorer</dt><dd><a href="https://regtest.tachibtcscan.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://regtest.tachibtcscan.com</a> · <a href="https://signet.tachibtcscan.com" target="_blank" rel="noreferrer" style="color: var(--primary);">https://signet.tachibtcscan.com</a></dd></div>
             <div><dt>GitHub Repository</dt><dd><a href="https://github.com/Jayanng/ripcord" target="_blank" rel="noreferrer" style="color: var(--primary);">github.com/Jayanng/ripcord</a></dd></div>
             <div><dt>Core Package (npm)</dt><dd><a href="https://www.npmjs.com/package/@ripcord/core" target="_blank" rel="noreferrer" style="color: var(--primary);">npmjs.com/package/@ripcord/core (v0.2.1)</a></dd></div>
             <div><dt>GitHub Tag</dt><dd><a href="https://github.com/Jayanng/ripcord/tree/v0.2.1" target="_blank" rel="noreferrer" style="color: var(--primary);">Git tag v0.2.1</a></dd></div>
@@ -1003,7 +1003,7 @@ const callParams: SatVmCallParams = {
       </div>
       <div class="footer-network-note">
         <span class="footer-dot" aria-hidden="true"></span>
-        <span>Tachi Regtest Network · Built for OP_FREEDOM Bounty #1 · Keys never touch disk</span>
+        <span>Tachi Regtest + Signet · Built for OP_FREEDOM Bounty #1 · Keys never touch disk</span>
       </div>
     </div>
   </footer>
