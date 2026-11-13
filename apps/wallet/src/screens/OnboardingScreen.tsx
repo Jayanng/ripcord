@@ -3,7 +3,7 @@ import { generateMnemonic } from 'bip39';
 import { useWallet } from '../context/WalletContext';
 import { FaucetModal } from '../components/FaucetModal';
 import { readSavedDepositTxid, writeSavedDepositTxid, clearSavedDepositTxid } from '../lib/depositResume';
-import { truncate, L1Txid } from '../components/ui';
+import { truncate, L1Txid, explorerTxUrl } from '../components/ui';
 import { NetworkSelect } from '../components/NetworkSelect';
 import { getActiveNetwork, bitcoinRpcUrl, networkLabel } from '../lib/network-state';
 import type { TachiNetwork } from '@ripcord/core';
@@ -135,6 +135,15 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
           setDepositTxid(deposit.txid);
           setDepositConfirmations(0);
           writeSavedDepositTxid(activeVault, deposit.txid);
+          void import('../lib/toasts').then(({ pushToast }) =>
+            pushToast({
+              title: 'Vault deposit broadcast',
+              body: `${deposit.amountSats} sats into the vault. Track it on the explorer.`,
+              href: explorerTxUrl(deposit.txid),
+              hrefLabel: 'View transaction ↗',
+              tone: 'success',
+            }),
+          );
         },
       });
       setFlow('complete');
@@ -456,6 +465,15 @@ export function OnboardingScreen({ onEnterWallet }: { onEnterWallet?: () => void
         onClose={() => setFaucet(false)}
         onConfirmed={(_txid, explicitInput) => {
           setFaucet(false);
+          void import('../lib/toasts').then(({ pushToast }) =>
+            pushToast({
+              title: 'Faucet funds broadcast',
+              body: 'Test funds are on their way to your wallet.',
+              href: explorerTxUrl(_txid),
+              hrefLabel: 'View transaction ↗',
+              tone: 'success',
+            }),
+          );
           void completeFunding(explicitInput);
         }}
       />
