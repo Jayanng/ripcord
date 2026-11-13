@@ -11,29 +11,113 @@
     }
   ],
   "rewrites": [
-    { "source": "/health", "destination": "https://rpc-regtest.tachibtc.com/health" },
-    { "source": "/tachi_validators/:path*", "destination": "https://rpc-regtest.tachibtc.com/tachi_validators/:path*" },
-    { "source": "/:path(tachi_.*)", "destination": "https://rpc-regtest.tachibtc.com/:path" },
-    { "source": "/rpc", "destination": "https://rpc-regtest.tachibtc.com/" },
-    { "source": "/rpc/", "destination": "https://rpc-regtest.tachibtc.com/" },
-    { "source": "/rpc/:path*", "destination": "https://rpc-regtest.tachibtc.com/:path*" },
-    { "source": "/signet", "destination": "https://rpc-signet.tachibtc.com/" },
-    { "source": "/signet/", "destination": "https://rpc-signet.tachibtc.com/" },
-    { "source": "/signet/health", "destination": "https://rpc-signet.tachibtc.com/health" },
-    { "source": "/signet/tachi_validators/:path*", "destination": "https://rpc-signet.tachibtc.com/tachi_validators/:path*" },
-    { "source": "/signet/:path(tachi_.*)", "destination": "https://rpc-signet.tachibtc.com/:path" },
-    { "source": "/signet/rpc", "destination": "https://rpc-signet.tachibtc.com/" },
-    { "source": "/signet/rpc/", "destination": "https://rpc-signet.tachibtc.com/" },
-    { "source": "/signet/rpc/:path*", "destination": "https://rpc-signet.tachibtc.com/:path*" },
-    { "source": "/signet/:path*", "destination": "https://rpc-signet.tachibtc.com/:path*" },
-    { "source": "/faucet/", "destination": "https://faucet.tachibtc.com/" },
-    { "source": "/faucet/:path*", "destination": "https://faucet.tachibtc.com/:path*" },
-    { "source": "/landing", "destination": "/landing/index.html" },
-    { "source": "/landing/", "destination": "/landing/index.html" },
-    { "source": "/docs", "destination": "/docs/index.html" },
-    { "source": "/docs/", "destination": "/docs/index.html" },
-    { "source": "/app", "destination": "/app.html" },
-    { "source": "/app/", "destination": "/app.html" },
-    { "source": "/app/:path*", "destination": "/app.html" }
+    {
+      "source": "/health",
+      "destination": "https://rpc-regtest.tachibtc.com/health"
+    },
+    {
+      "source": "/tachi_validators/*path",
+      "destination": "https://rpc-regtest.tachibtc.com/tachi_validators/:path*"
+    },
+    {
+      "source": "/*tachiPath",
+      "has": [
+        {
+          "type": "path",
+          "key": "^/tachi_"
+        }
+      ],
+      "destination": "https://rpc-regtest.tachibtc.com/:tachiPath*"
+    },
+    {
+      "source": "/rpc",
+      "destination": "https://rpc-regtest.tachibtc.com/"
+    },
+    {
+      "source": "/rpc/",
+      "destination": "https://rpc-regtest.tachibtc.com/"
+    },
+    {
+      "source": "/rpc/*path",
+      "destination": "https://rpc-regtest.tachibtc.com/:path*"
+    },
+    {
+      "source": "/signet",
+      "destination": "https://rpc-signet.tachibtc.com/"
+    },
+    {
+      "source": "/signet/",
+      "destination": "https://rpc-signet.tachibtc.com/"
+    },
+    {
+      "source": "/signet/health",
+      "destination": "https://rpc-signet.tachibtc.com/health"
+    },
+    {
+      "source": "/signet/tachi_validators/*path",
+      "destination": "https://rpc-signet.tachibtc.com/tachi_validators/:path*"
+    },
+    {
+      "source": "/signet/*tachiPath",
+      "has": [
+        {
+          "type": "path",
+          "key": "^/signet/tachi_"
+        }
+      ],
+      "destination": "https://rpc-signet.tachibtc.com/:tachiPath*"
+    },
+    {
+      "source": "/signet/rpc",
+      "destination": "https://rpc-signet.tachibtc.com/"
+    },
+    {
+      "source": "/signet/rpc/",
+      "destination": "https://rpc-signet.tachibtc.com/"
+    },
+    {
+      "source": "/signet/rpc/*path",
+      "destination": "https://rpc-signet.tachibtc.com/:path*"
+    },
+    {
+      "source": "/signet/*path",
+      "destination": "https://rpc-signet.tachibtc.com/:path*"
+    },
+    {
+      "source": "/faucet/",
+      "destination": "https://faucet.tachibtc.com/"
+    },
+    {
+      "source": "/faucet/*path",
+      "destination": "https://faucet.tachibtc.com/:path*"
+    },
+    {
+      "source": "/landing",
+      "destination": "/landing/index.html"
+    },
+    {
+      "source": "/landing/",
+      "destination": "/landing/index.html"
+    },
+    {
+      "source": "/docs",
+      "destination": "/docs/index.html"
+    },
+    {
+      "source": "/docs/",
+      "destination": "/docs/index.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/app/",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/app/*path",
+      "destination": "/app.html"
+    }
   ]
 }
